@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -64,7 +63,7 @@ never used the shared FPM container.`,
 				}
 				return nil
 			}
-			if reason := nativeUnavailableOn(runtime.GOOS, runtime.GOARCH); mode == config.PHPRuntimeNative && reason != "" {
+			if reason := nativeUnavailableOn(platform.Current.NativePHPRuntime); mode == config.PHPRuntimeNative && reason != "" {
 				return errors.New(reason)
 			}
 			prev := cfg.PHPRuntimeMode()
@@ -386,15 +385,11 @@ func startNativeRuntime() {
 }
 
 // nativeUnavailableOn explains why this machine cannot run the native runtime,
-// or returns "" when it can. Builds are published for Apple silicon only: the
-// mount boundary costs the most there, and GitHub retires x86_64 macOS runners
-// in August 2027 anyway. An Intel Mac has no binary to fetch, which is a
-// different thing from one that has not been downloaded yet, so it needs
-// different words.
-func nativeUnavailableOn(goos, goarch string) string {
-	if goos != "darwin" {
-		return "the native runtime is macOS only; elsewhere your project already shares a filesystem with PHP"
+// or returns "" when it can. A platform with no builds is a different thing
+// from one whose build has not been downloaded yet, so it needs different words.
+func nativeUnavailableOn(available bool) string {
+	if !available {
+		return "the native runtime is macOS and Windows only; elsewhere your project already shares a filesystem with PHP"
 	}
-	_ = goarch // both macOS architectures have builds
 	return ""
 }

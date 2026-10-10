@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -5629,7 +5628,7 @@ func handleSettings(w http.ResponseWriter, _ *http.Request) {
 		WorkerExecMode:            mode,
 		PHPRuntime:                cfg.PHPRuntimeMode(),
 		PHPRuntimeSwitching:       config.RuntimeSwitchInProgress(),
-		PHPRuntimeApplies:         nativeRuntimeApplies(runtime.GOOS, runtime.GOARCH),
+		PHPRuntimeApplies:         platform.Current.NativePHPRuntime,
 		WorkerModeApplies:         platform.Current.WorkerModes,
 		IdleSuspendEnabled:        idleEnabled,
 		IdleSuspendTimeoutMinutes: idleMinutes,

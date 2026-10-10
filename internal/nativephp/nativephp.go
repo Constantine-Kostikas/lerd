@@ -227,27 +227,6 @@ func ShimDir(version string) string {
 	return filepath.Join(config.RunDir(), "native", version, "bin")
 }
 
-// EnsureShim points ShimDir's php at the native CLI, replacing a stale link so
-// a version switch or reinstall is picked up.
-func EnsureShim(version, cliBinary string) (string, error) {
-	dir := ShimDir(version)
-	config.GuardRealWrite(dir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	link := filepath.Join(dir, "php")
-	if current, err := os.Readlink(link); err == nil && current == cliBinary {
-		return dir, nil
-	}
-	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-	if err := os.Symlink(cliBinary, link); err != nil {
-		return "", err
-	}
-	return dir, nil
-}
-
 // Extensions reports what a version's native build carries, read from the
 // binary itself so it cannot drift from what is actually installed. The list
 // is the module names PHP prints, which callers should canonicalise before

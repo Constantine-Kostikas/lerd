@@ -50,7 +50,7 @@ func writeWorkerUnitFile(unitName, label, siteName, sitePath, phpVersion, comman
 	}); err != nil {
 		return false, err
 	}
-	if host {
+	if host || nativeSite(siteName) {
 		return writeWindowsHostWorkerUnit(unitName, label, siteName, sitePath, command, restart)
 	}
 	if schedule != "" {
@@ -75,6 +75,14 @@ func writeWorkerUnitFile(unitName, label, siteName, sitePath, phpVersion, comman
 	unit := buildWindowsExecWorkerUnit(unitName, label, siteName, sitePath, installedLerdExe(), podman.PodmanBin(), container, command, restart)
 	saveWorkerReap(unitName, workerReap{Container: container, Command: command, Dir: hostpath.ToVM(sitePath)})
 	return services.Mgr.WriteServiceUnitIfChanged(unitName, unit)
+}
+
+// nativeSite reports whether the native runtime serves the site, whose workers
+// then run on Windows too: php in the unit's PATH is lerd's php.cmd, which
+// runs the native build. A var so tests need no global config.
+var nativeSite = func(siteName string) bool {
+	site, err := config.FindSite(siteName)
+	return err == nil && site != nil && site.IsNative()
 }
 
 // writeWindowsHostWorkerUnit writes a host worker's unit: the command runs

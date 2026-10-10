@@ -41,13 +41,3 @@ func HostCommand(dir string, argv []string, extraEnv ...string) (*exec.Cmd, erro
 	c.Env = append(append(os.Environ(), "PATH="+path), extraEnv...)
 	return c, nil
 }
-
-func lookPathIn(name, pathList string) (string, error) {
-	for _, dir := range filepath.SplitList(pathList) {
-		p := filepath.Join(dir, name)
-		if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return p, nil
-		}
-	}
-	return "", fmt.Errorf("%s not found on the host PATH lerd uses (%s)", name, pathList)
-}
