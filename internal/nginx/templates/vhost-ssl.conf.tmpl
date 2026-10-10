@@ -64,12 +64,13 @@ server {
         fastcgi_connect_timeout 5s;
         fastcgi_read_timeout {{.RequestTimeout}}s;
         fastcgi_send_timeout {{.RequestTimeout}}s;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_FILENAME {{.ScriptFilename}};
         fastcgi_param HTTPS on;
         fastcgi_buffers 16 16k;
         fastcgi_buffer_size 32k;
         include fastcgi_params;
-{{if .FrontController}}        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+{{if .HostRoot}}        fastcgi_param DOCUMENT_ROOT {{.HostDocumentRoot}};
+{{end}}{{if .FrontController}}        fastcgi_split_path_info ^(.+\.php)(/.*)$;
         fastcgi_param PATH_INFO $fastcgi_path_info;
 {{end}}        fastcgi_param HTTP_HOST $real_forwarded_host;
         fastcgi_param SERVER_NAME $real_forwarded_host;
