@@ -16,7 +16,7 @@ func TestRemoveFnmBinary(t *testing.T) {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	fnm := filepath.Join(bin, "fnm")
+	fnm := filepath.Join(bin, config.ExeName("fnm"))
 	for _, f := range []string{fnm, fnm + ".version", filepath.Join(bin, "mkcert")} {
 		if err := os.WriteFile(f, []byte("x"), 0o755); err != nil {
 			t.Fatal(err)

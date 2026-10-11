@@ -87,8 +87,8 @@ func TestResolveWorkerCommand(t *testing.T) {
 }
 
 func TestWatcherNeedsPolling_WSLMntGate(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("macOS always polls regardless of path")
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("macOS always polls regardless of path, and the /mnt gate is for WSL, not native Windows")
 	}
 	// Force the WSL fast-path so the test exercises the /mnt gate, not the
 	// host's real environment.

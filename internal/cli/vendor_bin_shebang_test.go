@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/geodro/lerd/internal/config"
+	"github.com/geodro/lerd/internal/hostpath"
 )
 
 // writeVendorBin drops name into <dir>/vendor/bin with the given content and
@@ -88,7 +89,7 @@ func TestVendorBinExecArgs_NonPHPRunsBinaryDirectly(t *testing.T) {
 func TestVendorBinExecArgs_CarriesVendorBinOnPath(t *testing.T) {
 	dir := t.TempDir()
 	args := vendorBinExecArgs(dir, "lerd-php84-fpm", "vendor/bin/wp", nil, false)
-	want := filepath.Join(dir, "vendor", "bin")
+	want := hostpath.ToVM(filepath.Join(dir, "vendor", "bin"))
 	found := false
 	for i, a := range args {
 		if a == "--env" && i+1 < len(args) && strings.HasPrefix(args[i+1], "PATH=") {

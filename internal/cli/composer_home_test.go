@@ -26,7 +26,7 @@ func TestResolveComposerHome(t *testing.T) {
 		{"no XDG and nothing yet", nil, false, nil, legacy},
 		{"XDG in use and nothing yet", nil, true, nil, xdgDir},
 		{"an XDG_ variable counts as XDG", map[string]string{"XDG_RUNTIME_DIR": "/run/user/1000"}, false, []string{xdgDir}, xdgDir},
-		{"XDG_CONFIG_HOME moves the XDG dir", map[string]string{"XDG_CONFIG_HOME": "/cfg"}, false, []string{"/cfg/composer"}, "/cfg/composer"},
+		{"XDG_CONFIG_HOME moves the XDG dir", map[string]string{"XDG_CONFIG_HOME": "/cfg"}, false, []string{filepath.Join("/cfg", "composer")}, filepath.Join("/cfg", "composer")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

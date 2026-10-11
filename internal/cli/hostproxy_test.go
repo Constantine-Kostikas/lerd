@@ -168,8 +168,8 @@ func TestBuildHostProxyCommand_injectHostTrueExplicitInjects(t *testing.T) {
 // TestHostProxyBindAddr_usesGatewayIPWhenKnown pins finding #691: the dev server
 // binds the routable gateway IP, not all interfaces, so it is not exposed LAN-wide.
 func TestHostProxyBindAddr_usesGatewayIPWhenKnown(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("macOS reaches the host via gvproxy; bind stays all-interfaces")
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("macOS and Windows reach the host via gvproxy; bind stays all-interfaces")
 	}
 	pinHostGatewayBindIP(t, "10.89.0.1")
 	if got := hostProxyBindAddr(); got != "10.89.0.1" {

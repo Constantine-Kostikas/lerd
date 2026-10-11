@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/geodro/lerd/internal/config"
 )
 
 // stubOutdatedTools makes the host look like one where composer and mkcert are
@@ -18,7 +20,7 @@ func stubOutdatedTools(t *testing.T) {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"composer.phar", "mkcert"} {
+	for _, name := range []string{"composer.phar", config.ExeName("mkcert")} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}

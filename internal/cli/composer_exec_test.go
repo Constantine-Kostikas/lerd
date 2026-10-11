@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestSyncComposerGlobalBins_CreatesWrappers(t *testing.T) {
 	if !strings.Contains(bs, "/fake/lerd") {
 		t.Errorf("wrapper missing lerd path: %q", bs)
 	}
-	if !strings.Contains(bs, filepath.Join(sourceBin, "psysh")) {
+	if !strings.Contains(bs, strconv.Quote(filepath.Join(sourceBin, "psysh"))) {
 		t.Errorf("wrapper missing real bin path: %q", bs)
 	}
 	if !strings.Contains(bs, "php") {
@@ -114,7 +115,7 @@ func TestComposerGlobalBinDir_UsesXDG(t *testing.T) {
 func TestComposerGlobalBinDir_RespectsComposerHome(t *testing.T) {
 	t.Setenv("COMPOSER_HOME", "/custom/composer")
 	got := composerGlobalBinDir()
-	want := "/custom/composer/vendor/bin"
+	want := filepath.Join("/custom/composer", "vendor", "bin")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

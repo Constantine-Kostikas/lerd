@@ -300,7 +300,7 @@ func TestDetectImportSeed(t *testing.T) {
 		dir := t.TempDir()
 		writeSeedFile(t, dir, ".ddev/config.yaml", "name: d\nphp_version: \"8.3\"\n")
 		seed, ok := detectImportSeed(dir)
-		if !ok || seed.label != ".ddev/config.yaml" {
+		if !ok || seed.label != filepath.Join(".ddev", "config.yaml") {
 			t.Errorf("detectImportSeed = (%q, %v), want (.ddev/config.yaml, true)", seed.label, ok)
 		}
 	})

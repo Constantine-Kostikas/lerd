@@ -14,6 +14,7 @@ import (
 // the watcher's next inspect.
 func TestRegenerateLANQuadletsRefreshesContainerHosts(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
 	if err := config.SaveGlobal(&config.GlobalConfig{}); err != nil {
 		t.Fatalf("SaveGlobal: %v", err)
@@ -53,6 +54,7 @@ func (inactiveMgr) UnitStatus(string) (string, error) { return "inactive", nil }
 // not worth paying for.
 func TestRegenerateLANQuadletsSkipsHostsRefreshWhenNothingRestarts(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
 	if err := config.SaveGlobal(&config.GlobalConfig{}); err != nil {
 		t.Fatalf("SaveGlobal: %v", err)

@@ -5,9 +5,19 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// hostAbs makes a slash path absolute on the host OS, so the IDE paths below
+// read as absolute on Windows too, where they carry a drive.
+func hostAbs(p string) string {
+	if runtime.GOOS == "windows" {
+		return "C:" + filepath.FromSlash(p)
+	}
+	return p
+}
 
 func TestSplitPathArg(t *testing.T) {
 	tests := []struct {
@@ -17,15 +27,15 @@ func TestSplitPathArg(t *testing.T) {
 		wantPath   string
 		wantOK     bool
 	}{
-		{"bare absolute path", "/tmp/x.php", "", "/tmp/x.php", true},
-		{"long option value", "--config=/tmp/phpstan.neon", "--config=", "/tmp/phpstan.neon", true},
+		{"bare absolute path", hostAbs("/tmp/x.php"), "", hostAbs("/tmp/x.php"), true},
+		{"long option value", "--config=" + hostAbs("/tmp/phpstan.neon"), "--config=", hostAbs("/tmp/phpstan.neon"), true},
 		{"relative path", "src/File.php", "", "", false},
 		{"subcommand", "analyse", "", "", false},
 		{"bare flag", "-c", "", "", false},
 		{"long flag with no value", "--dry-run", "", "", false},
 		{"long option with a non-path value", "--format=json", "", "", false},
-		{"glued php -d never yields its value", "-derror_log=/tmp/x", "", "", false},
-		{"a bare key=value is not an option", "error_log=/tmp/x", "", "", false},
+		{"glued php -d never yields its value", "-derror_log=" + hostAbs("/tmp/x"), "", "", false},
+		{"a bare key=value is not an option", "error_log=" + hostAbs("/tmp/x"), "", "", false},
 		{"empty", "", "", "", false},
 	}
 	for _, tt := range tests {
@@ -42,7 +52,7 @@ func TestSplitPathArg(t *testing.T) {
 func TestStagePathArgIndexes(t *testing.T) {
 	// Everything under /tmp is unreachable inside the container; the project
 	// tree under /home is already mounted.
-	needsStaging := func(p string) bool { return strings.HasPrefix(p, "/tmp/") }
+	needsStaging := func(p string) bool { return strings.HasPrefix(p, hostAbs("/tmp/")) }
 
 	tests := []struct {
 		name      string
@@ -52,37 +62,37 @@ func TestStagePathArgIndexes(t *testing.T) {
 	}{
 		{
 			name:      "the file PhpStorm hands phpstan",
-			args:      []string{"/home/u/app/vendor/bin/phpstan", "analyse", "--error-format=json", "/tmp/ide/File.php"},
+			args:      []string{hostAbs("/home/u/app/vendor/bin/phpstan"), "analyse", "--error-format=json", hostAbs("/tmp/ide/File.php")},
 			scriptIdx: 0,
 			want:      []int{3},
 		},
 		{
 			name:      "a temp config alongside the temp file",
-			args:      []string{"/home/u/app/vendor/bin/php-cs-fixer", "fix", "--config=/tmp/ide/.php-cs-fixer.php", "/tmp/ide/File.php"},
+			args:      []string{hostAbs("/home/u/app/vendor/bin/php-cs-fixer"), "fix", "--config=" + hostAbs("/tmp/ide/.php-cs-fixer.php"), hostAbs("/tmp/ide/File.php")},
 			scriptIdx: 0,
 			want:      []int{2, 3},
 		},
 		{
 			name:      "a separate-value option value is a bare token",
-			args:      []string{"/home/u/app/vendor/bin/phpstan", "analyse", "-c", "/tmp/ide/phpstan.neon"},
+			args:      []string{hostAbs("/home/u/app/vendor/bin/phpstan"), "analyse", "-c", hostAbs("/tmp/ide/phpstan.neon")},
 			scriptIdx: 0,
 			want:      []int{3},
 		},
 		{
 			name:      "paths the container already sees are left alone",
-			args:      []string{"/home/u/app/vendor/bin/phpstan", "analyse", "/home/u/app/src"},
+			args:      []string{hostAbs("/home/u/app/vendor/bin/phpstan"), "analyse", hostAbs("/home/u/app/src")},
 			scriptIdx: 0,
 			want:      nil,
 		},
 		{
 			name:      "php's own options are never staged",
-			args:      []string{"-d", "error_log=/tmp/php.log", "/home/u/app/artisan", "migrate"},
+			args:      []string{"-d", "error_log=" + hostAbs("/tmp/php.log"), hostAbs("/home/u/app/artisan"), "migrate"},
 			scriptIdx: 2,
 			want:      nil,
 		},
 		{
 			name:      "the script operand belongs to the /dev/stdin rescue",
-			args:      []string{"/tmp/ide-phpinfo.php"},
+			args:      []string{hostAbs("/tmp/ide-phpinfo.php")},
 			scriptIdx: 0,
 			want:      nil,
 		},

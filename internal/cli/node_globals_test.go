@@ -10,10 +10,12 @@ import (
 	"github.com/geodro/lerd/internal/config"
 )
 
+// Windows treats the two spellings as one variable, so each test clears before
+// it sets.
 func TestUserNPMPrefixFromEnv(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("npm_config_prefix", "/opt/npm-globals")
 	t.Setenv("NPM_CONFIG_PREFIX", "")
+	t.Setenv("npm_config_prefix", "/opt/npm-globals")
 	if got := userNPMPrefix(); got != "/opt/npm-globals" {
 		t.Errorf("userNPMPrefix() = %q, want /opt/npm-globals", got)
 	}
@@ -27,7 +29,7 @@ func TestUserNPMPrefixFromEnv(t *testing.T) {
 
 func TestUserNPMPrefixFromNpmrc(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	t.Setenv("npm_config_prefix", "")
 	t.Setenv("NPM_CONFIG_PREFIX", "")
 
@@ -53,8 +55,8 @@ func TestNpmGlobalPrefixEnvRespectsUserPrefix(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, ".local", "share"))
-	t.Setenv("npm_config_prefix", "/opt/npm-globals")
 	t.Setenv("NPM_CONFIG_PREFIX", "")
+	t.Setenv("npm_config_prefix", "/opt/npm-globals")
 
 	env, lerdOwned := npmGlobalPrefixEnv()
 	if lerdOwned {

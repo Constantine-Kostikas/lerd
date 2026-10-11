@@ -36,11 +36,12 @@ func TestResolveSiteDoctorTarget_AcceptsSiteName(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	if err := config.AddSite(config.Site{Name: "myapp", Domains: []string{"myapp.test"}, Path: "/srv/myapp", PHPVersion: "8.4"}); err != nil {
+	sitePath := filepath.Join(dir, "myapp")
+	if err := config.AddSite(config.Site{Name: "myapp", Domains: []string{"myapp.test"}, Path: sitePath, PHPVersion: "8.4"}); err != nil {
 		t.Fatal(err)
 	}
 	path, _, _, err := resolveSiteDoctorTarget("myapp")
-	if err != nil || path != "/srv/myapp" {
+	if err != nil || path != sitePath {
 		t.Fatalf("site name target: path=%q err=%v", path, err)
 	}
 }

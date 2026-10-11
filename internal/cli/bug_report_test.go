@@ -9,7 +9,7 @@ import (
 )
 
 func TestScrubHomePath_replacesHome(t *testing.T) {
-	t.Setenv("HOME", "/home/testuser")
+	setTestHome(t, "/home/testuser")
 	t.Setenv("USER", "testuser")
 	t.Setenv("LOGNAME", "testuser")
 	in := "log line referencing /home/testuser/.config/lerd/config.yaml here"
