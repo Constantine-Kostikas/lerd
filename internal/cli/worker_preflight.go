@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -147,14 +148,15 @@ func requiredServiceFor(sitePath string, w config.FrameworkWorker) string {
 // dies on "No such file or directory", and is restarted every few seconds, so
 // the reason scrolls past in a log nobody is reading while the unit flaps. Only
 // a project-relative path is judged: a bare name is resolved through PATH, which
-// is not lerd's to second-guess, and an absolute one belongs to the host.
+// is not lerd's to second-guess, and an absolute one belongs to the host, or to
+// the container, where /usr/bin/node is absolute even when the host is Windows.
 func missingWorkerProgramMsg(workerName, sitePath string, w config.FrameworkWorker) string {
 	fields := strings.Fields(w.Command)
 	if len(fields) == 0 {
 		return ""
 	}
 	program := fields[0]
-	if filepath.IsAbs(program) || !strings.Contains(program, "/") {
+	if filepath.IsAbs(program) || path.IsAbs(program) || !strings.Contains(program, "/") {
 		return ""
 	}
 	if _, err := os.Stat(filepath.Join(sitePath, program)); err == nil {
