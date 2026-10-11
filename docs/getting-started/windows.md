@@ -113,6 +113,19 @@ Every file a request touches lives on that 9p share, and OPcache's default reval
 
 Template engines decide whether to recompile by comparing file times, so the Windows clock and the machine's have to agree. `lerd start` compares the two and warns when they are more than a minute apart; sync the Windows time when it does.
 
+### Windows Defender
+
+Defender scans a file the first time anything opens it, and a PHP request opens hundreds of them, so the first page after a `composer install`, or on a project lerd has not served yet, can take several seconds while Defender works through `vendor/`. It costs the same on both runtimes, because in a container the files are still opened on the Windows side, by `lerd p9-serve` on Hyper-V. Booting a fresh copy of a Laravel app took 3 to 8 seconds with Defender scanning it and about 0.4 seconds with the folder excluded.
+
+When you run `lerd park` or `lerd link` in a terminal and Defender's real-time protection is on, lerd asks whether to exclude that folder from scanning. Answering yes shows a UAC prompt and runs `Add-MpPreference -ExclusionPath` on it. Parking covers every project in the folder, so linking one of them does not ask again. lerd keeps your answer in `%LOCALAPPDATA%\lerd\defender-exclusions.json` and does not ask about that folder again, yes or no. Cancelling the UAC prompt is not counted as an answer. To add or remove an exclusion yourself, run this from an elevated PowerShell:
+
+```powershell
+Add-MpPreference -ExclusionPath 'C:\Users\you\Sites'
+Remove-MpPreference -ExclusionPath 'C:\Users\you\Sites'
+```
+
+A [Dev Drive](https://learn.microsoft.com/windows/dev-drive/) has the same effect without an exclusion: Defender scans files there without making the program wait.
+
 The DNS server reads the same `lerd.conf` a dnsmasq container would, so anything that rewrites that file keeps working. It answers `A` and `AAAA` for the configured TLD over UDP and TCP and refuses every other name, which is fine because the NRPT rule only sends `.test` queries to it.
 
 ## What is missing
