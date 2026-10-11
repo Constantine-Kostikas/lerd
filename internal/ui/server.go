@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -287,6 +288,10 @@ func Start(currentVersion string) error {
 	mux.HandleFunc("/api/sites/worktree-options", withCORS(handleSiteWorktreeOptions))
 	mux.HandleFunc("/api/sites/git-status", withCORS(handleSiteGitStatus))
 	mux.HandleFunc("/api/sites/worktree-add", withCORS(publishAfter(handleSiteWorktreeAdd, eventbus.KindSites)))
+	mux.HandleFunc("/api/sites/branch-plan", withCORS(handleSiteBranchPlan))
+	mux.HandleFunc("/api/sites/branch-switch", withCORS(publishAfter(handleSiteBranchSwitch, eventbus.KindSites)))
+	mux.HandleFunc("/api/sites/pull-plan", withCORS(handleSitePullPlan))
+	mux.HandleFunc("/api/sites/pull", withCORS(publishAfter(handleSitePull, eventbus.KindSites)))
 	mux.HandleFunc("/api/browse", withCORS(handleBrowse))
 	mux.HandleFunc("/api/runs", withCORS(publishAfter(handleRuns, eventbus.KindSites)))
 	mux.HandleFunc("/api/runs/", withCORS(handleRunStream))
@@ -300,6 +305,11 @@ func Start(currentVersion string) error {
 	mux.HandleFunc("/api/queries/route-timing", withCORS(handleRouteTiming))
 	mux.HandleFunc("/api/queries/optimize", withCORS(handleOptimize))
 	mux.HandleFunc("/api/dumps/stream", withCORS(handleDumpsStream))
+	mux.HandleFunc("/api/dumps/counts", withCORS(handleDumpsCounts))
+	mux.HandleFunc("/api/dumps/groups", withCORS(handleDumpsGroups))
+	mux.HandleFunc("/api/dumps/groups/rows", withCORS(handleDumpsGroupRows))
+	mux.HandleFunc("/api/dumps/facets", withCORS(handleDumpsFacets))
+	mux.HandleFunc("/api/dumps/event", withCORS(handleDumpsEvent))
 	mux.HandleFunc("/api/dumps/status", withCORS(handleDumpsStatus))
 	mux.HandleFunc("/api/dumps/clear", withCORS(handleDumpsClear))
 	mux.HandleFunc("/api/dumps/toggle", withCORS(publishAfter(handleDumpsToggle, eventbus.KindDumpsStatus)))
@@ -686,6 +696,27 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v) //nolint:errcheck
 }
 
+// writeJSONRevalidated is writeJSON for what rarely changes between loads: the
+// browser keeps its copy and asks whether it still holds, and gets an empty 304
+// when it does rather than the whole body again.
+func writeJSONRevalidated(w http.ResponseWriter, r *http.Request, v any) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sum := sha256.Sum256(b)
+	etag := `"` + hex.EncodeToString(sum[:8]) + `"`
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "no-cache")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
+}
+
 func mustJSON(v any) string {
 	b, _ := json.Marshal(v) //nolint:errcheck
 	return string(b)
@@ -881,6 +912,7 @@ func buildStatusJSON() ([]byte, error) { return []byte(mustJSON(buildStatus())),
 // the worktree's .lerd.yaml set them explicitly or it's inherited.
 type WorktreeResponse struct {
 	Branch              string `json:"branch"`
+	GitBranch           string `json:"git_branch,omitempty"`
 	Domain              string `json:"domain"`
 	Path                string `json:"path"`
 	PHPVersion          string `json:"php_version,omitempty"`
@@ -1204,6 +1236,7 @@ func buildSites() ([]SiteResponse, error) {
 			wtTunnel, _ := cli.TunnelStatus(e.Name, wt.Branch)
 			worktreeResponses = append(worktreeResponses, WorktreeResponse{
 				Branch:               wt.Branch,
+				GitBranch:            wt.GitBranch,
 				Domain:               wt.Domain,
 				Path:                 wt.Path,
 				PHPVersion:           wt.PHPVersion,
@@ -1997,7 +2030,7 @@ func handleServiceIcons(w http.ResponseWriter, r *http.Request) {
 	if icons == nil {
 		icons = map[string]string{}
 	}
-	writeJSON(w, icons)
+	writeJSONRevalidated(w, r, icons)
 }
 
 // handleFrameworkMarks returns the mark and brand colour of every framework
@@ -2014,7 +2047,7 @@ func handleFrameworkMarks(w http.ResponseWriter, r *http.Request) {
 	if marks == nil {
 		marks = map[string]config.FrameworkMark{}
 	}
-	writeJSON(w, marks)
+	writeJSONRevalidated(w, r, marks)
 }
 
 // handleWorkerMarks returns how each cached framework's workers ask to be
@@ -2027,7 +2060,7 @@ func handleWorkerMarks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSON(w, config.WorkerMarks())
+	writeJSONRevalidated(w, r, config.WorkerMarks())
 }
 
 // handleImageEstimate reports what a service or PHP operation would download,
@@ -3939,6 +3972,8 @@ type SiteActionResponse struct {
 	// the action: a PHP version clamped to the framework's range, or a target
 	// image that never built part of the declared extension set.
 	Warning string `json:"warning,omitempty"`
+	// Message is a success summary worth showing, like git's last line after a pull.
+	Message string `json:"message,omitempty"`
 }
 
 // handlePHPExtensions reports what a PHP version's image actually carries: its
@@ -4244,6 +4279,23 @@ func handleSiteAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, SiteActionResponse{OK: true})
+		return
+	case "git:fetch", "git:push":
+		dir := resolveSitePath(site, r.URL.Query().Get("branch"))
+		if dir == "" {
+			writeJSON(w, SiteActionResponse{Error: "unknown worktree branch"})
+			return
+		}
+		op := map[string]func(string) (string, error){
+			"git:fetch": gitpkg.Fetch, "git:push": gitpkg.Push,
+		}[action]
+		out, err := op(dir)
+		if err != nil {
+			writeJSON(w, SiteActionResponse{Error: err.Error()})
+			return
+		}
+		lines := strings.Split(out, "\n")
+		writeJSON(w, SiteActionResponse{OK: true, Message: strings.TrimSpace(lines[len(lines)-1])})
 		return
 	case "restart":
 		if err := cli.RestartSite(site.Name); err != nil {
@@ -6337,7 +6389,7 @@ func handleAppLogs(w http.ResponseWriter, r *http.Request) {
 			}
 			info, statErr := os.Stat(fullPath)
 			more := len(page) == maxEntries || (statErr == nil && info.Size() > applog.MaxReadBytes)
-			writeJSON(w, map[string]any{"entries": page, "more": more})
+			writeJSONRevalidated(w, r, map[string]any{"entries": page, "more": more})
 			return
 		}
 		all, err := applog.ParseFile(fullPath, format, 0)
@@ -6349,7 +6401,7 @@ func handleAppLogs(w http.ResponseWriter, r *http.Request) {
 		if tail, err := applog.ParseFile(fullPath, format, applog.MaxReadBytes); err == nil {
 			applog.MarkPastTail(page, offset, len(tail))
 		}
-		writeJSON(w, map[string]any{"entries": page, "more": more})
+		writeJSONRevalidated(w, r, map[string]any{"entries": page, "more": more})
 		return
 	}
 
@@ -6361,7 +6413,7 @@ func handleAppLogs(w http.ResponseWriter, r *http.Request) {
 	if entries == nil {
 		entries = []applog.LogEntry{}
 	}
-	writeJSON(w, map[string]any{"entries": entries})
+	writeJSONRevalidated(w, r, map[string]any{"entries": entries})
 }
 
 // handleBrowse returns a listing of directories for the file browser.
@@ -6608,6 +6660,8 @@ func handleSiteWorktreeOptions(w http.ResponseWriter, r *http.Request) {
 		branch = gitpkg.SanitizeBranch(raw)
 	}
 	localBranches, remoteBranches, currentBranch := worktreeBranchCandidates(site.Path)
+	// A new branch can start anywhere, including at a branch open in a worktree.
+	baseLocal, baseRemote := gitpkg.Branches(site.Path)
 	canMigrate := false
 	if _, statErr := os.Stat(filepath.Join(site.Path, "artisan")); statErr == nil {
 		canMigrate = true
@@ -6616,6 +6670,9 @@ func handleSiteWorktreeOptions(w http.ResponseWriter, r *http.Request) {
 		"local_branches":       localBranches,
 		"remote_branches":      remoteBranches,
 		"default_branch_label": currentBranch,
+		"branch_dates":         gitpkg.BranchDates(site.Path),
+		"base_local_branches":  baseLocal,
+		"base_remote_branches": baseRemote,
 		"build_options":        worktreeBuildOptions(site),
 		"build_default":        "auto",
 		"db_options":           worktreeDBOptions(site, branch),
@@ -6753,6 +6810,136 @@ func handleSiteWorktreeAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	done(map[string]any{"ok": true, "branch": branch, "domain": branch + "." + site.PrimaryDomain(), "warnings": warnings})
+}
+
+// handleSiteBranchPlan answers GET /api/sites/branch-plan?domain=&branch= with
+// what switching the main checkout to branch would call for.
+func handleSiteBranchPlan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	site, err := config.FindSiteByDomain(r.URL.Query().Get("domain"))
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+	plan, err := cli.PlanSiteBranch(site, strings.TrimSpace(r.URL.Query().Get("branch")))
+	if err != nil {
+		writeJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, plan)
+}
+
+// handleSiteBranchSwitch answers POST /api/sites/branch-switch?domain=&branch= plus
+// the chosen steps (composer, js, migrate, snapshot, restore, create, base), streaming
+// their output; the done event names any snapshot taken first.
+func handleSiteBranchSwitch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	site, err := config.FindSiteByDomain(q.Get("domain"))
+	if err != nil {
+		writeJSON(w, SiteActionResponse{Error: "site not found"})
+		return
+	}
+	branch := strings.TrimSpace(q.Get("branch"))
+	if branch == "" {
+		writeJSON(w, SiteActionResponse{Error: "branch is required"})
+		return
+	}
+	steps := branchStepsFrom(q)
+	steps.Restore = q.Get("restore")
+	steps.Create = q.Get("create") == "1"
+	steps.Base = strings.TrimSpace(q.Get("base"))
+	streamSteps(w, func(out io.Writer) (string, error) { return cli.SwitchSiteBranch(site, branch, steps, out) })
+}
+
+// handleSitePullPlan answers GET /api/sites/pull-plan?domain=&branch= with what
+// pulling the checkout (the main one, or the worktree on branch) would call for.
+func handleSitePullPlan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	site, err := config.FindSiteByDomain(r.URL.Query().Get("domain"))
+	if err != nil {
+		http.Error(w, "site not found", http.StatusNotFound)
+		return
+	}
+	dir := resolveSitePath(site, r.URL.Query().Get("branch"))
+	if dir == "" {
+		writeJSON(w, map[string]any{"error": "unknown worktree branch"})
+		return
+	}
+	plan, err := cli.PlanSitePull(site, dir)
+	if err != nil {
+		writeJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, plan)
+}
+
+// handleSitePull answers POST /api/sites/pull?domain=&branch=&from=&head=&target=
+// plus the chosen steps (composer, js, migrate, snapshot, isolate), streaming
+// their output like a switch. from and head are what the plan saw checked out,
+// target the upstream commit it reviewed.
+func handleSitePull(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	site, err := config.FindSiteByDomain(q.Get("domain"))
+	if err != nil {
+		writeJSON(w, SiteActionResponse{Error: "site not found"})
+		return
+	}
+	dir := resolveSitePath(site, q.Get("branch"))
+	if dir == "" {
+		writeJSON(w, SiteActionResponse{Error: "unknown worktree branch"})
+		return
+	}
+	steps := branchStepsFrom(q)
+	reviewed := cli.Reviewed{Branch: strings.TrimSpace(q.Get("from")), Head: strings.TrimSpace(q.Get("head")), Commit: strings.TrimSpace(q.Get("target"))}
+	streamSteps(w, func(out io.Writer) (string, error) { return cli.PullSite(site, dir, reviewed, steps, out) })
+}
+
+func branchStepsFrom(q url.Values) cli.BranchSteps {
+	return cli.BranchSteps{
+		Composer: q.Get("composer") == "1",
+		JS:       q.Get("js") == "1",
+		Migrate:  q.Get("migrate") == "1",
+		Snapshot: q.Get("snapshot") == "1",
+		Isolate:  q.Get("isolate") == "1",
+	}
+}
+
+// streamSteps streams run's output as server-sent events; the done event
+// names any snapshot taken first, so a failure can offer it back.
+func streamSteps(w http.ResponseWriter, run func(io.Writer) (string, error)) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	sw := &sseLineWriter{w: w, f: flusher}
+	snap, runErr := run(sw)
+	sw.flushTail()
+	payload := map[string]any{"ok": runErr == nil, "snapshot": snap}
+	if runErr != nil {
+		payload["error"] = runErr.Error()
+	}
+	fmt.Fprintf(w, "event: done\ndata: %s\n\n", mustJSON(payload))
+	flusher.Flush()
 }
 
 // syncLerdYAMLWorkersDelayed waits briefly for the worker unit to start, then syncs.

@@ -8,6 +8,8 @@
   import RemoteControlModal from './RemoteControlModal.svelte';
   import LANProgressModal from './LANProgressModal.svelte';
   import AddWorktreeModal from './AddWorktreeModal.svelte';
+  import SwitchBranchModal from './SwitchBranchModal.svelte';
+  import PullModal from './PullModal.svelte';
   import RemoveWorktreeModal from './RemoveWorktreeModal.svelte';
   import AddPhpModal from './AddPhpModal.svelte';
   import RebuildPhpModal from './RebuildPhpModal.svelte';
@@ -53,6 +55,10 @@
   <LANProgressModal />
 {:else if $modal.kind === 'worktreeAdd' && $modal.site}
   <AddWorktreeModal site={$modal.site} />
+{:else if $modal.kind === 'branchSwitch' && $modal.site}
+  <SwitchBranchModal site={$modal.site} />
+{:else if $modal.kind === 'gitPull' && $modal.pull}
+  <PullModal domain={$modal.pull.domain} branch={$modal.pull.branch} branchLabel={$modal.pull.label} onDone={$modal.onSuccess} />
 {:else if $modal.kind === 'worktreeRemove' && $modal.site && $modal.branch}
   <RemoveWorktreeModal site={$modal.site} branch={$modal.branch} />
 {:else if $modal.kind === 'phpAdd'}

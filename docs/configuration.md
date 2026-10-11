@@ -62,7 +62,7 @@ nginx:
                         # proxy and custom-container sites. A project's
                         # .lerd.yaml request_timeout overrides it per site.
 dns:
-  enabled: true          # whether lerd manages DNS (dnsmasq, .test, HTTPS). Asked
+  enabled: true          # whether lerd manages DNS (lerd-dns, .test, HTTPS). Asked
                          # once at first install, then flipped with lerd dns:enable
                          # / dns:disable, never re-prompted. dns:repair re-runs the
                          # setup to fix a broken but enabled resolver.
@@ -71,7 +71,7 @@ dns:
                          # "internal.example.com". An unusable value is refused
                          # and lerd serves .test instead, which lerd doctor
                          # reports rather than applying silently.
-  upstream:              # optional. Pins the upstream DNS servers dnsmasq
+  upstream:              # optional. Pins the upstream DNS servers lerd-dns
     - 192.168.100.129    # forwards non-.test queries to. Leave unset to
                          # auto-detect from the system resolver. Set this when
                          # auto-detection picks the wrong servers (e.g.
@@ -134,8 +134,8 @@ dumps:
                         # requires restarting the FPM container for the value to take
                         # effect (`systemctl --user restart lerd-php<ver>-fpm` or
                         # `lerd restart`).
-  buffer: 5000          # events lerd-ui keeps for the Debug window, about 4.5 KB each
-                        # (5,000 is some 22 MB). Kept between 3000 and 20000. Set with
+  buffer: 5000          # events lerd-ui keeps on disk for the Debug window, about 4.5 KB
+                        # each (5,000 is some 22 MB). Kept between 3000 and 20000. Set with
                         # `lerd dump buffer`, System → Debug → Settings or MCP
                         # `diag dumps_buffer`; a running lerd-ui resizes straight away.
 php:

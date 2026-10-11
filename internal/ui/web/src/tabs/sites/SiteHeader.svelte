@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import Badge from '$components/Badge.svelte';
+  import BackButton from '$components/BackButton.svelte';
+  import { isDesktop } from '$lib/media';
   import FrameworkMark from '$components/FrameworkMark.svelte';
   import { frameworkMarks } from '$stores/frameworkMarks';
   import {
@@ -29,6 +31,7 @@
     openGroupModal,
     openSiteUnlinkModal,
     openWorktreeAddModal,
+    openBranchSwitchModal,
     openWorktreeRemoveModal
   } from '$stores/modals';
   import Icon from '$components/Icon.svelte';
@@ -46,6 +49,7 @@
   import WorkspacePicker from './WorkspacePicker.svelte';
   import WorkspaceMenuItems from './WorkspaceMenuItems.svelte';
   import GitStatusBadge from '$components/GitStatusBadge.svelte';
+  import GitSync from '$components/GitSync.svelte';
   import BrowserLogsSiteToggle from '$components/BrowserLogsSiteToggle.svelte';
   import { debugCaptureEnabled } from '$stores/queries';
   import { loadGitStatus, checkoutFor, type GitCheckout } from '$lib/gitStatus';
@@ -121,16 +125,18 @@
   const activePathLabel = $derived(homeShorten(activePath, $status.home));
   const activeFrameworkLabel = $derived(activeWorktree?.framework_label || site.framework_label);
 
-  type TabEntry = { branch: string; domain: string; path: string; isMain: boolean };
+  type TabEntry = { branch: string; gitBranch: string; domain: string; path: string; isMain: boolean };
   const tabEntries = $derived.by<TabEntry[]>(() => {
     const main: TabEntry = {
       branch: site.branch || 'main',
+      gitBranch: site.branch || 'main',
       domain: site.domain,
       path: site.path || '',
       isMain: true
     };
     const wts: TabEntry[] = (site.worktrees || []).map((wt) => ({
       branch: wt.branch || '',
+      gitBranch: wt.git_branch || wt.branch || '',
       domain: wt.domain || '',
       path: wt.path || '',
       isMain: false
@@ -138,6 +144,9 @@
     return [main, ...wts];
   });
   const showWorktreeTabs = $derived(Boolean(site.branch) && !site.paused);
+  const activeEntry = $derived(
+    tabEntries.find((e) => (e.isMain ? activeWorktreeBranch === '' : e.branch === activeWorktreeBranch))
+  );
 
   // Git state changes outside lerd (an editor, a terminal), so it is polled while
   // the site is open and re-read when the window regains focus.
@@ -175,6 +184,13 @@
       })
       .catch(() => {});
   });
+  // Pull is fast-forward only, so a failure means git refused and its own words say why.
+  function refreshGit() {
+    const domain = site.domain;
+    loadGitStatus(domain)
+      .then((checkouts) => (gitLast = { domain, checkouts }))
+      .catch(() => {});
+  }
   let initingGit = $state(false);
   async function runInitGit() {
     initingGit = true;
@@ -332,6 +348,7 @@
   {#if showWorktreeTabs}
     <div class="flex items-center page-header">
       <div class="flex items-center gap-1 px-3 overflow-x-auto flex-1 min-w-0">
+      {#if !$isDesktop}<BackButton />{/if}
       {#each tabEntries as e (e.isMain ? '__main__' : e.branch)}
         {@const isActive = e.isMain ? activeWorktreeBranch === '' : e.branch === activeWorktreeBranch}
         {@const git = checkoutFor(gitCheckouts, e)}
@@ -343,7 +360,7 @@
           <button
             type="button"
             onclick={() => pickWorktree(e)}
-            use:tooltip={`${e.branch} · ${e.domain}`}
+            use:tooltip={`${e.gitBranch} · ${e.domain}`}
             class="flex items-center gap-1.5 pl-3 pr-3 py-2 text-xs min-w-0 {isActive
               ? 'text-gray-800 dark:text-gray-100 font-medium'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
@@ -392,6 +409,21 @@
                 <path d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          {:else if $accessMode.localControl}
+            <button
+              type="button"
+              onclick={(ev) => {
+                ev.stopPropagation();
+                openBranchSwitchModal(site);
+              }}
+              use:tooltip={m.sites_switchBranch()}
+              aria-label={m.sites_switchBranch()}
+              class="shrink-0 mr-1 w-4 h-4 flex items-center justify-center rounded-sm text-gray-400 hover:text-lerd-red hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <path d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
+              </svg>
+            </button>
           {/if}
         </div>
       {/each}
@@ -409,6 +441,20 @@
         </button>
       {/if}
       </div>
+      {#if activeEntry}
+        {@const git = checkoutFor(gitCheckouts, activeEntry)}
+        {#if (git?.upstream || git?.publishable) && $accessMode.localControl}
+          <div class="shrink-0 mr-3">
+            <GitSync
+              domain={site.domain}
+              branch={activeEntry.isMain ? '' : activeEntry.branch}
+              branchLabel={activeEntry.branch}
+              status={git}
+              onDone={refreshGit}
+            />
+          </div>
+        {/if}
+      {/if}
     </div>
   {:else if noRepo && !site.paused}
     <div class="flex items-center page-header px-3">
@@ -428,6 +474,7 @@
   {/if}
 
   <div class="p-3 flex items-center gap-3">
+    {#if !$isDesktop && !showWorktreeTabs}<BackButton />{/if}
     <div
       class="group flex-1 min-w-0 flex items-center gap-2 h-8 pl-3 pr-2 rounded-full border bg-gray-50 dark:bg-white/[0.03] transition-colors {site.paused
         ? 'border-gray-200 dark:border-lerd-border opacity-70'
