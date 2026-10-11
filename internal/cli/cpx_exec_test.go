@@ -23,7 +23,7 @@ func TestCpxBinPath_followsComposerHome(t *testing.T) {
 func TestCpxBinPath_honoursXDG(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("COMPOSER_HOME", "")
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
 
 	want := filepath.Join(home, "xdg", "composer", "vendor", "bin", "cpx")

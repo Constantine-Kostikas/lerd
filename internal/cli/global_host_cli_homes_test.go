@@ -43,7 +43,7 @@ func seedGlobalPackage(t *testing.T, composerHome, bin string) {
 // moving it to the host.
 func TestRunGlobalHostCLI_findsABinaryInTheLegacyComposerHome(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("COMPOSER_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

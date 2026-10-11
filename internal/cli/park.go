@@ -166,6 +166,7 @@ func runPark(_ *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	offerScanExclusion(absDir)
 
 	// Scan subdirectories
 	entries, err := os.ReadDir(absDir)

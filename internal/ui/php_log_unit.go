@@ -74,15 +74,6 @@ func nativeInstallRefusal(native bool, version string) error {
 	return fmt.Errorf("cannot install PHP %s under the native runtime: it needs a prebuilt native binary, not a container image. Switch with 'lerd php:runtime container' to install one", version)
 }
 
-// nativeRuntimeApplies reports whether this machine could use the native
-// runtime at all, which is what decides whether the dashboard offers the
-// toggle. Builds ship for both macOS architectures, so the platform is the
-// whole test; goarch is still taken so narrowing it stays a one-line change.
-func nativeRuntimeApplies(goos, goarch string) bool {
-	_ = goarch
-	return goos == "darwin"
-}
-
 // reportedRuntime is the runtime the dashboard sees for a site. The frontend
 // keys "does this site have a container" off it, and already treats "native" as
 // none; nothing ever set that, because native is an install-wide mode rather

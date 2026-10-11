@@ -45,24 +45,38 @@ static const char *lerd_asset(char *buf, size_t len, const char *name)
 #include "zend_constants.h"
 #include "SAPI.h"
 #include <time.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <errno.h>
+#ifdef PHP_WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <process.h>
+#include "lerd_devtools_win32.h"
+#else
+#include <unistd.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#endif
 
 /* ── transport ──────────────────────────────────────────────────────────── */
 
 /* lerd_send writes one NDJSON line to the configured socket and closes it.
  * Fire-and-forget with a 50ms connect budget; any error is swallowed so a
  * down or slow lerd-ui never disturbs the request. */
+#ifdef PHP_WIN32
+static void lerd_send(const char *line, size_t len)
+{
+	lerd_win32_send(LERD_G(host), line, len);
+}
+#else
 static void lerd_send(const char *line, size_t len)
 {
 	const char *host = LERD_G(host);
@@ -150,6 +164,7 @@ static void lerd_send(const char *line, size_t len)
 	}
 	close(fd);
 }
+#endif
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
 

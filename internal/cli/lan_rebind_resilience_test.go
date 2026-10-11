@@ -62,6 +62,7 @@ func writeServiceQuadlet(t *testing.T, name, ports string) {
 // their old LAN bind while every status surface claims loopback-only.
 func TestRegenerateLANQuadletsRestartsEveryUnitDespiteFailure(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
 	cfg := &config.GlobalConfig{}
 	cfg.LAN.Exposed = true
@@ -96,6 +97,7 @@ func TestRegenerateLANQuadletsRestartsEveryUnitDespiteFailure(t *testing.T) {
 // notice a container still bound to the LAN, and it must drive a restart.
 func TestRegenerateLANQuadletsHealsRuntimeDrift(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
 	cfg := &config.GlobalConfig{}
 	if err := config.SaveGlobal(cfg); err != nil {

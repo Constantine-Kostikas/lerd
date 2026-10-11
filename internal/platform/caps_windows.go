@@ -1,6 +1,7 @@
 package platform
 
 var Current = Caps{
-	Opener:        "explorer",
-	UsesMachineVM: true,
+	Opener:           "explorer",
+	UsesMachineVM:    true,
+	NativePHPRuntime: true,
 }

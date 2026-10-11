@@ -2,9 +2,9 @@ package config
 
 import "testing"
 
-// Pinned to darwin rather than the running platform: this is about what the
-// stored value means, and everywhere else the answer is container regardless,
-// which TestPHPRuntimeModeIsContainerOffDarwin covers.
+// Pinned to a platform with a native runtime: this is about what the stored
+// value means, and elsewhere the answer is container regardless, which
+// TestPHPRuntimeModeIsContainerWithoutANativeRuntime covers.
 func TestPHPRuntimeMode(t *testing.T) {
 	cases := []struct {
 		configured string
@@ -18,13 +18,13 @@ func TestPHPRuntimeMode(t *testing.T) {
 	for _, c := range cases {
 		cfg := &GlobalConfig{}
 		cfg.PHP.Runtime = c.configured
-		if got := cfg.phpRuntimeModeOn("darwin", "arm64"); got != c.want {
+		if got := cfg.phpRuntimeModeOn(true); got != c.want {
 			t.Errorf("PHPRuntimeMode(%q) = %q, want %q", c.configured, got, c.want)
 		}
 	}
 	// A nil config is an unconfigured install, which serves from containers.
 	var nilCfg *GlobalConfig
-	if got := nilCfg.phpRuntimeModeOn("darwin", "arm64"); got != PHPRuntimeContainer {
+	if got := nilCfg.phpRuntimeModeOn(true); got != PHPRuntimeContainer {
 		t.Errorf("nil config = %q, want %q", got, PHPRuntimeContainer)
 	}
 }
@@ -54,31 +54,19 @@ func TestSiteServedNatively(t *testing.T) {
 	}
 }
 
-// The native runtime is macOS only. Refusing to set it on Linux is not enough:
+// Linux has no native runtime. Refusing to set it there is not enough:
 // a config.yaml carrying runtime: native onto a Linux box (a synced home, a
 // copied dotfile) would stop its FPM containers and point every vhost at a host
 // listener that does not exist there. The mode is decided by the platform, not
 // only by what is stored.
-func TestPHPRuntimeModeIsContainerOffDarwin(t *testing.T) {
+func TestPHPRuntimeModeIsContainerWithoutANativeRuntime(t *testing.T) {
 	cfg := &GlobalConfig{}
 	cfg.PHP.Runtime = PHPRuntimeNative
 
-	if got := cfg.phpRuntimeModeOn("linux", "arm64"); got != PHPRuntimeContainer {
-		t.Errorf("linux = %q, want %q whatever the config says", got, PHPRuntimeContainer)
+	if got := cfg.phpRuntimeModeOn(false); got != PHPRuntimeContainer {
+		t.Errorf("no native runtime = %q, want %q whatever the config says", got, PHPRuntimeContainer)
 	}
-	if got := cfg.phpRuntimeModeOn("windows", "amd64"); got != PHPRuntimeContainer {
-		t.Errorf("windows = %q, want %q", got, PHPRuntimeContainer)
-	}
-	if got := cfg.phpRuntimeModeOn("darwin", "arm64"); got != PHPRuntimeNative {
-		t.Errorf("darwin = %q, want %q", got, PHPRuntimeNative)
-	}
-}
-
-// Builds ship for both macOS architectures, so an Intel Mac is native-capable.
-func TestPHPRuntimeModeAllowsIntelMacs(t *testing.T) {
-	cfg := &GlobalConfig{}
-	cfg.PHP.Runtime = PHPRuntimeNative
-	if got := cfg.phpRuntimeModeOn("darwin", "amd64"); got != PHPRuntimeNative {
-		t.Errorf("intel mac = %q, want %q", got, PHPRuntimeNative)
+	if got := cfg.phpRuntimeModeOn(true); got != PHPRuntimeNative {
+		t.Errorf("native runtime = %q, want %q", got, PHPRuntimeNative)
 	}
 }

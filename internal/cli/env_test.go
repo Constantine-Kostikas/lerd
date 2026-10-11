@@ -373,6 +373,32 @@ func TestApplyHostProxyEnv_leavesNonConnectionKeysAlone(t *testing.T) {
 	}
 }
 
+func TestApplyHostProxyEnv_onlyRewritesHostPositions(t *testing.T) {
+	// A site or bucket named lerd-* shows up in a domain or a path, where it is
+	// not a container hostname and must survive.
+	updates := map[string]string{
+		"APP_URL":      "http://lerd-laravel.test",
+		"AWS_URL":      "https://rustfs.test/lerd-laravel",
+		"AWS_ENDPOINT": "http://lerd-rustfs:9000",
+		"DB_DSN":       "mysql:host=lerd-mysql;port=3306;dbname=lerd-app",
+		"REDIS_URL":    "redis://lerd-redis:6379,lerd-redis:6380/0",
+	}
+	applyHostProxyEnv(updates, map[string]string{"9000": "9000", "3306": "3306", "6379": "6379"})
+
+	want := map[string]string{
+		"APP_URL":      "http://lerd-laravel.test",
+		"AWS_URL":      "https://rustfs.test/lerd-laravel",
+		"AWS_ENDPOINT": "http://127.0.0.1:9000",
+		"DB_DSN":       "mysql:host=127.0.0.1;port=3306;dbname=lerd-app",
+		"REDIS_URL":    "redis://127.0.0.1:6379,127.0.0.1:6380/0",
+	}
+	for k, w := range want {
+		if updates[k] != w {
+			t.Errorf("%s = %q, want %q", k, updates[k], w)
+		}
+	}
+}
+
 func TestRewriteEnvForHostProxy_usesPresetPorts(t *testing.T) {
 	// postgres + redis are default presets resolvable from the embedded YAML,
 	// so the full path (preset lookup -> port map -> rewrite) works offline.

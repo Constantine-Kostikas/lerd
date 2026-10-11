@@ -73,9 +73,9 @@ func TestLoadSurvivesAnAbsentNativeManifest(t *testing.T) {
 // onDarwin pretends this is a Mac, which is where the native pins are fetched.
 func onDarwin(t *testing.T) {
 	t.Helper()
-	prev := nativePinsGOOS
-	nativePinsGOOS = "darwin"
-	t.Cleanup(func() { nativePinsGOOS = prev })
+	prev := nativePinsWanted
+	nativePinsWanted = true
+	t.Cleanup(func() { nativePinsWanted = prev })
 }
 
 // The builds exist for macOS only, so every other platform would be fetching a
@@ -91,9 +91,9 @@ func TestNativePinsAreNotFetchedOffDarwin(t *testing.T) {
 	t.Setenv("LERD_TOOLS_URL", "http://127.0.0.1:1/tools.yaml")
 	t.Setenv("LERD_NATIVE_PHP_URL", srv.URL)
 
-	prev := nativePinsGOOS
-	nativePinsGOOS = "linux"
-	defer func() { nativePinsGOOS = prev }()
+	prev := nativePinsWanted
+	nativePinsWanted = false
+	defer func() { nativePinsWanted = prev }()
 
 	if _, ok := Load(context.Background()).Tools["php-native-8.4"]; ok {
 		t.Error("the native pins reached a platform with no builds")

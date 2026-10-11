@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -52,7 +51,7 @@ func PortFor(version string) (int, error) {
 // prefixes (94-mail, 95-shared, 96-devtools, 97-dump, then the per-version
 // 98-user and 99-xdebug).
 func IniScanDirs(version string) []string {
-	return []string{
+	return append(buildIniDirs(version),
 		filepath.Dir(config.MailIniFile()),
 		filepath.Dir(config.SharedIniFile()),
 		filepath.Dir(config.DevtoolsIniFile()),
@@ -63,7 +62,7 @@ func IniScanDirs(version string) []string {
 		filepath.Dir(config.SpxIniFile()),
 		filepath.Dir(config.PHPUserIniFile(version)),
 		OverrideDir(version),
-	}
+	)
 }
 
 // OverrideDir holds the ini fragment that rewrites container paths to host
@@ -79,7 +78,7 @@ func OverrideDir(version string) string {
 // The capture socket is reached over loopback rather than the container's host
 // gateway, since here PHP is already on the host.
 func overrideIni(version string) string {
-	return overrideIniWith(DevtoolsExtensionPath(version))
+	return overrideIniWith(DevtoolsExtensionPath(version)) + buildIni(version)
 }
 
 // DevtoolsExtensionPath is where a native build's query-capture extension lives
@@ -91,7 +90,7 @@ func overrideIni(version string) string {
 // 8.4 module will not load into 8.5, and offering it would warn on every
 // request while the lens stayed empty.
 func DevtoolsExtensionPath(version string) string {
-	path := filepath.Join(ModulesDir(version), "lerd_devtools-"+version+".so")
+	path := filepath.Join(ModulesDir(version), "lerd_devtools-"+version+moduleExt)
 	if _, err := os.Stat(path); err != nil {
 		return ""
 	}
@@ -102,7 +101,7 @@ func DevtoolsExtensionPath(version string) string {
 // not ship one. Xdebug is a zend_extension, so it loads by path from the ini
 // rather than from an image package the way the container runtime gets it.
 func XdebugExtensionPath(version string) string {
-	path := filepath.Join(ModulesDir(version), "xdebug.so")
+	path := filepath.Join(ModulesDir(version), "xdebug"+moduleExt)
 	if _, err := os.Stat(path); err != nil {
 		return ""
 	}
@@ -191,15 +190,6 @@ func FPMConfig(version, errorLog string) (string, error) {
 	return b.String(), nil
 }
 
-// BinaryPath is where lerd keeps the native PHP-FPM for a version. Suffixed
-// with the minor because a project's composer.lock was resolved against one,
-// and deliberately not "php": that name in BinDir is the shim into the
-// container, and a static binary written over it would send every php on the
-// machine to a PHP with no lerd behind it.
-func BinaryPath(version string) string {
-	return filepath.Join(config.BinDir(), "php-native-"+version)
-}
-
 // EnsureSupported rejects a version no native build will ever exist for. A
 // permanent limit is not a missing download, and the two need different words
 // or the reader waits for a build that is never coming.
@@ -223,17 +213,10 @@ func EnsureInstalled(version, binary string) error {
 	if err != nil {
 		return fmt.Errorf("PHP %s is not installed (%s)", version, binary)
 	}
-	if info.IsDir() || info.Mode()&0111 == 0 {
+	if info.IsDir() || !isExecutable(info) {
 		return fmt.Errorf("PHP %s at %s is not an executable", version, binary)
 	}
 	return nil
-}
-
-// FPMBinaryPath is where lerd keeps the native PHP-FPM for a version. Separate
-// from BinaryPath because FPM and CLI are different SAPIs and different builds:
-// FPM serves requests, the CLI runs artisan, composer and tinker.
-func FPMBinaryPath(version string) string {
-	return filepath.Join(config.BinDir(), "php-native-fpm-"+version)
 }
 
 // ShimDir holds a "php" symlink to the native CLI for a version. Workers run
@@ -242,27 +225,6 @@ func FPMBinaryPath(version string) string {
 // would keep running containerised while its web requests did not.
 func ShimDir(version string) string {
 	return filepath.Join(config.RunDir(), "native", version, "bin")
-}
-
-// EnsureShim points ShimDir's php at the native CLI, replacing a stale link so
-// a version switch or reinstall is picked up.
-func EnsureShim(version, cliBinary string) (string, error) {
-	dir := ShimDir(version)
-	config.GuardRealWrite(dir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	link := filepath.Join(dir, "php")
-	if current, err := os.Readlink(link); err == nil && current == cliBinary {
-		return dir, nil
-	}
-	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-	if err := os.Symlink(cliBinary, link); err != nil {
-		return "", err
-	}
-	return dir, nil
 }
 
 // Extensions reports what a version's native build carries, read from the
@@ -316,35 +278,6 @@ func Supported(version string) bool {
 		return false
 	}
 	return maj > 8 || (maj == 8 && min >= 1)
-}
-
-// ListInstalled returns the PHP versions with a usable native runtime on disk,
-// sorted. A version needs both SAPIs: the CLI runs artisan, composer and the
-// workers, and FPM serves requests, so a half-installed version would list as
-// available and then fail at whichever half is missing.
-func ListInstalled() []string {
-	entries, err := os.ReadDir(config.BinDir())
-	if err != nil {
-		return nil
-	}
-	cli, fpm := map[string]bool{}, map[string]bool{}
-	for _, e := range entries {
-		if v, ok := strings.CutPrefix(e.Name(), "php-native-fpm-"); ok {
-			fpm[v] = true
-			continue
-		}
-		if v, ok := strings.CutPrefix(e.Name(), "php-native-"); ok {
-			cli[v] = true
-		}
-	}
-	var out []string
-	for v := range cli {
-		if fpm[v] {
-			out = append(out, v)
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 // poolJobLoaded is the launchd lookup behind Loaded, injectable for tests.

@@ -51,21 +51,8 @@ func unpackNativePHP(stage, version, patch string) error {
 	}
 	os.RemoveAll(old)
 
-	if err := os.MkdirAll(config.BinDir(), 0o755); err != nil {
+	if err := placeNativeBuild(stage, version); err != nil {
 		return err
-	}
-	for _, name := range []string{"php-native-" + version, "php-native-fpm-" + version} {
-		src := filepath.Join(stage, name)
-		if _, err := os.Stat(src); err != nil {
-			return fmt.Errorf("the php %s build is missing %s", version, name)
-		}
-		dest := filepath.Join(config.BinDir(), name)
-		if err := os.Rename(src, dest); err != nil {
-			return fmt.Errorf("installing %s: %w", name, err)
-		}
-		if err := os.Chmod(dest, 0o755); err != nil {
-			return err
-		}
 	}
 	// SPX serves its control panel from files rather than from the extension.
 	// Installed once rather than per version: the panel is the same whichever
@@ -110,7 +97,7 @@ func installNativePHP(pins *pinnedTools, version string, w io.Writer) (string, e
 	}
 	step.OK("downloaded")
 
-	extract := exec.Command("tar", "-xzf", archive, "-C", stage)
+	extract := exec.Command(tarBinary(), "-xzf", archive, "-C", stage)
 	if out, err := extract.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("extracting php %s: %v: %s", pin.Version, err, out)
 	}

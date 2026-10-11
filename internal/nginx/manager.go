@@ -211,6 +211,26 @@ type VhostData struct {
 	// FrontController narrows the php location to index.php and rewrites every
 	// other .php URL onto it. Resolved by resolveFrontController.
 	FrontController bool
+	// HostRoot is the document root as a PHP on the host sees it, set only when
+	// that differs from nginx's own path to it (a native site on Windows).
+	HostRoot string
+}
+
+// ScriptFilename is the SCRIPT_FILENAME value the php location sends.
+func (d VhostData) ScriptFilename() string {
+	if d.HostRoot == "" {
+		return "$realpath_root$fastcgi_script_name"
+	}
+	return nginxQuote(d.HostRoot + "$fastcgi_script_name")
+}
+
+// HostDocumentRoot is DOCUMENT_ROOT re-sent after fastcgi_params, whose own
+// $document_root is the VM path; PHP keeps the last value it is given.
+func (d VhostData) HostDocumentRoot() string {
+	if d.HostRoot == "" {
+		return ""
+	}
+	return nginxQuote(d.HostRoot)
 }
 
 // HTTPSRedirectHost is $host with the configured HTTPS port appended when nginx
@@ -585,6 +605,7 @@ func renderFPMVhost(site config.Site, phpVersion string, ssl bool) ([]byte, erro
 		RequestTimeout:  resolveRequestTimeout(site.Path, phpVersion),
 		FrameworkNginx:  resolveFrameworkNginx(site, publicDir, fpmContainer),
 		FrontController: resolveFrontController(site),
+		HostRoot:        hostRoot(site.Path, publicDir, site.IsNative()),
 	}
 	data.BrowserLogsConf = browserLogsConf(site.Name, "")
 	if ssl {
@@ -813,6 +834,12 @@ func worktreeVhostConfig(domain, path, phpVersion, siteName string) (publicDir, 
 	return publicDir, fpmContainer, resolveFrameworkNginx(site, publicDir, fpmContainer), fpmPort
 }
 
+// worktreeHostRoot is HostRoot for a worktree checkout of a native site.
+func worktreeHostRoot(domain, path, siteName, publicDir string) string {
+	site := worktreeSite(domain, path, siteName)
+	return hostRoot(path, publicDir, site.IsNative())
+}
+
 // GenerateWorktreeVhost renders the HTTP vhost template for a worktree checkout
 // and writes it to conf.d/<domain>.conf.
 func GenerateWorktreeVhost(domain, path, phpVersion, siteName, branch string) error {
@@ -846,6 +873,7 @@ func GenerateWorktreeVhost(domain, path, phpVersion, siteName, branch string) er
 		RequestTimeout:  resolveRequestTimeout(path, phpVersion),
 		FrameworkNginx:  frameworkNginx,
 		FrontController: resolveFrontController(worktreeSite(domain, path, siteName)),
+		HostRoot:        worktreeHostRoot(domain, path, siteName, publicDir),
 	}
 	data.BrowserLogsConf = browserLogsConf(siteName, branch)
 
@@ -896,6 +924,7 @@ func GenerateWorktreeSSLVhost(domain, path, phpVersion, parentDomain, siteName, 
 		RequestTimeout:  resolveRequestTimeout(path, phpVersion),
 		FrameworkNginx:  frameworkNginx,
 		FrontController: resolveFrontController(worktreeSite(domain, path, siteName)),
+		HostRoot:        worktreeHostRoot(domain, path, siteName, publicDir),
 	}
 	data.BrowserLogsConf = browserLogsConf(siteName, branch)
 

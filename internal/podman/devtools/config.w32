@@ -1,0 +1,7 @@
+ARG_ENABLE("lerd-devtools", "Enable lerd_devtools", "no");
+
+if (PHP_LERD_DEVTOOLS != "no") {
+	EXTENSION("lerd_devtools", "lerd_devtools.c", PHP_LERD_DEVTOOLS_SHARED, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+	ADD_FLAG("LIBS_LERD_DEVTOOLS", "ws2_32.lib");
+	AC_DEFINE("HAVE_LERD_DEVTOOLS", 1, "Have lerd_devtools support");
+}

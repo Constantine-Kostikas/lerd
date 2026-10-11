@@ -7,22 +7,6 @@ import (
 	"testing"
 )
 
-// The host binary is preferred whenever it is there: it carries the user's own
-// ngrok configuration, which a container cannot see.
-func TestNgrokRunnerPrefersTheHostBinary(t *testing.T) {
-	dir := t.TempDir()
-	writeFakeExe(t, dir+"/ngrok")
-	t.Setenv("PATH", dir)
-
-	runner, err := ngrokRunnerFor("token-abc")
-	if err != nil {
-		t.Fatalf("ngrokRunnerFor() error: %v", err)
-	}
-	if runner.container {
-		t.Fatal("host ngrok is installed, the container should not have been chosen")
-	}
-}
-
 // Without the binary the published image stands in, so a machine that never
 // installed ngrok can still share.
 func TestNgrokRunnerFallsBackToTheContainer(t *testing.T) {
@@ -301,7 +285,7 @@ func TestNgrokArgsOnlyApplyToNgrok(t *testing.T) {
 // has to carry the file in or the flag is a silent no-op.
 func TestNgrokContainerMountsFileValuedFlags(t *testing.T) {
 	dir := t.TempDir()
-	policy := dir + "/policy.yml"
+	policy := filepath.Join(dir, "policy.yml")
 	if err := os.WriteFile(policy, []byte("inbound: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -16,12 +16,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/origin"
+	"github.com/geodro/lerd/internal/platform"
 	"gopkg.in/yaml.v3"
 )
 
@@ -162,16 +162,16 @@ type source struct {
 	cache string
 }
 
-// nativePinsGOOS is the platform the native builds are published for. A var so
-// the merge can be tested from any machine.
-var nativePinsGOOS = runtime.GOOS
+// nativePinsWanted reports whether this platform runs the native PHP builds. A
+// var so the merge can be tested from any machine.
+var nativePinsWanted = platform.Current.NativePHPRuntime
 
 func sources() []source {
 	srcs := []source{{origin.ToolsManifestURLs(), manifestCachePath()}}
-	// The builds only run on macOS, so anywhere else these pins name downloads
-	// that can never be installed, and fetching them is a daily request for a
-	// manifest nothing will read.
-	if nativePinsGOOS == "darwin" {
+	// Anywhere without a native runtime these pins name downloads that can
+	// never be installed, and fetching them is a daily request for a manifest
+	// nothing will read.
+	if nativePinsWanted {
 		srcs = append(srcs, source{origin.NativePHPManifestURLs(), nativeCachePath()})
 	}
 	return srcs
@@ -282,6 +282,9 @@ func binPath(name string) string {
 		// shell runs the same mise lerd drives.
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, ".local", "bin", config.ExeName("mise"))
+	}
+	if p, ok := platformBinPath(name); ok {
+		return p
 	}
 	return filepath.Join(config.BinDir(), config.ExeName(name))
 }
