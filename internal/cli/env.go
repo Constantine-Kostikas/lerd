@@ -225,6 +225,46 @@ func hostProxyConnKey(k string) bool {
 // connection string (MONGO_DSN=mongodb://root:pw@lerd-mongo:27017/db).
 var lerdContainerHostRe = regexp.MustCompile(`lerd-[a-z0-9-]+(?::\d+)?`)
 
+// replaceLerdHosts rewrites the lerdContainerHostRe tokens that sit where a
+// host goes. A site or bucket named lerd-* also appears in a domain
+// (http://lerd-app.test) or a path (https://rustfs.test/lerd-app), and stays.
+func replaceLerdHosts(v string, fn func(string) string) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range lerdContainerHostRe.FindAllStringIndex(v, -1) {
+		if !hostStartsAt(v, m[0]) || !hostEndsAt(v, m[1]) {
+			continue
+		}
+		b.WriteString(v[last:m[0]])
+		b.WriteString(fn(v[m[0]:m[1]]))
+		last = m[1]
+	}
+	if last == 0 {
+		return v
+	}
+	b.WriteString(v[last:])
+	return b.String()
+}
+
+func hostStartsAt(v string, i int) bool {
+	before := v[:i]
+	switch {
+	case i == 0, strings.HasSuffix(before, "//"):
+		return true
+	case strings.HasSuffix(before, "@"), strings.HasSuffix(before, ","):
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(before), "host=")
+}
+
+func hostEndsAt(v string, i int) bool {
+	if i == len(v) {
+		return true
+	}
+	c := v[i]
+	return !(c == '.' || c == '_' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9')
+}
+
 // applyHostProxyEnv is the pure rewrite step: every "lerd-<name>[:port]" token
 // (bare or inside a URL) becomes loopback with the service's published host
 // port, and a discrete *_PORT value with no host alongside is remapped too.
@@ -257,7 +297,7 @@ func applyHostProxyEnvWithPorts(updates, containerToHost, serviceContainerPort m
 		if !hostProxyConnKey(k) {
 			continue
 		}
-		nv := lerdContainerHostRe.ReplaceAllStringFunc(v, func(m string) string {
+		nv := replaceLerdHosts(v, func(m string) string {
 			name, port, found := strings.Cut(m, ":")
 			if !found {
 				return hostProxyLoopback + bareHostPortSuffix(k, name, updates, serviceContainerPort, hostPort)
