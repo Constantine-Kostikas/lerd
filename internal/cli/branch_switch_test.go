@@ -59,7 +59,8 @@ func switchFixture(t *testing.T, edit func(dir string)) string {
 var migratingFW = &config.Framework{
 	Worktree: &config.FrameworkWorktree{Migrations: "db"},
 	Doctor:   &config.FrameworkDoctor{MigrateCommand: "migrate"},
-	Commands: []config.FrameworkCommand{{Name: "migrate", Command: "touch migrated"}},
+	// mkdir, not touch: it runs the same in sh, cmd and PowerShell.
+	Commands: []config.FrameworkCommand{{Name: "migrate", Command: "mkdir migrated"}},
 }
 
 func TestPlanBranch_nothingChanged(t *testing.T) {
