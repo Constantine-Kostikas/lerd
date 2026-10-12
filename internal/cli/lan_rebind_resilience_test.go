@@ -46,6 +46,15 @@ func isolateLaunchAgents(t *testing.T) {
 	}
 }
 
+// stubContainerHosts keeps a restart from reaching the real hosts refresh, which
+// probes podman and would build container storage under the test's data dir.
+func stubContainerHosts(t *testing.T) {
+	t.Helper()
+	prev := writeContainerHostsFn
+	writeContainerHostsFn = func() error { return nil }
+	t.Cleanup(func() { writeContainerHostsFn = prev })
+}
+
 func writeServiceQuadlet(t *testing.T, name, ports string) {
 	t.Helper()
 	dir := config.QuadletDir()
@@ -64,6 +73,7 @@ func TestRegenerateLANQuadletsRestartsEveryUnitDespiteFailure(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
+	stubContainerHosts(t)
 	cfg := &config.GlobalConfig{}
 	cfg.LAN.Exposed = true
 	if err := config.SaveGlobal(cfg); err != nil {
@@ -99,6 +109,7 @@ func TestRegenerateLANQuadletsHealsRuntimeDrift(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	isolateLaunchAgents(t)
+	stubContainerHosts(t)
 	cfg := &config.GlobalConfig{}
 	if err := config.SaveGlobal(cfg); err != nil {
 		t.Fatalf("SaveGlobal: %v", err)
