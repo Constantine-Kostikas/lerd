@@ -1180,10 +1180,13 @@ func EnsureServiceRunning(name string) error {
 		return err
 	}
 	_ = config.SetServicePaused(name, false)
+	// Read before probing, so a restart in between cannot mark a run ready
+	// that never answered.
+	id := activationIDFn(unit)
 	if err := waitReadyFn(name, 60*time.Second); err != nil {
 		return err
 	}
-	rememberReady(name, activationIDFn(unit))
+	rememberReady(name, id)
 	return nil
 }
 
