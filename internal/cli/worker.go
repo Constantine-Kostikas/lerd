@@ -673,7 +673,20 @@ func WorkerStopForSite(siteName, sitePath, workerName string) error {
 	// The unit is down, so whatever is still running in the container is a
 	// leftover rather than a worker anything supervises.
 	killWorkerInContainer(siteName, sitePath, workerName)
+	if fw, ok := config.GetFrameworkForDir(siteFrameworkName(siteName), sitePath); ok {
+		clearWorkerURLFile(sitePath, fw.Workers[workerName].Health)
+	}
 	return err
+}
+
+// clearWorkerURLFile removes the file a stopped server advertised its URL in,
+// so pages fall back to the build (vite's public/hot) instead of a dead proxy.
+// The path may come from a project's own .lerd.yaml, so it stays in the checkout.
+func clearWorkerURLFile(dir string, h *config.WorkerHealth) {
+	if h == nil || !filepath.IsLocal(h.URLFile) {
+		return
+	}
+	_ = os.Remove(filepath.Join(dir, h.URLFile))
 }
 
 // StopWorkerUnit tears down a worker unit the caller has already resolved to a

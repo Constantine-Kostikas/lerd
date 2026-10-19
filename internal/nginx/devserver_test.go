@@ -69,3 +69,40 @@ func sslVhostTemplate(t *testing.T) *template.Template {
 	}
 	return tmpl
 }
+
+// A stopped dev server must answer with a 502 the browser lets the page read,
+// or a page on another of the site's domains only reports a CORS failure.
+func TestRenderVhost_devServerDownAnswersReadable502(t *testing.T) {
+	for _, name := range []string{"vhost.conf.tmpl", "vhost-ssl.conf.tmpl"} {
+		raw, err := GetTemplate(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tmpl := template.Must(template.New("vhost").Parse(string(raw)))
+		out, err := renderVhost(tmpl, VhostData{
+			Domain:        "myapp.test",
+			ServerNames:   "myapp.test",
+			Path:          "/srv/myapp",
+			PublicDir:     "public",
+			FPMContainer:  "lerd-php84-fpm",
+			CertDomain:    "myapp.test",
+			UpstreamHost:  "192.0.2.1",
+			DevServerBase: "/@lerd-vite/",
+			DevServerPort: 5173,
+		})
+		if err != nil {
+			t.Fatalf("%s: renderVhost: %v", name, err)
+		}
+		got := string(out)
+		for _, want := range []string{
+			"error_page 502 504 = @lerd_dev_down;",
+			"location @lerd_dev_down {",
+			"add_header Access-Control-Allow-Origin * always;",
+			"lerd worker list",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s missing %q:\n%s", name, want, got)
+			}
+		}
+	}
+}
