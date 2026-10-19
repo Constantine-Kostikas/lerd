@@ -13,15 +13,14 @@ import (
 // fakeIdleServices stands in for containers and nginx: up is the set of running
 // services, users maps a service to the sites using it.
 type fakeIdleServices struct {
-	mu        sync.Mutex
-	up        map[string]bool
-	users     map[string][]config.Site
-	deps      map[string][]string
-	waking    []string
-	restored  []string
-	stopped   []string
-	reloads   int
-	refreshed chan struct{}
+	mu       sync.Mutex
+	up       map[string]bool
+	users    map[string][]config.Site
+	deps     map[string][]string
+	waking   []string
+	restored []string
+	stopped  []string
+	reloads  int
 }
 
 func installFakeIdleServices(t *testing.T) *fakeIdleServices {
@@ -58,44 +57,7 @@ func installFakeIdleServices(t *testing.T) *fakeIdleServices {
 	idleRestoreVhost = func(s *config.Site) error { f.restored = append(f.restored, s.Name); return nil }
 	idleReloadNginx = func() { f.reloads++ }
 	idleDependentsOf = func(name string) []string { return f.deps[name] }
-	family, refresh := idleServiceFamily, idleRefreshConsumers
-	t.Cleanup(func() {
-		waitRefreshIdle(t)
-		idleServiceFamily, idleRefreshConsumers = family, refresh
-	})
-	f.refreshed = make(chan struct{}, 4)
-	idleRefreshConsumers = func() { f.refreshed <- struct{}{} }
 	return f
-}
-
-// phpMyAdmin rendered while its databases slept starts with no servers, so a
-// wake of a family member refreshes the admin UIs that discover it.
-func TestWakeServicesForIdle_RefreshesDiscoveringAdminUIs(t *testing.T) {
-	f := installFakeIdleServices(t)
-	idleServiceFamily = func(name string) string {
-		if name == "mysql" {
-			return "mysql"
-		}
-		return ""
-	}
-	_ = config.SetServiceIdleSuspended("meilisearch", true)
-	if err := WakeServicesForIdle([]string{"meilisearch"}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-f.refreshed:
-		t.Fatal("waking a service with no family refreshed admin UIs")
-	case <-time.After(50 * time.Millisecond):
-	}
-	_ = config.SetServiceIdleSuspended("mysql", true)
-	if err := WakeServicesForIdle([]string{"mysql"}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-f.refreshed:
-	case <-time.After(2 * time.Second):
-		t.Fatal("waking mysql did not refresh the admin UIs that list it")
-	}
 }
 
 func TestSuspendServicesForIdle_WakingPageBeforeStopAndRecordsDependents(t *testing.T) {
@@ -382,72 +344,5 @@ func TestSuspendServicesForIdle_oneStopFailureLeavesTheRestAsleep(t *testing.T) 
 	}
 	if got := config.IdleSuspendedServices(); !reflect.DeepEqual(got, []string{"mailpit"}) {
 		t.Fatalf("held asleep = %v, want mailpit only", got)
-	}
-}
-
-// waitRefreshIdle waits out a background refresh an earlier wake started, so a
-// test never begins while one still counts as running.
-func waitRefreshIdle(t *testing.T) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		refreshMu.Lock()
-		idle := !refreshRunning
-		refreshMu.Unlock()
-		if idle {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("a background admin UI refresh never finished")
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
-
-// Wakes close together share refreshes: never two at once, and one more after
-// the running pass for the wakes that came in during it.
-func TestRefreshConsumersAfterWake_coalesces(t *testing.T) {
-	waitRefreshIdle(t)
-	release := make(chan struct{})
-	var mu sync.Mutex
-	running, most, runs := 0, 0, 0
-	refresh := func() {
-		mu.Lock()
-		running++
-		runs++
-		if running > most {
-			most = running
-		}
-		first := runs == 1
-		mu.Unlock()
-		if first {
-			<-release
-		}
-		mu.Lock()
-		running--
-		mu.Unlock()
-	}
-
-	done := make(chan struct{})
-	go func() { refreshConsumersAfterWake(refresh); close(done) }()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		mu.Lock()
-		started := runs == 1
-		mu.Unlock()
-		if started {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("the first refresh never started")
-		}
-		time.Sleep(time.Millisecond)
-	}
-	refreshConsumersAfterWake(refresh)
-	refreshConsumersAfterWake(refresh)
-	close(release)
-	<-done
-	if most != 1 || runs != 2 {
-		t.Errorf("most at once = %d, runs = %d; want 1 and 2", most, runs)
 	}
 }

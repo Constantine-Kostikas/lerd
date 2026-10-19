@@ -28,6 +28,8 @@ var (
 	serviceStopRaw  = serviceops.StopWithDependents
 	servicePinned   = config.ServiceIsPinned
 	serviceAsleep   = config.ServiceIsIdleSuspended
+	serviceFamily   = serviceops.ServiceFamily
+	refreshFamily   = serviceops.RegenerateFamilyConsumers
 	// restoreServiceSites gives the sites of a service the user stopped while
 	// it slept their real vhost back, since nothing will wake it for them.
 	restoreServiceSites = cli.RestoreSitesAfterServiceWake
@@ -278,6 +280,32 @@ func (e *idleEngine) wakeServicesNow(names []string) {
 	e.mu.Unlock()
 	fmt.Printf("[idle] resumed services: %v\n", names)
 	publishSitesChanged()
+	e.refreshAdminUIs(names)
+}
+
+// refreshAdminUIs rewrites the admin UIs that discover the woken services'
+// families, restarting one whose server list changed: rendered while they
+// slept, phpMyAdmin woke with no servers and asked for a login. It runs off
+// the request path but under svcMu, so no suspend can stop a UI in between.
+func (e *idleEngine) refreshAdminUIs(woken []string) {
+	seen := map[string]bool{}
+	var families []string
+	for _, n := range woken {
+		if f := serviceFamily(n); f != "" && !seen[f] {
+			seen[f] = true
+			families = append(families, f)
+		}
+	}
+	if len(families) == 0 {
+		return
+	}
+	e.spawn("refresh-admin-ui", func() {
+		e.svcMu.Lock()
+		defer e.svcMu.Unlock()
+		for _, f := range families {
+			refreshFamily(f)
+		}
+	})
 }
 
 func (e *idleEngine) asleepOf(names []string) []string {

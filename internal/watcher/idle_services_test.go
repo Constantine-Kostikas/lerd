@@ -45,11 +45,15 @@ func installFakeServices(t *testing.T) *fakeServices {
 	prevRunning, prevUsers, prevSuspend, prevWake := runningServices, serviceUsers, suspendServices, wakeServices
 	prevStale, prevPinned, prevIndex, prevDetect := serviceStale, servicePinned, wtIndex, detectWorktrees
 	prevResume, prevRestore := resumeWorkers, restoreServiceSites
+	prevFamily, prevRefresh := serviceFamily, refreshFamily
 	t.Cleanup(func() {
 		runningServices, serviceUsers, suspendServices, wakeServices = prevRunning, prevUsers, prevSuspend, prevWake
 		serviceStale, servicePinned, wtIndex, detectWorktrees = prevStale, prevPinned, prevIndex, prevDetect
 		resumeWorkers, restoreServiceSites = prevResume, prevRestore
+		serviceFamily, refreshFamily = prevFamily, prevRefresh
 	})
+	serviceFamily = func(string) string { return "" }
+	refreshFamily = func(fam string) { f.log("refresh " + fam) }
 	wtIndex = newWorktreeIndex()
 	detectWorktrees = func(string, string) ([]gitpkg.Worktree, error) { return nil, nil }
 
@@ -219,6 +223,52 @@ func TestOnActivity_dashboardKeyWakesItsService(t *testing.T) {
 	e.OnActivity(svcKey("phpmyadmin"))
 	e.wait()
 	if !reflect.DeepEqual(f.callLog(), []string{"wake phpmyadmin"}) {
+		t.Fatalf("calls = %v", f.callLog())
+	}
+}
+
+// phpMyAdmin rendered while its databases slept starts with no servers, so a
+// wake of a family member refreshes the admin UIs that discover that family,
+// after the wake and under svcMu, so no suspend runs in between.
+func TestWake_refreshesTheWokenFamilysAdminUIs(t *testing.T) {
+	f := installFakeServices(t)
+	serviceFamily = func(name string) string {
+		if name == "mysql" {
+			return "mysql"
+		}
+		return ""
+	}
+	_ = config.SetServiceIdleSuspended("mysql", true)
+	_ = config.SetServiceIdleSuspended("redis", true)
+	e := newIdleEngine(idle.NewTracker(nil))
+
+	e.wakeServicesNow([]string{"redis"})
+	e.wait()
+	e.wakeServicesNow([]string{"mysql"})
+	e.wait()
+	want := []string{"wake redis", "wake mysql", "refresh mysql"}
+	if !reflect.DeepEqual(f.callLog(), want) {
+		t.Fatalf("calls = %v, want %v", f.callLog(), want)
+	}
+}
+
+// The refresh waits for svcMu, so it never restarts an admin UI while a
+// suspend or another wake is under way.
+func TestWake_refreshWaitsForTheServiceLock(t *testing.T) {
+	f := installFakeServices(t)
+	serviceFamily = func(string) string { return "mysql" }
+	e := newIdleEngine(idle.NewTracker(nil))
+
+	e.svcMu.Lock()
+	e.refreshAdminUIs([]string{"mysql"})
+	time.Sleep(20 * time.Millisecond)
+	if got := f.callLog(); len(got) != 0 {
+		e.svcMu.Unlock()
+		t.Fatalf("refreshed while svcMu was held: %v", got)
+	}
+	e.svcMu.Unlock()
+	e.wait()
+	if !reflect.DeepEqual(f.callLog(), []string{"refresh mysql"}) {
 		t.Fatalf("calls = %v", f.callLog())
 	}
 }
