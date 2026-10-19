@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	nodeDet "github.com/geodro/lerd/internal/node"
@@ -18,7 +20,18 @@ func containerNodeBin(cwd string) string {
 		return ""
 	}
 	spec, _ := nodeDet.DetectVersion(cwd)
-	return nodeDet.MuslBinFor(spec)
+	bin := nodeDet.MuslBinFor(spec)
+	if !inContainer(bin) {
+		return ""
+	}
+	return bin
+}
+
+// inContainer reports path inside the home folder, which the PHP containers
+// mount at its own path, so they see it as it is.
+func inContainer(path string) bool {
+	home, err := os.UserHomeDir()
+	return err == nil && path != "" && strings.HasPrefix(path, home+string(os.PathSeparator))
 }
 
 // withContainerNode puts cwd's Node in front of the image's PATH entries in
@@ -45,11 +58,18 @@ func ensureContainerNode(cwd string, w io.Writer) {
 		return // the host has no Node for this site either, so there is nothing to match
 	}
 	version := strings.TrimSpace(string(out))
-	if nodeDet.MuslBinFor(strings.TrimPrefix(version, "v")) != "" {
+	if !inContainer(nodeDet.MuslRoot()) {
+		fmt.Fprintf(w, "  ! the shell keeps the image's own Node: %s is outside your home folder, which is all the container sees\n", nodeDet.MuslRoot())
 		return
 	}
-	fmt.Fprintf(w, "Fetching Node %s for the PHP container, once\n", version)
-	if _, err := nodeDet.MuslBin(context.Background(), version, w); err != nil {
-		fmt.Fprintf(w, "  ! the shell keeps the image's own Node: %v\n", err)
+	if _, err := os.Stat(filepath.Join(nodeDet.MuslRoot(), version, "bin", "node")); err != nil {
+		fmt.Fprintf(w, "Fetching Node %s for the PHP container, once\n", version)
+		if _, err := nodeDet.MuslBin(context.Background(), version, w); err != nil {
+			fmt.Fprintf(w, "  ! the shell keeps the image's own Node: %v\n", err)
+			return
+		}
 	}
+	// The spec can name no version ("lts/iron") or match a newer cached patch
+	// than the host now runs, so the shims follow what the host resolved.
+	_ = nodeDet.RememberSpec(spec, version)
 }

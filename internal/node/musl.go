@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -63,8 +64,14 @@ func MuslBin(ctx context.Context, version string, w io.Writer) (string, error) {
 	if err := os.MkdirAll(MuslRoot(), 0o755); err != nil {
 		return "", err
 	}
-	sums := filepath.Join(MuslRoot(), version+".sums")
-	defer os.Remove(sums)
+	// Each call works in its own folder, so two first shells for one version
+	// cannot delete each other's downloads.
+	tmp, err := os.MkdirTemp(MuslRoot(), version+"-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+	sums := filepath.Join(tmp, "SHASUMS256.txt")
 	if err := download.File(ctx, base+"/SHASUMS256.txt", sums, 0o644, io.Discard); err != nil {
 		return "", fmt.Errorf("Node %s has no musl build: %w", version, err)
 	}
@@ -72,21 +79,19 @@ func MuslBin(ctx context.Context, version string, w io.Writer) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	archive := filepath.Join(MuslRoot(), name)
-	defer os.Remove(archive)
+	archive := filepath.Join(tmp, name)
 	if err := download.Verified(ctx, base+"/"+name, archive, 0o644, digest, w); err != nil {
 		return "", err
 	}
-	tmp, err := os.MkdirTemp(MuslRoot(), version+"-*.tmp")
-	if err != nil {
+	tree := filepath.Join(tmp, "tree")
+	if err := extractTree(archive, tree); err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tmp)
-	if err := extractTree(archive, tmp); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp, dir); err != nil {
-		return "", err
+	if err := os.Rename(tree, dir); err != nil {
+		// Another call finished the same version first.
+		if _, statErr := os.Stat(filepath.Join(bin, "node")); statErr != nil {
+			return "", err
+		}
 	}
 	return bin, nil
 }
@@ -171,19 +176,41 @@ func writeFile(path string, r io.Reader, mode os.FileMode) error {
 	return f.Close()
 }
 
-// MuslBinFor is the bin folder of the newest musl build already on disk that
-// satisfies spec, a site's version such as "22" or "22.23.3"; "" when there is
-// none. It never downloads, so the php and composer shims stay quick.
+// specFile records the exact version the host ran for a site's version spec
+// when lerd shell fetched its build, since a spec such as "default" or
+// "lts/iron" names no version itself.
+func specFile(spec string) string {
+	return filepath.Join(MuslRoot(), "spec", url.PathEscape(spec))
+}
+
+// RememberSpec records that spec resolved to version on the host.
+func RememberSpec(spec, version string) error {
+	if err := os.MkdirAll(filepath.Dir(specFile(spec)), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(specFile(spec), []byte(version+"\n"), 0o644)
+}
+
+// MuslBinFor is the bin folder of the musl build for spec, a site's version
+// such as "22" or "lts/iron": the build lerd shell last fetched for it, else
+// the newest on disk matching a numeric spec; "" when there is none. It never
+// downloads, so the php and composer shims stay quick.
 func MuslBinFor(spec string) string {
-	spec = strings.TrimPrefix(spec, "v")
 	if spec == "" {
 		return ""
 	}
+	if b, err := os.ReadFile(specFile(spec)); err == nil {
+		bin := filepath.Join(MuslRoot(), strings.TrimSpace(string(b)), "bin")
+		if _, err := os.Stat(filepath.Join(bin, "node")); err == nil {
+			return bin
+		}
+	}
+	spec = strings.TrimPrefix(spec, "v")
 	entries, _ := os.ReadDir(MuslRoot())
 	best := ""
 	for _, e := range entries {
 		v := e.Name()
-		if !e.IsDir() || strings.HasSuffix(v, ".tmp") || (v != "v"+spec && !strings.HasPrefix(v, "v"+spec+".")) {
+		if !e.IsDir() || !exactVersion.MatchString(v) || (v != "v"+spec && !strings.HasPrefix(v, "v"+spec+".")) {
 			continue
 		}
 		if best == "" || newerVersion(v, best) {

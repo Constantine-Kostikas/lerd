@@ -107,9 +107,7 @@ func TestExtractTree_RefusesToLeaveItsFolder(t *testing.T) {
 func TestMuslBinFor_PicksTheNewestMatchingBuild(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	for _, v := range []string{"v22.9.0", "v22.23.3", "v22.10.1", "v24.1.0", "v2.0.0", "v22.99.0-1.tmp"} {
-		if err := os.MkdirAll(filepath.Join(MuslRoot(), v, "bin"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		makeBuild(t, v)
 	}
 	for spec, want := range map[string]string{"22": "v22.23.3", "v22.10": "v22.10.1", "24.1.0": "v24.1.0", "2": "v2.0.0", "20": "", "": ""} {
 		got := MuslBinFor(spec)
@@ -199,5 +197,67 @@ func TestMuslBin_RefusesATamperedArchive(t *testing.T) {
 func TestMuslBin_RefusesAnInexactVersion(t *testing.T) {
 	if _, err := MuslBin(context.Background(), "22", io.Discard); err == nil {
 		t.Error("a major alone names no release to download")
+	}
+}
+
+func makeBuild(t *testing.T, v string) {
+	t.Helper()
+	bin := filepath.Join(MuslRoot(), v, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "node"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A spec such as "lts/iron" names no version, and a host moved back to an older
+// patch must not get a newer cached one: the shims use what lerd shell saw.
+func TestMuslBinFor_FollowsTheRememberedVersion(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	makeBuild(t, "v20.19.0")
+	makeBuild(t, "v22.23.3")
+	makeBuild(t, "v22.24.0")
+	for spec, want := range map[string]string{"lts/iron": "v20.19.0", "22": "v22.23.3"} {
+		if err := RememberSpec(spec, want); err != nil {
+			t.Fatal(err)
+		}
+		if got := MuslBinFor(spec); got != filepath.Join(MuslRoot(), want, "bin") {
+			t.Errorf("MuslBinFor(%q) = %q, want %s", spec, got, want)
+		}
+	}
+}
+
+// Two first shells for one version each finish with the build in place rather
+// than deleting each other's downloads.
+func TestMuslBin_ConcurrentFirstCallsBothSucceed(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	arch, err := muslArch(runtime.GOARCH)
+	if err != nil {
+		t.Skip(err)
+	}
+	name := fmt.Sprintf("node-v22.1.0-linux-%s-musl.tar.gz", arch)
+	data := tarball(t, []tarEntry{{name: "node-v22.1.0/bin/node", body: "NODE"}})
+	sum := sha256.Sum256(data)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "SHASUMS256.txt") {
+			fmt.Fprintf(w, "%s  %s\n", hex.EncodeToString(sum[:]), name)
+			return
+		}
+		w.Write(data) //nolint:errcheck
+	}))
+	defer srv.Close()
+	prev := muslRelease
+	muslRelease = srv.URL
+	t.Cleanup(func() { muslRelease = prev })
+
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() { _, err := MuslBin(context.Background(), "v22.1.0", io.Discard); errs <- err }()
+	}
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Errorf("a concurrent first call failed: %v", err)
+		}
 	}
 }

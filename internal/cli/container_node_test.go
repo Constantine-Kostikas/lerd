@@ -15,7 +15,9 @@ import (
 // a musl build of it on disk.
 func siteWithNode(t *testing.T, built bool) (site, bin string) {
 	t.Helper()
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	site = t.TempDir()
 	if err := os.WriteFile(filepath.Join(site, ".nvmrc"), []byte("22\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -23,6 +25,9 @@ func siteWithNode(t *testing.T, built bool) (site, bin string) {
 	bin = filepath.Join(nodeDet.MuslRoot(), "v22.23.3", "bin")
 	if built {
 		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(bin, "node"), nil, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,4 +69,14 @@ func TestContainerExecEnvArgs_CarriesTheSitesNode(t *testing.T) {
 		}
 	}
 	t.Errorf("php and composer execs must see the site's Node: %q", containerExecEnvArgs(site))
+}
+
+// The containers mount the home folder alone, so a build outside it would put
+// a path on PATH they cannot see.
+func TestContainerNodeBin_IgnoresABuildOutsideHome(t *testing.T) {
+	site, _ := siteWithNode(t, true)
+	t.Setenv("HOME", t.TempDir())
+	if got := containerNodeBin(site); got != "" {
+		t.Errorf("containerNodeBin = %q for a build outside home, want none", got)
+	}
 }
