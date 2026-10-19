@@ -32,7 +32,10 @@ namespace {
         if (!\is_string($lerdEnvDir) || $lerdEnvDir === '') {
             $lerdEnvDir = '/run/lerd/env';
         }
-        $lerdEnv = @\file_get_contents($lerdEnvDir.'/'.$lerdSite.'.env');
+        // Most sites have no provided env. Checking first keeps even a suppressed
+        // warning out of error_get_last(), which Slim and ExpressionEngine report.
+        $lerdEnvFile = $lerdEnvDir.'/'.$lerdSite.'.env';
+        $lerdEnv = \is_file($lerdEnvFile) ? @\file_get_contents($lerdEnvFile) : false;
         if (\is_string($lerdEnv)) {
             // The file names the directories it belongs to; a script outside
             // them gets nothing, so a wrong LERD_SITE cannot leak another site's.
