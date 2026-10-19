@@ -40,7 +40,7 @@ func TestEnsureServiceRunning_probesOncePerActivation(t *testing.T) {
 	}
 }
 
-// Without an id to go by, as on macOS, every call still probes.
+// Without an id to go by, as when podman cannot be asked, every call still probes.
 func TestEnsureServiceRunning_probesWithoutAnActivationID(t *testing.T) {
 	withServiceHome(t)
 	prevLife := podman.UnitLifecycle

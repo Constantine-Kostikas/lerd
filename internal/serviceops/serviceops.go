@@ -1143,7 +1143,7 @@ func EnsureServiceRunning(name string) error {
 		_ = config.SetServicePaused(name, false)
 		// Probing readiness costs a container exec, a third of a second under
 		// WSL, on every php or composer run; once a run has answered, it stays
-		// ready until systemd starts the unit again under a new activation id.
+		// ready until the service starts again under a new activation id.
 		id := activationIDFn(unit)
 		if id != "" && readyActivation(name) == id {
 			return nil

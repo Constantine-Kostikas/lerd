@@ -401,6 +401,7 @@ var UnitOpDebug = os.Getenv("LERD_UNIT_OP_DEBUG") == "1"
 
 func notifyUnitChange(name string) {
 	InvalidateUnitStatusCache(name)
+	dropRunningMemo()
 	if AfterUnitChange != nil {
 		AfterUnitChange(name)
 	}

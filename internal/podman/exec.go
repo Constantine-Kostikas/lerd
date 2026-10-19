@@ -302,6 +302,9 @@ func ServiceVersionLabel(image string) string {
 
 // ContainerRunning returns true if the named container is running.
 func ContainerRunning(name string) (bool, error) {
+	if _, ok := memoRunID(name); ok {
+		return true, nil
+	}
 	out, err := Run("inspect", "--format={{.State.Running}}", name)
 	if err != nil {
 		// container doesn't exist

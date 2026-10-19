@@ -1,17 +1,7 @@
 package serviceops
 
-import (
-	"time"
+import "github.com/geodro/lerd/internal/podman"
 
-	"github.com/geodro/lerd/internal/podman"
-)
-
-// activationID is when the service's container last started: its launchd job
-// only runs `podman run -d` and exits, so the container is what restarts.
-func activationID(unit string) string {
-	t, running := podman.ContainerStartedAt(unit)
-	if !running {
-		return ""
-	}
-	return t.Format(time.RFC3339Nano)
-}
+// activationID names the service container's current run: its launchd job only
+// runs `podman run -d` and exits, so the container is what restarts.
+func activationID(unit string) string { return podman.ContainerRunID(unit) }
