@@ -1141,9 +1141,17 @@ func EnsureServiceRunning(name string) error {
 		// A running service is not paused, whatever started it; a stale pause
 		// would make the next lerd start skip it while a site still needs it.
 		_ = config.SetServicePaused(name, false)
+		// Probing readiness costs a container exec, a third of a second under
+		// WSL, on every php or composer run; once a run has answered, it stays
+		// ready until systemd starts the unit again under a new activation id.
+		id := activationIDFn(unit)
+		if id != "" && readyActivation(name) == id {
+			return nil
+		}
 		if err := waitReadyFn(name, 30*time.Second); err != nil {
 			return fmt.Errorf("%s is active but not yet ready: %w", name, err)
 		}
+		rememberReady(name, id)
 		return nil
 	}
 	if IsBuiltin(name) {
@@ -1172,7 +1180,35 @@ func EnsureServiceRunning(name string) error {
 		return err
 	}
 	_ = config.SetServicePaused(name, false)
-	return waitReadyFn(name, 60*time.Second)
+	if err := waitReadyFn(name, 60*time.Second); err != nil {
+		return err
+	}
+	rememberReady(name, activationIDFn(unit))
+	return nil
+}
+
+// activationIDFn names the current run of a service's unit, so a probe that
+// answered is not repeated within it; per platform, a seam for tests.
+var activationIDFn = activationID
+
+func readyFile(name string) string {
+	return filepath.Join(config.DataDir(), "service-ready", name)
+}
+
+// readyActivation is the activation id of the service's last run that answered
+// its readiness probe.
+func readyActivation(name string) string {
+	b, _ := os.ReadFile(readyFile(name))
+	return strings.TrimSpace(string(b))
+}
+
+func rememberReady(name, id string) {
+	if id == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(readyFile(name)), 0o755); err == nil {
+		_ = os.WriteFile(readyFile(name), []byte(id+"\n"), 0o644)
+	}
 }
 
 // StartDependencies ensures every entry in svc.DependsOn is up and ready

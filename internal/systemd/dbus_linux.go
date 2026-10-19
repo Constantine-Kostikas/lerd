@@ -4,6 +4,7 @@ package systemd
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -311,6 +312,22 @@ func DBusActiveState(name string) string {
 	}
 	s, _ := props["ActiveState"].(string)
 	return s
+}
+
+// DBusInvocationID names the unit's current activation: systemd gives every
+// start a new one, so an unchanged id means the same run as before. "" when
+// the unit is not running or the bus cannot say.
+func DBusInvocationID(name string) string {
+	conn, err := userConn()
+	if err != nil {
+		return ""
+	}
+	props, err := conn.GetUnitPropertiesContext(context.Background(), withDefaultSuffix(name))
+	if err != nil {
+		return ""
+	}
+	id, _ := props["InvocationID"].([]byte)
+	return hex.EncodeToString(id)
 }
 
 // DBusIsEnabled returns true when the unit-file state resolves to "enabled".
