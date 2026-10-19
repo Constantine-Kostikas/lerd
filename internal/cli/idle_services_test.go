@@ -59,7 +59,10 @@ func installFakeIdleServices(t *testing.T) *fakeIdleServices {
 	idleReloadNginx = func() { f.reloads++ }
 	idleDependentsOf = func(name string) []string { return f.deps[name] }
 	family, refresh := idleServiceFamily, idleRefreshConsumers
-	t.Cleanup(func() { idleServiceFamily, idleRefreshConsumers = family, refresh })
+	t.Cleanup(func() {
+		waitRefreshIdle(t)
+		idleServiceFamily, idleRefreshConsumers = family, refresh
+	})
 	f.refreshed = make(chan struct{}, 4)
 	idleRefreshConsumers = func() { f.refreshed <- struct{}{} }
 	return f
@@ -382,9 +385,29 @@ func TestSuspendServicesForIdle_oneStopFailureLeavesTheRestAsleep(t *testing.T) 
 	}
 }
 
+// waitRefreshIdle waits out a background refresh an earlier wake started, so a
+// test never begins while one still counts as running.
+func waitRefreshIdle(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		refreshMu.Lock()
+		idle := !refreshRunning
+		refreshMu.Unlock()
+		if idle {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("a background admin UI refresh never finished")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // Wakes close together share refreshes: never two at once, and one more after
 // the running pass for the wakes that came in during it.
 func TestRefreshConsumersAfterWake_coalesces(t *testing.T) {
+	waitRefreshIdle(t)
 	release := make(chan struct{})
 	var mu sync.Mutex
 	running, most, runs := 0, 0, 0
@@ -407,12 +430,16 @@ func TestRefreshConsumersAfterWake_coalesces(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() { refreshConsumersAfterWake(refresh); close(done) }()
+	deadline := time.Now().Add(5 * time.Second)
 	for {
 		mu.Lock()
 		started := runs == 1
 		mu.Unlock()
 		if started {
 			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the first refresh never started")
 		}
 		time.Sleep(time.Millisecond)
 	}
