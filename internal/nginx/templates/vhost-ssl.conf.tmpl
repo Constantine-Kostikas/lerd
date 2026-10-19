@@ -43,7 +43,7 @@ server {
         # sees the prefix stripped, so a 404 is retried once without it.
         proxy_intercept_errors on;
         error_page 404 = @lerd_dev_unprefixed;
-        error_page 502 504 = @lerd_dev_down;
+        error_page 502 = @lerd_dev_down;
     }
 
     # The page loading these assets may sit on another of the site's domains, and
@@ -51,7 +51,7 @@ server {
     location @lerd_dev_down {
         default_type text/plain;
         add_header Access-Control-Allow-Origin * always;
-        return 502 "lerd: nothing is listening on this site's dev server port ({{.DevServerPort}}). Its worker is stopped; start it from the dashboard or see lerd worker list.\n";
+        return 502 "lerd: nothing is listening on this site's dev server port ({{.DevServerPort}}). Its worker is stopped or its server has died; start it from the dashboard or see lerd worker list.\n";
     }
 
     location @lerd_dev_unprefixed {

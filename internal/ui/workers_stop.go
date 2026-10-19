@@ -10,6 +10,7 @@ import (
 var (
 	detectUnhealthyFn = cli.DetectUnhealthyWorkers
 	stopWorkerUnitFn  = cli.StopWorkerUnit
+	clearURLFileFn    = cli.ClearStoppedWorkerURLFile
 )
 
 // stopFailure is one unit that would not go down.
@@ -40,6 +41,7 @@ func handleWorkersStop(w http.ResponseWriter, r *http.Request) {
 			failures = append(failures, stopFailure{Unit: u.Unit, Error: err.Error()})
 			continue
 		}
+		clearURLFileFn(u.Site, u.Path, u.Worker)
 		stopped++
 	}
 	writeJSON(w, map[string]any{

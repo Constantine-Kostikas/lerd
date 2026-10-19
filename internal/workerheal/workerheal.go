@@ -31,7 +31,8 @@ type UnhealthyWorker struct {
 	Site      string `json:"site"`
 	Worker    string `json:"worker"`
 	Unit      string `json:"unit"`
-	State     string `json:"state"` // "failed" | "expected-but-stopped" | "unreachable" (process up, server not accepting) | "orphaned" (worktree gone)
+	Path      string `json:"path,omitempty"` // the checkout the unit runs in, a worktree's or the site's
+	State     string `json:"state"`          // "failed" | "expected-but-stopped" | "unreachable" (process up, server not accepting) | "orphaned" (worktree gone)
 	LastError string `json:"last_error,omitempty"`
 }
 
@@ -350,6 +351,10 @@ func Detect() ([]UnhealthyWorker, error) {
 		if site == "" || worker == "" {
 			continue
 		}
+		checkout := probePath
+		if checkout == "" {
+			checkout = meta[site].Path
+		}
 		if nonWorkerPerSitePrefixes[worker] {
 			continue
 		}
@@ -367,6 +372,7 @@ func Detect() ([]UnhealthyWorker, error) {
 				Site:   site,
 				Worker: worker,
 				Unit:   strings.TrimSuffix(unit, ".service"),
+				Path:   checkout,
 				State:  StateOrphaned,
 			})
 			continue
@@ -411,11 +417,7 @@ func Detect() ([]UnhealthyWorker, error) {
 			}
 			detected = "expected-but-stopped"
 		default: // "active": up, but a health-probed server may have died under it.
-			path := probePath // worktree checkout, or the site root for a parent
-			if path == "" {
-				path = meta[site].Path
-			}
-			reachable, probed := workerReachableFn(path, frameworkFor(site), worker, unitMeta[unit].ActiveEnter)
+			reachable, probed := workerReachableFn(checkout, frameworkFor(site), worker, unitMeta[unit].ActiveEnter)
 			if !probed || reachable {
 				continue // no health probe declared, or the server is serving
 			}
@@ -425,6 +427,7 @@ func Detect() ([]UnhealthyWorker, error) {
 			Site:   site,
 			Worker: worker,
 			Unit:   strings.TrimSuffix(unit, ".service"),
+			Path:   checkout,
 			State:  detected,
 		})
 	}

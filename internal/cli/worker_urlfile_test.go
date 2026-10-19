@@ -39,8 +39,13 @@ func TestClearWorkerURLFile_refusesPathOutsideCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := os.Symlink(root, filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+
 	clearWorkerURLFile(dir, &config.WorkerHealth{URLFile: "../keep"})
 	clearWorkerURLFile(dir, &config.WorkerHealth{URLFile: outside})
+	clearWorkerURLFile(dir, &config.WorkerHealth{URLFile: "link/keep"})
 
 	if _, err := os.Stat(outside); err != nil {
 		t.Errorf("file outside the checkout was removed: %v", err)

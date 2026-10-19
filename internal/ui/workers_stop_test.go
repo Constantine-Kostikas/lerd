@@ -12,9 +12,10 @@ import (
 
 func withStopSeams(t *testing.T, detect func() ([]cli.UnhealthyWorker, error), stop func(unit, label string) error) {
 	t.Helper()
-	oldDetect, oldStop := detectUnhealthyFn, stopWorkerUnitFn
+	oldDetect, oldStop, oldClear := detectUnhealthyFn, stopWorkerUnitFn, clearURLFileFn
 	detectUnhealthyFn, stopWorkerUnitFn = detect, stop
-	t.Cleanup(func() { detectUnhealthyFn, stopWorkerUnitFn = oldDetect, oldStop })
+	clearURLFileFn = func(string, string, string) {}
+	t.Cleanup(func() { detectUnhealthyFn, stopWorkerUnitFn, clearURLFileFn = oldDetect, oldStop, oldClear })
 }
 
 // The banner's second action puts every worker it is reporting down for good,
@@ -99,5 +100,31 @@ func TestWorkersStopRejectsAGet(t *testing.T) {
 	handleWorkersStop(rec, httptest.NewRequest(http.MethodGet, "/api/workers/stop", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("want 405, got %d", rec.Code)
+	}
+}
+
+// A dev server stopped from the banner must not leave its URL file pointing
+// pages at it, and the file belongs to the checkout the unit ran in.
+func TestWorkersStopClearsURLFileOfStoppedUnitsOnly(t *testing.T) {
+	withStopSeams(t,
+		func() ([]cli.UnhealthyWorker, error) {
+			return []cli.UnhealthyWorker{
+				{Site: "shop", Worker: "vite", Unit: "lerd-vite-shop-feature", Path: "/srv/shop/shop-feature"},
+				{Site: "blog", Worker: "vite", Unit: "lerd-vite-blog", Path: "/srv/blog"},
+			}, nil
+		},
+		func(unit, _ string) error {
+			if unit == "lerd-vite-blog" {
+				return errors.New("refused")
+			}
+			return nil
+		})
+	var cleared []string
+	clearURLFileFn = func(site, dir, worker string) { cleared = append(cleared, site+" "+dir+" "+worker) }
+
+	handleWorkersStop(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/workers/stop", nil))
+
+	if len(cleared) != 1 || cleared[0] != "shop /srv/shop/shop-feature vite" {
+		t.Errorf("want only the stopped worktree unit cleared, got %v", cleared)
 	}
 }

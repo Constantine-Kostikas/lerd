@@ -95,7 +95,7 @@ func TestRenderVhost_devServerDownAnswersReadable502(t *testing.T) {
 		}
 		got := string(out)
 		for _, want := range []string{
-			"error_page 502 504 = @lerd_dev_down;",
+			"error_page 502 = @lerd_dev_down;",
 			"location @lerd_dev_down {",
 			"add_header Access-Control-Allow-Origin * always;",
 			"lerd worker list",

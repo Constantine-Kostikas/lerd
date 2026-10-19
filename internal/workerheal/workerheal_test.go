@@ -86,6 +86,9 @@ func TestDetect_FailedWorkerReturned(t *testing.T) {
 	if got[0].Site != "myapp" || got[0].Worker != "queue" {
 		t.Errorf("site/worker split: site=%q worker=%q", got[0].Site, got[0].Worker)
 	}
+	if got[0].Path != "/tmp/myapp" {
+		t.Errorf("path = %q, want the site root", got[0].Path)
+	}
 }
 
 func TestDetect_SuppressedWhenStopped(t *testing.T) {
@@ -541,6 +544,9 @@ func TestDetect_UnreachableWorktreeWorkerFlagged(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Unit != "lerd-vite-myapp-featx" || got[0].State != "unreachable" {
 		t.Fatalf("got %v, want [lerd-vite-myapp-featx unreachable]", unitNames(got))
+	}
+	if got[0].Path != wt {
+		t.Errorf("path = %q, want the worktree checkout %q", got[0].Path, wt)
 	}
 }
 
