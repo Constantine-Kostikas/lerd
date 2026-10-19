@@ -679,8 +679,13 @@ func WorkerStopForSite(siteName, sitePath, workerName string) error {
 
 // ClearStoppedWorkerURLFile removes the file a stopped worker's server advertised
 // its URL in, so pages fall back to the build (vite's public/hot) instead of a
-// dead proxy. dir is the checkout the worker ran in.
+// dead proxy. dir is the checkout the worker ran in, empty for the site's own.
 func ClearStoppedWorkerURLFile(siteName, dir, workerName string) {
+	if dir == "" {
+		if s, _ := config.FindSite(siteName); s != nil {
+			dir = s.Path
+		}
+	}
 	if fw, ok := config.GetFrameworkForDir(siteFrameworkName(siteName), dir); ok {
 		clearWorkerURLFile(dir, fw.Workers[workerName].Health)
 	}

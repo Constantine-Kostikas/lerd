@@ -56,3 +56,39 @@ func TestClearWorkerURLFile_noHealthIsNoop(t *testing.T) {
 	clearWorkerURLFile(t.TempDir(), nil)
 	clearWorkerURLFile(t.TempDir(), &config.WorkerHealth{})
 }
+
+// The dashboard's per-worker toggles stop by site name alone, so an empty
+// checkout means the registered site's own.
+func TestClearStoppedWorkerURLFile_emptyDirUsesSitePath(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("XDG_DATA_HOME", xdg)
+	if err := os.MkdirAll(filepath.Join(xdg, "lerd", "frameworks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SaveFramework(&config.Framework{
+		Name: "testfw",
+		Workers: map[string]config.FrameworkWorker{
+			"reverb": {Command: "php artisan reverb:start", Health: &config.WorkerHealth{URLFile: "storage/reverb.url"}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	urlFile := filepath.Join(dir, "storage", "reverb.url")
+	if err := os.MkdirAll(filepath.Dir(urlFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(urlFile, []byte("http://127.0.0.1:8080"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.AddSite(config.Site{Name: "myapp", Path: dir, Domains: []string{"myapp.test"}, Framework: "testfw"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ClearStoppedWorkerURLFile("myapp", "", "reverb")
+
+	if _, err := os.Stat(urlFile); !os.IsNotExist(err) {
+		t.Errorf("url file still present after stop by site name: %v", err)
+	}
+}
