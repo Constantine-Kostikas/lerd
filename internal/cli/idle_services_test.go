@@ -381,3 +381,46 @@ func TestSuspendServicesForIdle_oneStopFailureLeavesTheRestAsleep(t *testing.T) 
 		t.Fatalf("held asleep = %v, want mailpit only", got)
 	}
 }
+
+// Wakes close together share refreshes: never two at once, and one more after
+// the running pass for the wakes that came in during it.
+func TestRefreshConsumersAfterWake_coalesces(t *testing.T) {
+	release := make(chan struct{})
+	var mu sync.Mutex
+	running, most, runs := 0, 0, 0
+	refresh := func() {
+		mu.Lock()
+		running++
+		runs++
+		if running > most {
+			most = running
+		}
+		first := runs == 1
+		mu.Unlock()
+		if first {
+			<-release
+		}
+		mu.Lock()
+		running--
+		mu.Unlock()
+	}
+
+	done := make(chan struct{})
+	go func() { refreshConsumersAfterWake(refresh); close(done) }()
+	for {
+		mu.Lock()
+		started := runs == 1
+		mu.Unlock()
+		if started {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	refreshConsumersAfterWake(refresh)
+	refreshConsumersAfterWake(refresh)
+	close(release)
+	<-done
+	if most != 1 || runs != 2 {
+		t.Errorf("most at once = %d, runs = %d; want 1 and 2", most, runs)
+	}
+}

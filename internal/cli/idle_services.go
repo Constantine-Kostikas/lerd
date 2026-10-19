@@ -168,11 +168,42 @@ func WakeServicesForIdle(names []string) error {
 	// once they are up, after the request this wake answers.
 	for _, name := range woken {
 		if idleServiceFamily(name) != "" {
-			go idleRefreshConsumers()
+			go refreshConsumersAfterWake(idleRefreshConsumers)
 			break
 		}
 	}
 	return firstErr
+}
+
+var (
+	refreshMu      sync.Mutex
+	refreshRunning bool
+	refreshAgain   bool
+)
+
+// refreshConsumersAfterWake runs one refresh at a time, and one more when a
+// wake asked during it, so two passes never rewrite and restart the same admin
+// UI at once while the last wake's state still lands.
+func refreshConsumersAfterWake(refresh func()) {
+	refreshMu.Lock()
+	if refreshRunning {
+		refreshAgain = true
+		refreshMu.Unlock()
+		return
+	}
+	refreshRunning = true
+	refreshMu.Unlock()
+	for {
+		refresh()
+		refreshMu.Lock()
+		if !refreshAgain {
+			refreshRunning = false
+			refreshMu.Unlock()
+			return
+		}
+		refreshAgain = false
+		refreshMu.Unlock()
+	}
 }
 
 // RestoreSitesAfterServiceWake regenerates the vhost of every site using one of
