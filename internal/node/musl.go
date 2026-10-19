@@ -176,10 +176,8 @@ func writeFile(path string, r io.Reader, mode os.FileMode) error {
 	return f.Close()
 }
 
-// specFile records the exact version the host ran for a site's version spec
-// when lerd shell fetched its build: a spec such as "default" or "lts/iron"
-// names no version itself, and two sites with the same spec can resolve to
-// different versions through their own mise.toml, so it is kept per site.
+// specFile records the version the host resolved a site's spec to: "lts/iron"
+// names none, and two sites on "default" can differ through their mise.toml.
 func specFile(site, spec string) string {
 	return filepath.Join(MuslRoot(), "spec", url.PathEscape(site), url.PathEscape(spec))
 }
@@ -193,10 +191,8 @@ func RememberSpec(site, spec, version string) error {
 	return os.WriteFile(f, []byte(version+"\n"), 0o644)
 }
 
-// MuslBinFor is the bin folder of the musl build for site's version spec, such
-// as "22" or "lts/iron": the build lerd shell last fetched for it there, else
-// the newest on disk matching a numeric spec; "" when there is none. It never
-// downloads, so the php and composer shims stay quick.
+// MuslBinFor is the build lerd shell last fetched for site's spec, else the
+// newest matching a numeric spec, else "". It never downloads, so shims stay quick.
 func MuslBinFor(site, spec string) string {
 	if spec == "" {
 		return ""
