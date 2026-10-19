@@ -110,7 +110,7 @@ func TestMuslBinFor_PicksTheNewestMatchingBuild(t *testing.T) {
 		makeBuild(t, v)
 	}
 	for spec, want := range map[string]string{"22": "v22.23.3", "v22.10": "v22.10.1", "24.1.0": "v24.1.0", "2": "v2.0.0", "20": "", "": ""} {
-		got := MuslBinFor(spec)
+		got := MuslBinFor("/site", spec)
 		if want == "" {
 			if got != "" {
 				t.Errorf("MuslBinFor(%q) = %q, want none", spec, got)
@@ -189,7 +189,7 @@ func TestMuslBin_RefusesATamperedArchive(t *testing.T) {
 	if _, err := MuslBin(context.Background(), "v22.1.0", io.Discard); err == nil {
 		t.Fatal("an archive that does not match its checksum must be refused")
 	}
-	if MuslBinFor("22") != "" {
+	if MuslBinFor("/site", "22") != "" {
 		t.Error("a refused archive must leave no build behind")
 	}
 }
@@ -219,10 +219,10 @@ func TestMuslBinFor_FollowsTheRememberedVersion(t *testing.T) {
 	makeBuild(t, "v22.23.3")
 	makeBuild(t, "v22.24.0")
 	for spec, want := range map[string]string{"lts/iron": "v20.19.0", "22": "v22.23.3"} {
-		if err := RememberSpec(spec, want); err != nil {
+		if err := RememberSpec("/site", spec, want); err != nil {
 			t.Fatal(err)
 		}
-		if got := MuslBinFor(spec); got != filepath.Join(MuslRoot(), want, "bin") {
+		if got := MuslBinFor("/site", spec); got != filepath.Join(MuslRoot(), want, "bin") {
 			t.Errorf("MuslBinFor(%q) = %q, want %s", spec, got, want)
 		}
 	}
@@ -259,5 +259,22 @@ func TestMuslBin_ConcurrentFirstCallsBothSucceed(t *testing.T) {
 		if err := <-errs; err != nil {
 			t.Errorf("a concurrent first call failed: %v", err)
 		}
+	}
+}
+
+// Two sites with the same spec can resolve to different versions through their
+// own mise.toml; a shell in one must not move the other.
+func TestMuslBinFor_KeepsEachSitesVersion(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	makeBuild(t, "v20.19.0")
+	makeBuild(t, "v22.23.3")
+	if err := RememberSpec("/a", "default", "v20.19.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RememberSpec("/b", "default", "v22.23.3"); err != nil {
+		t.Fatal(err)
+	}
+	if got := MuslBinFor("/a", "default"); got != filepath.Join(MuslRoot(), "v20.19.0", "bin") {
+		t.Errorf("site a = %q, want its own v20.19.0", got)
 	}
 }

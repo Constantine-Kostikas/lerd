@@ -20,7 +20,7 @@ func containerNodeBin(cwd string) string {
 		return ""
 	}
 	spec, _ := nodeDet.DetectVersion(cwd)
-	bin := nodeDet.MuslBinFor(spec)
+	bin := nodeDet.MuslBinFor(shellWorkDir(cwd), spec)
 	if !inContainer(bin) {
 		return ""
 	}
@@ -71,5 +71,5 @@ func ensureContainerNode(cwd string, w io.Writer) {
 	}
 	// The spec can name no version ("lts/iron") or match a newer cached patch
 	// than the host now runs, so the shims follow what the host resolved.
-	_ = nodeDet.RememberSpec(spec, version)
+	_ = nodeDet.RememberSpec(shellWorkDir(cwd), spec, version)
 }

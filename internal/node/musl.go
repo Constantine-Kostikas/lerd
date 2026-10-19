@@ -177,29 +177,31 @@ func writeFile(path string, r io.Reader, mode os.FileMode) error {
 }
 
 // specFile records the exact version the host ran for a site's version spec
-// when lerd shell fetched its build, since a spec such as "default" or
-// "lts/iron" names no version itself.
-func specFile(spec string) string {
-	return filepath.Join(MuslRoot(), "spec", url.PathEscape(spec))
+// when lerd shell fetched its build: a spec such as "default" or "lts/iron"
+// names no version itself, and two sites with the same spec can resolve to
+// different versions through their own mise.toml, so it is kept per site.
+func specFile(site, spec string) string {
+	return filepath.Join(MuslRoot(), "spec", url.PathEscape(site), url.PathEscape(spec))
 }
 
-// RememberSpec records that spec resolved to version on the host.
-func RememberSpec(spec, version string) error {
-	if err := os.MkdirAll(filepath.Dir(specFile(spec)), 0o755); err != nil {
+// RememberSpec records that spec resolved to version on the host for site.
+func RememberSpec(site, spec, version string) error {
+	f := specFile(site, spec)
+	if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(specFile(spec), []byte(version+"\n"), 0o644)
+	return os.WriteFile(f, []byte(version+"\n"), 0o644)
 }
 
-// MuslBinFor is the bin folder of the musl build for spec, a site's version
-// such as "22" or "lts/iron": the build lerd shell last fetched for it, else
+// MuslBinFor is the bin folder of the musl build for site's version spec, such
+// as "22" or "lts/iron": the build lerd shell last fetched for it there, else
 // the newest on disk matching a numeric spec; "" when there is none. It never
 // downloads, so the php and composer shims stay quick.
-func MuslBinFor(spec string) string {
+func MuslBinFor(site, spec string) string {
 	if spec == "" {
 		return ""
 	}
-	if b, err := os.ReadFile(specFile(spec)); err == nil {
+	if b, err := os.ReadFile(specFile(site, spec)); err == nil {
 		bin := filepath.Join(MuslRoot(), strings.TrimSpace(string(b)), "bin")
 		if _, err := os.Stat(filepath.Join(bin, "node")); err == nil {
 			return bin
