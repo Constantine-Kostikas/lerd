@@ -13,14 +13,15 @@ import (
 // fakeIdleServices stands in for containers and nginx: up is the set of running
 // services, users maps a service to the sites using it.
 type fakeIdleServices struct {
-	mu       sync.Mutex
-	up       map[string]bool
-	users    map[string][]config.Site
-	deps     map[string][]string
-	waking   []string
-	restored []string
-	stopped  []string
-	reloads  int
+	mu        sync.Mutex
+	up        map[string]bool
+	users     map[string][]config.Site
+	deps      map[string][]string
+	waking    []string
+	restored  []string
+	stopped   []string
+	reloads   int
+	refreshed chan struct{}
 }
 
 func installFakeIdleServices(t *testing.T) *fakeIdleServices {
@@ -57,7 +58,41 @@ func installFakeIdleServices(t *testing.T) *fakeIdleServices {
 	idleRestoreVhost = func(s *config.Site) error { f.restored = append(f.restored, s.Name); return nil }
 	idleReloadNginx = func() { f.reloads++ }
 	idleDependentsOf = func(name string) []string { return f.deps[name] }
+	family, refresh := idleServiceFamily, idleRefreshConsumers
+	t.Cleanup(func() { idleServiceFamily, idleRefreshConsumers = family, refresh })
+	f.refreshed = make(chan struct{}, 4)
+	idleRefreshConsumers = func() { f.refreshed <- struct{}{} }
 	return f
+}
+
+// phpMyAdmin rendered while its databases slept starts with no servers, so a
+// wake of a family member refreshes the admin UIs that discover it.
+func TestWakeServicesForIdle_RefreshesDiscoveringAdminUIs(t *testing.T) {
+	f := installFakeIdleServices(t)
+	idleServiceFamily = func(name string) string {
+		if name == "mysql" {
+			return "mysql"
+		}
+		return ""
+	}
+	_ = config.SetServiceIdleSuspended("meilisearch", true)
+	if err := WakeServicesForIdle([]string{"meilisearch"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-f.refreshed:
+		t.Fatal("waking a service with no family refreshed admin UIs")
+	case <-time.After(50 * time.Millisecond):
+	}
+	_ = config.SetServiceIdleSuspended("mysql", true)
+	if err := WakeServicesForIdle([]string{"mysql"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-f.refreshed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("waking mysql did not refresh the admin UIs that list it")
+	}
 }
 
 func TestSuspendServicesForIdle_WakingPageBeforeStopAndRecordsDependents(t *testing.T) {

@@ -28,6 +28,8 @@ var (
 	idleDependentsOf         = serviceops.DependentsOf
 	idleAdminToolsFor        = serviceops.AdminToolsFor
 	idleDiscoveringConsumers = serviceops.DiscoveringConsumers
+	idleServiceFamily        = serviceops.ServiceFamily
+	idleRefreshConsumers     = serviceops.RefreshDiscoverFamilyConsumers
 	idleServiceFlagged       = config.ServiceIsIdleSuspended
 	idleSetSuspended         = serviceops.SetIdleSuspended
 	idleWakePing             = func(name string) { activityping.Site("svc:" + name) }
@@ -161,6 +163,15 @@ func WakeServicesForIdle(names []string) error {
 	}
 	idleSetSuspended(woken, false)
 	RestoreSitesAfterServiceWake(names)
+	// An admin UI whose unit was rewritten while its engines slept starts with
+	// an empty server list, so phpMyAdmin asked for a login. Bring it in line
+	// once they are up, after the request this wake answers.
+	for _, name := range woken {
+		if idleServiceFamily(name) != "" {
+			go idleRefreshConsumers()
+			break
+		}
+	}
 	return firstErr
 }
 
