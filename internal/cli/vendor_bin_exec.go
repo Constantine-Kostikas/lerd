@@ -49,7 +49,7 @@ func containerExecEnvArgs(cwd string) []string {
 	args := []string{
 		"--env", "HOME=" + home,
 		"--env", "COMPOSER_HOME=" + composerHome,
-		"--env", "PATH=" + projectVendorBin + ":" + podman.ContainerPath + ":" + composerBin,
+		"--env", "PATH=" + withContainerNode(cwd, projectVendorBin+":"+podman.ContainerPath+":"+composerBin),
 	}
 	// Early, so a GIT_SSH_COMMAND the user forwards below still wins.
 	args = append(args, podman.GitSSHCommandEnv(home)...)

@@ -787,6 +787,7 @@ What you get inside the container:
 
 - **starship** as the default prompt, branch, dir, git status, all the usual.
 - **eza**, **bat**, **fzf**, **zoxide** on `$PATH` for nicer file listing, paging, fuzzy-find, and `cd` history.
+- **The site's Node** first on `$PATH`, the same version lerd runs for it on the host, fetched as a musl build on the first `lerd shell` (see [Node inside the PHP-FPM container](node.md#node-inside-the-php-fpm-container)).
 - Shell history persisted under `~/.local/share/lerd/shell-state/php-<version>/zsh/history`, so commands survive container rebuilds.
 - `HostName=` set to your host's hostname so the prompt reads `root@your-machine` instead of the auto-generated container id.
 

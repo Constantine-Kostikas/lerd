@@ -46,6 +46,9 @@ func phpShellExecArgs(container, workDir string) []string {
 		args = append(args, "-w", workDir)
 		args = append(args, envpass.Args(workDir, os.Environ())...)
 		args = append(args, debugSiteEnvArgs(workDir)...)
+		if path := withContainerNode(workDir, podman.ContainerPath); path != podman.ContainerPath {
+			args = append(args, "--env", "PATH="+path)
+		}
 	}
 	return append(args, container, "sh", "-c", podman.InteractiveShellScript())
 }
@@ -73,6 +76,9 @@ func runVersionShell(input string) error {
 // runPhpShellExec hands the terminal over to the container shell, exiting with
 // its status so a shell that ends on an error is not reported as a clean run.
 func runPhpShellExec(container, workDir string) error {
+	if workDir != "" {
+		ensureContainerNode(workDir, os.Stderr)
+	}
 	cmd := podman.Cmd(phpShellExecArgs(container, workDir)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

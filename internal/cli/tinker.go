@@ -200,7 +200,7 @@ func tinkerEnvArgs(sitePath, home, composerHome string) []string {
 	return []string{
 		"--env", "HOME=" + home,
 		"--env", "COMPOSER_HOME=" + composerHome,
-		"--env", "PATH=" + projectVendorBin + ":" + podman.ContainerPath + ":" + composerBin,
+		"--env", "PATH=" + withContainerNode(sitePath, projectVendorBin+":"+podman.ContainerPath+":"+composerBin),
 		"--env", "NO_COLOR=1",
 		"--env", "TERM=dumb",
 		"--env", "PSYSH_TRUST_PROJECT=1",

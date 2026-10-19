@@ -192,6 +192,12 @@ Detection is live for display (the dashboard and Settings show a `🥟 bun <vers
 
 So if you install bun after a site is already running, the UI reflects it immediately, and a `lerd update` (or re-link) switches the running Vite worker onto bun.
 
+### Node inside the PHP-FPM container
+
+The PHP image carries Alpine's own Node, whatever version the Alpine release ships, and the host's Node cannot run in the container for the same musl reason as bun. So `lerd shell` fetches a musl build of the exact version the site runs on the host, once, from Node's unofficial builds, checks it against that release's checksums, and keeps it in `~/.local/share/lerd/node-musl/`. From then on `node`, `npm` and `npx` in `lerd shell`, in starship's prompt, and in anything `lerd php`, `lerd composer`, a console command or tinker shells out to are that version rather than Alpine's. Those commands never download it themselves, so until a site's first `lerd shell` they keep the image's Node.
+
+Packages installed from the host carry native builds for the host's libc, Rollup, esbuild, Lightning CSS and Tailwind's engine among them, so run the build tools on the host (`lerd npm run build`) rather than inside the container.
+
 ### bun inside the PHP-FPM container
 
 The host bun can't run inside the container (it's built for your host's libc, the container is Alpine/musl), so the container gets its own bun:

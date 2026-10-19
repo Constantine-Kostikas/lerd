@@ -35,6 +35,9 @@ func consoleCmdArgs(cwd, container, consoleCmd string, tty bool, args []string) 
 	cmdArgs := append(execFlags, terminalColorEnvArgs()...)
 	cmdArgs = append(cmdArgs, envpass.Args(cwd, os.Environ())...)
 	cmdArgs = append(cmdArgs, debugSiteEnvArgs(cwd)...)
+	if path := withContainerNode(cwd, podman.ContainerPath); path != podman.ContainerPath {
+		cmdArgs = append(cmdArgs, "--env", "PATH="+path)
+	}
 	cmdArgs = append(cmdArgs, "-w", cwd, container, "php", consoleCmd)
 	return append(cmdArgs, args...)
 }
