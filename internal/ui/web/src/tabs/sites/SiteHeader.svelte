@@ -348,7 +348,7 @@
 <div class="border-b border-gray-100 dark:border-lerd-border shrink-0 @container flex flex-col">
   {#if showWorktreeTabs}
     <div class="flex items-center page-header">
-      <div class="flex items-center gap-1 px-3 overflow-x-auto flex-1 min-w-0">
+      <div class="flex items-center gap-1 px-3 py-1 -my-1 overflow-x-auto flex-1 min-w-0">
       {#if !$isDesktop}<BackButton />{/if}
       {#each tabEntries as e (e.isMain ? '__main__' : e.branch)}
         {@const isActive = e.isMain ? activeWorktreeBranch === '' : e.branch === activeWorktreeBranch}
