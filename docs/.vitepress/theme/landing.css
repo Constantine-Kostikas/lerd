@@ -1,11 +1,13 @@
 /* Lerd landing page, editorial layout. Every rule is namespaced under
    .lerd-landing so the docs reading theme is never affected. */
 
+/* Light by default; .dark comes from the same VitePress appearance switch the docs use */
 .lerd-landing {
-  --bg:#0a0a0b; --panel:#131316; --raised:#1d1d22; --line:#26262c; --line-2:#34343c;
-  --ink:#f4f4f5; --ink-2:#c4c4cc; --muted:#8b8b95; --faint:#5d5d66;
-  --accent:#ff2d20; --accent-2:#ff5b50; --wash:rgba(255,45,32,.12);
-  --emerald:#34d399; --amber:#fbbf24;
+  --bg:#ffffff; --panel:#f7f7f8; --raised:#eeeef0; --line:#e6e6e9; --line-2:#d4d4d8;
+  --ink:#0a0a0b; --ink-2:#3f3f46; --ink-hi:#27272a; --muted:#52525b; --faint:#71717a;
+  --accent:#e0241a; --accent-2:#c41e15; --wash:rgba(224,36,26,.07);
+  --emerald:#047857; --amber:#b45309;
+  --shot-bg:linear-gradient(160deg,#f4f4f5,#e9e9ec); --win:#ffffff; --win-bar:#f4f4f5; --shadow:rgba(10,10,11,.18); --art-opacity:1;
   --sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
   --maxw:1180px;
@@ -13,6 +15,13 @@
   font:17px/1.6 var(--sans); -webkit-font-smoothing:antialiased;
   /* clip, not hidden: hidden would make this the scroll box and unstick the header */
   overflow-x:clip;
+}
+.dark .lerd-landing {
+  --bg:#0a0a0b; --panel:#131316; --raised:#1d1d22; --line:#26262c; --line-2:#34343c;
+  --ink:#f4f4f5; --ink-2:#c4c4cc; --ink-hi:#ffffff; --muted:#8b8b95; --faint:#5d5d66;
+  --accent:#ff2d20; --accent-2:#ff5b50; --wash:rgba(255,45,32,.12);
+  --emerald:#34d399; --amber:#fbbf24;
+  --shot-bg:linear-gradient(160deg,#17171b,#0d0d10); --win:#111113; --win-bar:#161616; --shadow:rgba(0,0,0,.9); --art-opacity:.7;
 }
 .lerd-landing *{box-sizing:border-box;margin:0;padding:0}
 .lerd-landing a{color:inherit;text-decoration:none}
@@ -23,7 +32,7 @@
 .lerd-landing .label b{color:var(--accent);font-weight:500}
 
 /* header */
-.lerd-landing .hdr{position:sticky;top:0;z-index:10;background:rgba(10,10,11,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.lerd-landing .hdr{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .lerd-landing .hdr .wrap{display:flex;align-items:center;gap:32px;height:64px}
 .lerd-landing .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px}
 .lerd-landing .brand img{width:26px;height:26px}
@@ -35,12 +44,20 @@
 .lerd-landing .btn:hover{border-color:var(--faint)}
 .lerd-landing .btn.primary:hover{background:var(--accent-2)}
 .lerd-landing .btn.ink{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.lerd-landing .btn.ink:hover{background:#fff;border-color:#fff}
+.lerd-landing .btn.ink:hover{background:var(--ink-hi);border-color:var(--ink-hi)}
 .lerd-landing .hdr .btn{height:34px;padding:0 14px;font-size:13px}
 .lerd-landing .btn .stars{font:500 12px var(--mono);color:var(--muted)}
 .lerd-landing .gh{display:inline-flex;align-items:center;gap:8px}
 .lerd-landing .gh .stars{font:500 12px var(--mono);color:var(--muted);border:1px solid var(--line-2);padding:3px 7px}
-.lerd-landing .gh:hover .stars{color:var(--amber);border-color:rgba(251,191,36,.3)}
+.lerd-landing .gh:hover .stars{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 30%,transparent)}
+
+.lerd-landing .theme{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line-2);background:none;color:var(--ink-2);cursor:pointer}
+.lerd-landing .theme:hover{color:var(--ink);border-color:var(--faint)}
+.lerd-landing .theme svg{width:16px;height:16px}
+/* !important so it beats the layout rules that give each image its display */
+:root:not(.dark) .lerd-landing .on-dark,.dark .lerd-landing .on-light{display:none!important}
+.lerd-landing .fw-gl svg{color:var(--cl)}
+.dark .lerd-landing .fw-gl svg{color:var(--c)}
 
 /* hero: the dashboard bleeds off the right edge */
 .lerd-landing .hero{position:relative;overflow:hidden;padding:96px 0 72px;border-bottom:1px solid var(--line)}
@@ -59,12 +76,12 @@
 .lerd-landing .meta{display:flex;flex-wrap:wrap;gap:28px;margin-top:56px}
 .lerd-landing .meta div{font:13px var(--mono);color:var(--muted)}
 .lerd-landing .meta strong{display:block;font:600 28px var(--sans);color:var(--ink);letter-spacing:-.02em;margin-bottom:2px}
-.lerd-landing .hero-art{position:absolute;top:72px;left:56%;width:min(1000px,62vw);pointer-events:none;opacity:.7;
+.lerd-landing .hero-art{position:absolute;top:72px;left:56%;width:min(1000px,62vw);pointer-events:none;opacity:var(--art-opacity);
   -webkit-mask-image:linear-gradient(90deg,#000 45%,transparent 95%),linear-gradient(180deg,#000 55%,transparent 92%);-webkit-mask-composite:source-in;
   mask-image:linear-gradient(90deg,#000 45%,transparent 95%),linear-gradient(180deg,#000 55%,transparent 92%);mask-composite:intersect}
 .lerd-landing .hero-art img{width:100%;display:block}
-.lerd-landing .win{border:1px solid var(--line-2);border-radius:16px;background:#111113;overflow:hidden;box-shadow:0 40px 80px -30px rgba(0,0,0,.9)}
-.lerd-landing .win-bar{display:flex;gap:8px;padding:14px 16px;background:#161616}
+.lerd-landing .win{border:1px solid var(--line-2);border-radius:16px;background:var(--win);overflow:hidden;box-shadow:0 40px 80px -30px var(--shadow)}
+.lerd-landing .win-bar{display:flex;gap:8px;padding:14px 16px;background:var(--win-bar)}
 .lerd-landing .win-bar i{width:12px;height:12px;border-radius:50%;background:#ff5f57}
 .lerd-landing .win-bar i:nth-child(2){background:#febc2e}
 .lerd-landing .win-bar i:nth-child(3){background:#28c840}
@@ -114,15 +131,15 @@
 .lerd-landing .card p{color:var(--ink-2);font-size:16px}
 .lerd-landing .badges{display:flex;flex-wrap:wrap;gap:8px}
 .lerd-landing .badge{font:500 11px/1 var(--mono);padding:6px 9px;border:1px solid var(--line-2);color:var(--ink-2)}
-.lerd-landing .badge.ok{color:var(--emerald);border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.06)}
-.lerd-landing .badge.beta{color:var(--amber);border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.06)}
+.lerd-landing .badge.ok{color:var(--emerald);border-color:color-mix(in srgb,var(--emerald) 30%,transparent);background:color-mix(in srgb,var(--emerald) 6%,transparent)}
+.lerd-landing .badge.beta{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 30%,transparent);background:color-mix(in srgb,var(--amber) 6%,transparent)}
 .lerd-landing .card .cli{font:13px var(--mono);color:var(--muted);border-top:1px dashed var(--line-2);padding-top:16px}
 .lerd-landing .card .cli i{color:var(--accent);font-style:normal}
 .lerd-landing .explore{margin-top:auto;font-weight:600;font-size:14px;display:inline-flex;gap:8px;color:var(--ink)}
 .lerd-landing .explore:hover{color:var(--accent-2)}
-.lerd-landing .shot{display:block;width:100%;padding:0;border:0;border-left:1px solid var(--line);cursor:zoom-in;position:relative;background:linear-gradient(160deg,#17171b,#0d0d10);min-height:360px;border-left:1px solid var(--line)}
+.lerd-landing .shot{display:block;width:100%;padding:0;border:0;border-left:1px solid var(--line);cursor:zoom-in;position:relative;background:var(--shot-bg);min-height:360px;border-left:1px solid var(--line)}
 /* the image fills the panel from its top-left corner whatever the card height, cropped right and bottom */
-.lerd-landing .shot img{position:absolute;top:32px;left:32px;width:calc(100% - 32px);height:calc(100% - 32px);object-fit:cover;object-position:left top;display:block;border:1px solid var(--line-2);border-right:0;border-bottom:0;box-shadow:0 30px 60px -20px rgba(0,0,0,.8)}
+.lerd-landing .shot img{position:absolute;top:32px;left:32px;width:calc(100% - 32px);height:calc(100% - 32px);object-fit:cover;object-position:left top;display:block;border:1px solid var(--line-2);border-right:0;border-bottom:0;box-shadow:0 30px 60px -20px var(--shadow)}
 
 /* frameworks */
 .lerd-landing .fw-grid{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}
@@ -196,7 +213,7 @@
 
 /* live demo, framed as the installed PWA window */
 .lerd-landing .demo{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);animation:lerd-fade .2s ease}
-.lerd-landing .pwa{width:min(1440px,100%);height:min(900px,100%);display:flex;flex-direction:column;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:#111113;box-shadow:0 50px 120px -30px rgba(0,0,0,.9);animation:lerd-rise .25s cubic-bezier(.2,.7,.2,1)}
+.lerd-landing .pwa{width:min(1440px,100%);height:min(900px,100%);display:flex;flex-direction:column;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:#111113;box-shadow:0 50px 120px -30px var(--shadow);animation:lerd-rise .25s cubic-bezier(.2,.7,.2,1)}
 .lerd-landing .pwa-bar{display:flex;align-items:center;gap:10px;height:38px;padding:0 6px 0 14px;background:#161616;font-size:13px;flex:0 0 auto;transition:background .2s}
 .lerd-landing .pwa-title{font-weight:600}
 .lerd-landing .pwa-note{font:12px var(--mono);color:var(--muted)}
@@ -209,7 +226,7 @@
 .lerd-landing .pwa-close:hover{background:#c42b1c;color:#fff}
 .lerd-landing .pwa iframe{flex:1;width:100%;border:0;background:#111113}
 .lerd-landing .zoom{cursor:zoom-out}
-.lerd-landing .zoom img{max-width:100%;max-height:100%;border:1px solid var(--line-2);box-shadow:0 50px 120px -30px rgba(0,0,0,.9);animation:lerd-rise .25s cubic-bezier(.2,.7,.2,1)}
+.lerd-landing .zoom img{max-width:100%;max-height:100%;border:1px solid var(--line-2);box-shadow:0 50px 120px -30px var(--shadow);animation:lerd-rise .25s cubic-bezier(.2,.7,.2,1)}
 @keyframes lerd-fade{from{opacity:0}}
 @keyframes lerd-rise{from{opacity:0;transform:translateY(16px) scale(.98)}}
 @media (max-width:600px){

@@ -7,30 +7,31 @@
 import { MARKS } from './landing-marks.js'
 
 /* ---- Brand glyphs: the store mark where one exists, a lettered tile otherwise ---- */
+// c is drawn on the dark page, l (when set) on the light one where c is too pale.
 export const LOGOS = {
   laravel:  { ch: 'L', c: '#ff2d20' },
-  symfony:  { ch: 'S', c: '#cbd5e1' },
-  wordpress:{ ch: 'W', c: '#38bdf8' },
-  drupal:   { ch: 'D', c: '#60a5fa' },
-  typo3:    { ch: 'T', c: '#ff8700' },
-  cake:     { ch: 'C', c: '#f87171' },
-  magento:  { ch: 'M', c: '#f46f25' },
-  statamic: { ch: 'S', c: '#a78bfa' },
-  codeigniter: { ch: 'C', c: '#f97316' },
-  tempest:  { ch: 'T', c: '#29ABE2' },
-  winter:   { ch: 'W', c: '#2da7c7' },
+  symfony:  { ch: 'S', c: '#cbd5e1', l: '#18181b' },
+  wordpress:{ ch: 'W', c: '#38bdf8', l: '#21759b' },
+  drupal:   { ch: 'D', c: '#60a5fa', l: '#0678be' },
+  typo3:    { ch: 'T', c: '#ff8700', l: '#d46a00' },
+  cake:     { ch: 'C', c: '#f87171', l: '#d33c43' },
+  magento:  { ch: 'M', c: '#f46f25', l: '#d9531e' },
+  statamic: { ch: 'S', c: '#a78bfa', l: '#7c3aed' },
+  codeigniter: { ch: 'C', c: '#f97316', l: '#dd4814' },
+  tempest:  { ch: 'T', c: '#29ABE2', l: '#0e7fb0' },
+  winter:   { ch: 'W', c: '#2da7c7', l: '#1d7f99' },
   bedrock:  { ch: 'B', c: '#21759b' },
-  lumen:    { ch: 'L', c: '#f4645f' },
-  yii:      { ch: 'Y', c: '#40b3d8' },
-  mysql:    { ch: 'M', c: '#38bdf8' },
-  postgres: { ch: 'P', c: '#60a5fa' },
-  redis:    { ch: 'R', c: '#ff5b50' },
-  meili:    { ch: 'M', c: '#fb7185' },
-  rustfs:   { ch: 'S', c: '#fbbf24' },
-  mailpit:  { ch: '@', c: '#34d399' },
-  mongo:    { ch: 'M', c: '#34d399' },
-  stripe:   { ch: '$', c: '#a78bfa' },
-  elastic:  { ch: 'E', c: '#00bfb3' },
+  lumen:    { ch: 'L', c: '#f4645f', l: '#e74430' },
+  yii:      { ch: 'Y', c: '#40b3d8', l: '#1f8bb0' },
+  mysql:    { ch: 'M', c: '#38bdf8', l: '#00758f' },
+  postgres: { ch: 'P', c: '#60a5fa', l: '#336791' },
+  redis:    { ch: 'R', c: '#ff5b50', l: '#dc382d' },
+  meili:    { ch: 'M', c: '#fb7185', l: '#e11d48' },
+  rustfs:   { ch: 'S', c: '#fbbf24', l: '#b45309' },
+  mailpit:  { ch: '@', c: '#34d399', l: '#059669' },
+  mongo:    { ch: 'M', c: '#34d399', l: '#059669' },
+  stripe:   { ch: '$', c: '#a78bfa', l: '#635bff' },
+  elastic:  { ch: 'E', c: '#00bfb3', l: '#00857c' },
 }
 
 // `bare` drops the tile and fills the box with the mark itself, for places that
@@ -42,16 +43,16 @@ export function glyph(name, size, opts = {}) {
   const inset = opts.bare ? 0.04 : 0.19
   const face = m
     ? `<svg x="${s * inset}" y="${s * inset}" width="${s * (1 - inset * 2)}" height="${s * (1 - inset * 2)}"
-        viewBox="${m.vb}" fill="${l.c}">${m.d}</svg>`
+        viewBox="${m.vb}" fill="currentColor">${m.d}</svg>`
     : `<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle"
         font-family="JetBrains Mono, monospace" font-weight="600"
-        font-size="${s * (opts.bare ? 0.86 : 0.5)}" fill="${l.c}">${l.ch}</text>`
+        font-size="${s * (opts.bare ? 0.86 : 0.5)}" fill="currentColor">${l.ch}</text>`
   // No stroke: the rect fills the viewBox, so a stroke on it is half-clipped on
   // every edge. The tint alone carries the plate.
   const tile = opts.bare
     ? ''
-    : `<rect width="${s}" height="${s}" rx="${s * 0.26}" fill="${l.c}" fill-opacity="0.15"/>`
-  return `<svg viewBox="0 0 ${s} ${s}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+    : `<rect width="${s}" height="${s}" rx="${s * 0.26}" fill="currentColor" fill-opacity="0.15"/>`
+  return `<svg viewBox="0 0 ${s} ${s}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;--c:${l.c};--cl:${l.l || l.c}">
       ${tile}
       ${face}
     </svg>`

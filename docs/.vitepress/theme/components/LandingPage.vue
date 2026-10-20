@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { withBase } from 'vitepress'
+import { useData, withBase } from 'vitepress'
 import * as D from '../landing-data.js'
 import { data as starData } from '../stars.data'
 import { data as storeData } from '../store.data'
@@ -8,6 +8,9 @@ import { data as storeData } from '../store.data'
 const GITHUB = 'https://github.com/lerd-env/lerd'
 const DISCORD = 'https://discord.gg/5JK54s7xCC'
 const pad = (n) => String(n).padStart(2, '0')
+const { isDark } = useData()
+// Each lineup capture has a -light twin taken from the demo in the light theme.
+const shot = (c, light) => withBase(`/assets/${c.shot}${light ? '-light' : ''}.png`)
 
 const stars = starData.stars
 const starLabel = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n))
@@ -118,6 +121,10 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
       <div class="hdr-right">
         <a class="gh" :href="GITHUB" target="_blank" rel="noopener">GitHub<span v-if="stars" class="stars">★ {{ starLabel(stars) }}</span></a>
         <a :href="DISCORD" target="_blank" rel="noopener">Discord</a>
+        <button class="theme" type="button" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="isDark = !isDark">
+          <svg class="on-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="on-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
         <a class="btn ink" href="#start">Install</a>
       </div>
     </div></header>
@@ -141,11 +148,12 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
         </div>
         <a class="sponsor" href="https://www.jetbrains.com/phpstorm/" target="_blank" rel="noopener">
           <span class="label">Sponsored by</span>
-          <img :src="withBase('/assets/sponsors/phpstorm-dark.svg')" alt="JetBrains PhpStorm" height="36">
+          <img class="on-light" :src="withBase('/assets/sponsors/phpstorm.svg')" alt="JetBrains PhpStorm" height="36">
+          <img class="on-dark" :src="withBase('/assets/sponsors/phpstorm-dark.svg')" alt="JetBrains PhpStorm" height="36">
         </a>
         </div>
       </div>
-        <div class="hero-art"><div class="win"><div class="win-bar"><i></i><i></i><i></i></div><img :src="withBase('/assets/landing/dashboard.png')" alt="Lerd web dashboard with sites, services and workers"></div></div>
+        <div class="hero-art"><div class="win"><div class="win-bar"><i></i><i></i><i></i></div><img class="on-light" :src="withBase('/assets/landing/dashboard-light.png')" alt="Lerd web dashboard with sites, services and workers" loading="lazy"><img class="on-dark" :src="withBase('/assets/landing/dashboard.png')" alt="Lerd web dashboard with sites, services and workers" loading="lazy"></div></div>
       </section>
 
       <section class="sec" id="lineup" ref="lineup"><div class="wrap">
@@ -173,7 +181,7 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
               <div class="cli"><i>$</i> {{ c.cli }}</div>
               <a class="explore" :href="withBase(c.href)">{{ c.more }} →</a>
             </div>
-            <button class="shot" type="button" :aria-label="`Enlarge the ${c.title} screenshot`" @click="zoom = withBase(`/assets/${c.shot}.png`)"><img :src="withBase(`/assets/${c.shot}.png`)" :alt="c.alt" loading="lazy"></button>
+            <button class="shot" type="button" :aria-label="`Enlarge the ${c.title} screenshot`" @click="zoom = shot(c, !isDark)"><img class="on-light" :src="shot(c, true)" :alt="c.alt" loading="lazy"><img class="on-dark" :src="shot(c, false)" :alt="c.alt" loading="lazy"></button>
           </article>
           </div>
         </div>
