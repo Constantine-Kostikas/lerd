@@ -17,6 +17,7 @@ func truecolorHost(t *testing.T) {
 }
 
 func TestConsoleCmdArgs(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir()) // no cached Node build from this machine
 	truecolorHost(t)
 	got := consoleCmdArgs("/proj", "lerd-php84-fpm", "artisan", true, []string{"migrate"})
 	want := "exec -i -t --env=COLORTERM=truecolor --env=TERM=xterm-256color " +

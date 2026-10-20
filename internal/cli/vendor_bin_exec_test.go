@@ -11,6 +11,7 @@ import (
 // so the opt-in bun has to be in the one they build or a bare `bun` resolves
 // for a request and not for `lerd php` or a console command.
 func TestContainerExecEnvArgs_KeepsBunOnPath(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir()) // no cached Node build from this machine
 	args := strings.Join(containerExecEnvArgs("/home/u/site"), " ")
 	want := "PATH=/home/u/site/vendor/bin:" + podman.ContainerPath + ":"
 	if !strings.Contains(args, want) {

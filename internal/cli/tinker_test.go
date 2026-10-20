@@ -11,6 +11,7 @@ import (
 )
 
 func TestTinkerEnvArgs(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir()) // no cached Node build from this machine
 	got := tinkerEnvArgs("/home/u/site", "/home/u", "/home/u/.config/composer")
 	want := []string{
 		"--env", "HOME=/home/u",
