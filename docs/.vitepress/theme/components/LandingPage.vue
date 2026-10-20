@@ -46,14 +46,17 @@ onBeforeUnmount(() => io && io.disconnect())
 // The live demo opens in a window drawn like the installed PWA. Its title bar
 // takes the dashboard's own header colour, so it follows whatever theme the demo wears.
 const demoOpen = ref(false)
-const demoBar = ref('')
+const demoBar = ref({})
 let demoObserver = null
 function onDemoLoad(e) {
   const doc = e.target.contentDocument
   if (!doc) return
   const sync = () => {
     const rail = doc.querySelector('aside')
-    if (rail) demoBar.value = getComputedStyle(rail).backgroundColor
+    if (!rail) return
+    // The demo keeps its own theme, so the bar takes its text colour as well as its ground.
+    const { backgroundColor, color } = getComputedStyle(rail)
+    demoBar.value = { background: backgroundColor, color, '--ink-2': color, '--muted': `color-mix(in srgb, ${color} 60%, transparent)` }
   }
   sync()
   // Keys pressed inside the demo stay in its document, so Escape is heard there too.
@@ -350,7 +353,7 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
 
     <div v-if="demoOpen" ref="overlay" class="demo" @click.self="demoOpen = false">
       <div class="pwa" role="dialog" aria-modal="true" aria-label="Lerd live demo">
-        <div class="pwa-bar" :style="{ background: demoBar }">
+        <div class="pwa-bar" :style="demoBar">
           <img :src="withBase('/assets/logo.svg')" alt="" width="16" height="16">
           <span class="pwa-title">Lerd</span>
           <span class="pwa-note">Live demo, sample data</span>

@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lerd v{{VERSION}} — dev digest</title>
 <meta name="description" content="Engineering digest for lerd v{{VERSION}}: {{ONE-LINE SUMMARY}}.">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff">
 <script>
-  try {
-    const t = localStorage.getItem('vitepress-theme-appearance');
-    if (t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
-  } catch (e) {}
+  // Blocked storage only loses the saved choice; the system's theme still applies.
+  let t = null;
+  try { t = localStorage.getItem('vitepress-theme-appearance'); } catch (e) {}
+  const dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+  document.querySelector('meta[name=theme-color]').content = dark ? '#0a0a0b' : '#ffffff';
 </script>
 <link rel="canonical" href="https://lerd.sh/digest/v{{VERSION}}.html">
 <meta property="og:type" content="article">
@@ -575,6 +576,7 @@
   // Saved under the docs' key so the landing page and docs open in the same theme.
   document.querySelector('.brandbar .theme').addEventListener('click', () => {
     const dark = document.documentElement.classList.toggle('dark');
+    document.querySelector('meta[name=theme-color]').content = dark ? '#0a0a0b' : '#ffffff';
     try { localStorage.setItem('vitepress-theme-appearance', dark ? 'dark' : 'light'); } catch (e) {}
   });
 
