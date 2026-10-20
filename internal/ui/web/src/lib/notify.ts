@@ -453,6 +453,21 @@ export function handleProtocolLaunch() {
 
 let initialized = false;
 
+// Desktop popups nobody clicked stay in the system's notification list, and the
+// launcher badges the app with their count (Plasma, a PWA's dock icon) forever.
+// Once the dashboard is in front of the user they have served their purpose.
+async function retireDelivered() {
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      for (const n of await reg.getNotifications()) n.close();
+    } catch {
+      /* no registration to ask */
+    }
+  }
+  await navigator.clearAppBadge?.().catch(() => {});
+}
+
 export function initNotify() {
   if (initialized) return;
   initialized = true;
@@ -462,6 +477,7 @@ export function initNotify() {
     if (!msg?.notification) return;
     void fireNotification(msg.notification);
   });
+  window.addEventListener('focus', () => void retireDelivered());
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
       const data = e.data as { kind?: string; url?: string } | undefined;

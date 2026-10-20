@@ -28,12 +28,14 @@ class MockNotification {
 }
 
 const swShows: Array<{ title: string; opts?: NotificationOptions }> = [];
+const delivered: Array<{ close: () => void }> = [];
 
 function installSWMock() {
   const reg = {
     showNotification: vi.fn(async (title: string, opts?: NotificationOptions) => {
       swShows.push({ title, opts });
-    })
+    }),
+    getNotifications: vi.fn(async () => delivered)
   };
   Object.defineProperty(globalThis.navigator, 'serviceWorker', {
     configurable: true,
@@ -100,6 +102,24 @@ describe('notify dispatcher', () => {
     expect(swShows[0].opts?.body).toBe('From: alice@x.com');
     expect(swShows[0].opts?.tag).toBe('lerd-mail-abc');
     expect((swShows[0].opts?.data as { kind?: string })?.kind).toBe('mail');
+  });
+
+  // Notifications left on the desktop count as unread in the launcher badge
+  // (Plasma, the PWA's dock icon), so seeing the dashboard retires them.
+  it('closes delivered notifications and clears the app badge when the window gains focus', async () => {
+    const closes = [vi.fn(), vi.fn()];
+    delivered.push(...closes.map((close) => ({ close })));
+    const clearAppBadge = vi.fn(async () => {});
+    Object.defineProperty(globalThis.navigator, 'clearAppBadge', { configurable: true, value: clearAppBadge });
+    const { initNotify } = await import('./notify');
+
+    initNotify();
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(clearAppBadge).toHaveBeenCalled());
+
+    for (const close of closes) expect(close).toHaveBeenCalled();
+    delivered.length = 0;
+    delete (globalThis.navigator as unknown as { clearAppBadge?: unknown }).clearAppBadge;
   });
 
   it('raises nothing on the desktop while the dashboard window has focus', async () => {
