@@ -45,6 +45,7 @@ func TestPhpInfoOnly(t *testing.T) {
 		{"ini files", []string{"--ini"}, true},
 		{"help", []string{"-h"}, true},
 		{"extension info", []string{"--ri", "xdebug"}, true},
+		{"extension info with equals", []string{"--ri=json"}, true},
 		{"ini flags around info", []string{"-n", "-d", "memory_limit=-1", "-dxdebug.mode=off", "-m"}, true},
 		{"lint files", []string{"-l", "src/Foo.php", "src/Bar.php"}, true},
 		{"ini flags alone", []string{"-d", "memory_limit=-1"}, false},

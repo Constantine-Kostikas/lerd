@@ -285,6 +285,8 @@ func phpInfoOnly(args []string) bool {
 		case reflectFlags[a]:
 			info = true
 			i++ // the extension, function or class it reports on
+		case len(a) > 5 && a[4] == '=' && reflectFlags[a[:4]]:
+			info = true // --ri=json carries its operand
 		case a == "-l" || a == "--syntax-check":
 			return true // what follows are files to lint, never run
 		case a == "-n":
