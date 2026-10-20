@@ -107,7 +107,11 @@ func RunPHPCaptureEnv(cwd string, args []string, extraEnv []string) (int, error)
 // to the machine default and break composer's platform check.
 func RunPHPVersionCaptureEnv(cwd, version string, args []string, extraEnv []string) (int, error) {
 	// Before any branch: the host and native paths reach the same services.
-	ensureServicesForCwd(cwd)
+	// php -v or -m runs no project code, so it wakes neither services nor workers.
+	infoOnly := phpInfoOnly(args)
+	if !infoOnly {
+		ensureServicesForCwd(cwd)
+	}
 
 	// Some console commands cannot work in the container at all, and the
 	// framework says which. Checked before anything starts a container for them.
@@ -119,7 +123,9 @@ func RunPHPVersionCaptureEnv(cwd, version string, args []string, extraEnv []stri
 	if code, took, err := runGlobalHostCLI(cwd, args, extraEnv); took {
 		return code, err
 	}
-	recordCwdActivity(cwd) // keep the site awake under idle-suspend while you work in the terminal
+	if !infoOnly {
+		recordCwdActivity(cwd) // keep the site awake under idle-suspend while you work in the terminal
+	}
 	// The CLI SAPI ignores a project's .user.ini, so a framework declaring
 	// php.cli_ini gets it as -d on every PHP process lerd starts for it.
 	args = prependPHPIniArgs(phpIniArgsForDir(cwd), args)
@@ -259,6 +265,37 @@ func phpScriptArgIndex(args []string) int {
 		return i
 	}
 	return -1
+}
+
+// phpInfoOnly reports whether args only ask PHP about itself (-v, -m, --ri x,
+// lint) and so run no project code. Ini flags may surround them; anything else,
+// a script, -r or stdin, could reach a database.
+func phpInfoOnly(args []string) bool {
+	infoFlags := map[string]bool{
+		"-v": true, "--version": true, "-m": true, "--modules": true,
+		"-i": true, "--info": true, "--ini": true, "-h": true, "--help": true,
+	}
+	reflectFlags := map[string]bool{"--ri": true, "--rf": true, "--rc": true, "--re": true, "--rz": true}
+	info := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case infoFlags[a]:
+			info = true
+		case reflectFlags[a]:
+			info = true
+			i++ // the extension, function or class it reports on
+		case a == "-l" || a == "--syntax-check":
+			return true // what follows are files to lint, never run
+		case a == "-n":
+		case a == "-d" || a == "-c":
+			i++
+		case strings.HasPrefix(a, "-d") || strings.HasPrefix(a, "-c"):
+		default:
+			return false
+		}
+	}
+	return info
 }
 
 // spxPassthroughEnv picks the SPX_* profiler vars out of environ. When SPX is

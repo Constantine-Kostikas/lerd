@@ -32,6 +32,38 @@ func TestPhpScriptArgIndex(t *testing.T) {
 	}
 }
 
+func TestPhpInfoOnly(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{"version", []string{"-v"}, true},
+		{"long version", []string{"--version"}, true},
+		{"modules", []string{"-m"}, true},
+		{"phpinfo", []string{"-i"}, true},
+		{"ini files", []string{"--ini"}, true},
+		{"help", []string{"-h"}, true},
+		{"extension info", []string{"--ri", "xdebug"}, true},
+		{"ini flags around info", []string{"-n", "-d", "memory_limit=-1", "-dxdebug.mode=off", "-m"}, true},
+		{"lint files", []string{"-l", "src/Foo.php", "src/Bar.php"}, true},
+		{"ini flags alone", []string{"-d", "memory_limit=-1"}, false},
+		{"script", []string{"artisan", "migrate"}, false},
+		{"info flag then script", []string{"-v", "check.php"}, false},
+		{"inline code", []string{"-r", "echo 1;"}, false},
+		{"built-in server", []string{"-S", "localhost:8000"}, false},
+		{"interactive", []string{"-a"}, false},
+		{"empty reads stdin", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := phpInfoOnly(tt.args); got != tt.want {
+				t.Errorf("phpInfoOnly(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSpxPassthroughEnv(t *testing.T) {
 	tests := []struct {
 		name    string
