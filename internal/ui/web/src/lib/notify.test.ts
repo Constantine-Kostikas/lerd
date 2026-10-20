@@ -122,6 +122,39 @@ describe('notify dispatcher', () => {
     delete (globalThis.navigator as unknown as { clearAppBadge?: unknown }).clearAppBadge;
   });
 
+  // Launching the app or reloading it in front fires no focus event, and that
+  // is the commonest way to open it.
+  it('retires delivered notifications at startup when the window already has focus', async () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    const close = vi.fn();
+    delivered.push({ close });
+    const clearAppBadge = vi.fn(async () => {});
+    Object.defineProperty(globalThis.navigator, 'clearAppBadge', { configurable: true, value: clearAppBadge });
+    const { initNotify } = await import('./notify');
+
+    initNotify();
+    await vi.waitFor(() => expect(clearAppBadge).toHaveBeenCalled());
+
+    expect(close).toHaveBeenCalled();
+    delivered.length = 0;
+    delete (globalThis.navigator as unknown as { clearAppBadge?: unknown }).clearAppBadge;
+    hasFocus.mockRestore();
+  });
+
+  it('closes page-level fallback popups when the window gains focus', async () => {
+    removeSWMock();
+    const close = vi.spyOn(MockNotification.prototype, 'close');
+    const { initNotify } = await import('./notify');
+    const { wsMessage } = await import('./ws');
+
+    initNotify();
+    wsMessage.set({ type: 'notification', notification: { kind: 'mail', title: 'fallback' } });
+    await vi.waitFor(() => expect(MockNotification.instances).toHaveLength(1));
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(close).toHaveBeenCalled());
+    close.mockRestore();
+  });
+
   it('raises nothing on the desktop while the dashboard window has focus', async () => {
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const { initNotify } = await import('./notify');
