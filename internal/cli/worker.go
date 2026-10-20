@@ -681,10 +681,16 @@ func WorkerStopForSite(siteName, sitePath, workerName string) error {
 // its URL in, so pages fall back to the build (vite's public/hot) instead of a
 // dead proxy. dir is the checkout the worker ran in, empty for the site's own.
 func ClearStoppedWorkerURLFile(siteName, dir, workerName string) {
-	if dir == "" {
-		if s, _ := config.FindSite(siteName); s != nil {
-			dir = s.Path
+	s, _ := config.FindSite(siteName)
+	if dir == "" && s != nil {
+		dir = s.Path
+	}
+	// No framework to ask: its workers are .lerd.yaml's, as resolveSiteAndFramework reads them.
+	if s != nil && s.IsCustomContainer() && s.Framework == "" {
+		if proj, _ := config.LoadProjectConfig(dir); proj != nil {
+			clearWorkerURLFile(dir, proj.CustomWorkers[workerName].Health)
 		}
+		return
 	}
 	if fw, ok := config.GetFrameworkForDir(siteFrameworkName(siteName), dir); ok {
 		clearWorkerURLFile(dir, fw.Workers[workerName].Health)

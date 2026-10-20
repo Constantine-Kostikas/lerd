@@ -92,3 +92,29 @@ func TestClearStoppedWorkerURLFile_emptyDirUsesSitePath(t *testing.T) {
 		t.Errorf("url file still present after stop by site name: %v", err)
 	}
 }
+
+// A custom container site has no framework; its workers, health included, live
+// in .lerd.yaml custom_workers, which the stop cleanup must read like start does.
+func TestClearStoppedWorkerURLFile_customContainerSite(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := t.TempDir()
+	lerdYAML := "custom_workers:\n  dev:\n    command: npm run dev\n    health:\n      url_file: dev.url\n"
+	if err := os.WriteFile(filepath.Join(dir, ".lerd.yaml"), []byte(lerdYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	urlFile := filepath.Join(dir, "dev.url")
+	if err := os.WriteFile(urlFile, []byte("http://127.0.0.1:5173"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.AddSite(config.Site{Name: "nodeapp", Path: dir, Domains: []string{"nodeapp.test"}, ContainerPort: 3000}); err != nil {
+		t.Fatal(err)
+	}
+
+	ClearStoppedWorkerURLFile("nodeapp", "", "dev")
+
+	if _, err := os.Stat(urlFile); !os.IsNotExist(err) {
+		t.Errorf("custom worker's url file still present after stop: %v", err)
+	}
+}
