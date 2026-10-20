@@ -62,7 +62,7 @@ interface Notification {
 }
 
 describe('notify dispatcher', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     MockNotification.instances = [];
     MockNotification.permission = 'granted';
     swShows.length = 0;
@@ -72,6 +72,8 @@ describe('notify dispatcher', () => {
     localStorage.clear();
     installSWMock();
     vi.resetModules();
+    // Most tests run on a page that already knows it delivers to the browser.
+    (await import('./notify')).notifyDelivery.set('browser');
   });
 
   afterEach(() => {
@@ -153,6 +155,39 @@ describe('notify dispatcher', () => {
     window.dispatchEvent(new Event('focus'));
     await vi.waitFor(() => expect(close).toHaveBeenCalled());
     close.mockRestore();
+  });
+
+  // The desktop app can load before lerd-ui answers. Guessing "browser" then
+  // put a page popup beside every native one, and Plasma badged the app with them.
+  it('raises no desktop popup while the sink is still unknown', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('lerd-ui is down'));
+    const { initNotify, notificationHistory, notifyDelivery } = await import('./notify');
+    const { wsMessage } = await import('./ws');
+    notifyDelivery.set(null);
+
+    initNotify();
+    await Promise.resolve();
+    wsMessage.set({ type: 'notification', notification: { kind: 'mail', title: 'while unknown' } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(swShows).toHaveLength(0);
+    expect(get(notificationHistory)).toHaveLength(1);
+    fetchSpy.mockRestore();
+  });
+
+  it('asks for the sink again when the websocket reconnects', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('lerd-ui is down'))
+      .mockResolvedValue(new Response(JSON.stringify({ target: 'native' }), { status: 200 }));
+    const { initNotify, notifyDelivery } = await import('./notify');
+    const { wsConnected } = await import('./ws');
+
+    initNotify();
+    wsConnected.set(true);
+    await vi.waitFor(() => expect(get(notifyDelivery)).toBe('native'));
+    fetchSpy.mockRestore();
   });
 
   it('raises nothing on the desktop while the dashboard window has focus', async () => {
@@ -575,7 +610,7 @@ describe('detectBrowserFamily', () => {
 });
 
 describe('in-app notifications', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     MockNotification.instances = [];
     MockNotification.permission = 'granted';
     swShows.length = 0;
@@ -584,6 +619,7 @@ describe('in-app notifications', () => {
     localStorage.clear();
     installSWMock();
     vi.resetModules();
+    (await import('./notify')).notifyDelivery.set('browser');
   });
 
   afterEach(() => {
