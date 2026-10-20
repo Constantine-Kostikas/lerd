@@ -455,12 +455,12 @@ export function handleProtocolLaunch() {
 
 let initialized = false;
 
+// getNotifications() only sees the worker's popups, so the page keeps its own fallbacks.
+const pagePopups = new Set<Notification>();
+
 // Desktop popups nobody clicked stay in the system's notification list, and the
 // launcher badges the app with their count (Plasma, a PWA's dock icon) forever.
 // Once the dashboard is in front of the user they have served their purpose.
-// getNotifications() only sees the worker's, so the page keeps its own fallbacks.
-const pagePopups = new Set<Notification>();
-
 async function retireDelivered() {
   for (const n of pagePopups) n.close();
   pagePopups.clear();
