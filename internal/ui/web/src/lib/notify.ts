@@ -364,10 +364,8 @@ async function fireNotification(evt: NotificationEvent) {
       pushInApp(entry);
     }
     if (windowFocused()) return;
-    // Under the native sink the daemon has already posted this to the desktop.
-    // A second popup from the page duplicates it and takes the click away from
-    // the desktop app, which the daemon's copy opens through lerd://. Until the
-    // sink is known the page cannot tell, so it leaves the desktop alone.
+    // Under the native sink the daemon already posted this, and a page copy would
+    // steal its lerd:// click. Until the sink is known the page cannot tell.
     if (get(notifyDelivery) !== 'browser') return;
   }
   if (typeof Notification === 'undefined') return;
