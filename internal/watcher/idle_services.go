@@ -283,10 +283,8 @@ func (e *idleEngine) wakeServicesNow(names []string) {
 	e.refreshAdminUIs(names)
 }
 
-// refreshAdminUIs rewrites the admin UIs that discover the woken services'
-// families, restarting one whose server list changed: rendered while they
-// slept, phpMyAdmin woke with no servers and asked for a login. It runs off
-// the request path but under svcMu, so no suspend can stop a UI in between.
+// refreshAdminUIs rewrites admin UIs rendered while their servers slept, which
+// left phpMyAdmin with none to log into. Off the request path, under svcMu.
 func (e *idleEngine) refreshAdminUIs(woken []string) {
 	seen := map[string]bool{}
 	var families []string
