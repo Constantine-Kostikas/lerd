@@ -31,6 +31,7 @@ import (
 	lerdSystemd "github.com/geodro/lerd/internal/systemd"
 	"github.com/geodro/lerd/internal/tray"
 	"github.com/geodro/lerd/internal/version"
+	"github.com/geodro/lerd/internal/wsl"
 	"github.com/spf13/cobra"
 )
 
@@ -133,7 +134,25 @@ func warnHostMysqldProfiles() {
 	}
 }
 
+// Seams for tests.
+var (
+	installIsWSL         = wsl.IsWSL
+	installSystemdBooted = wsl.SystemdBooted
+)
+
+// checkWSLSystemd stops an install in a WSL distro running without systemd,
+// which would otherwise fail later at the first systemctl --user call.
+func checkWSLSystemd() error {
+	if !installIsWSL() || installSystemdBooted() {
+		return nil
+	}
+	return errors.New("systemd is not running in this WSL distro, and lerd runs as systemd user services: run `lerd wsl:setup`, then `wsl --shutdown` from Windows, reopen the distro and run `lerd install` again")
+}
+
 func runInstall(cmd *cobra.Command, _ []string) error {
+	if err := checkWSLSystemd(); err != nil {
+		return err
+	}
 	markInstallInProgress()
 	feedback.Header("Installing Lerd")
 

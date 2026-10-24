@@ -33,6 +33,13 @@ func IsWSL() bool {
 	return false
 }
 
+// SystemdBooted is sd_booted(3): systemd is PID 1 when this directory exists.
+// WSL distros start without it unless /etc/wsl.conf turns it on.
+func SystemdBooted() bool {
+	_, err := os.Stat("/run/systemd/system")
+	return err == nil
+}
+
 // EnsureSectionLine guarantees an ini/toml file's `[section]` contains a line
 // assigning `key`, setting it to `line` (the full `key=value` text, so callers
 // control quoting and spacing). It returns the updated content and whether
