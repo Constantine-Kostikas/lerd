@@ -42,9 +42,7 @@ func runWSLSetup(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintln(w, "Configuring lerd for WSL2...")
 
 	// 1. systemd — /etc/wsl.conf [boot] systemd=true (root-owned, written via sudo).
-	if changed, err := patchRootFile(w, "/etc/wsl.conf", func(c string) (string, bool) {
-		return wsl.EnsureSectionLine(c, "boot", "systemd", "systemd=true")
-	}); err != nil {
+	if changed, err := enableWSLConfSystemd(w); err != nil {
 		fmt.Fprintf(w, "  ! systemd: %v (set [boot] systemd=true in /etc/wsl.conf manually)\n", err)
 	} else if changed {
 		fmt.Fprintln(w, "  ✓ enabled systemd in /etc/wsl.conf")
@@ -144,6 +142,14 @@ func patchUserFile(path string, patch func(string) (string, bool)) (bool, error)
 		return false, err
 	}
 	return true, os.WriteFile(path, []byte(next), 0o644)
+}
+
+// enableWSLConfSystemd sets [boot] systemd=true in /etc/wsl.conf, which takes
+// effect once WSL restarts.
+func enableWSLConfSystemd(w io.Writer) (bool, error) {
+	return patchRootFile(w, "/etc/wsl.conf", func(c string) (string, bool) {
+		return wsl.EnsureSectionLine(c, "boot", "systemd", "systemd=true")
+	})
 }
 
 // patchRootFile is patchUserFile for a root-owned file: it reads what it can and
