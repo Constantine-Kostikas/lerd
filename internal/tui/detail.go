@@ -1036,17 +1036,3 @@ func lanShareText(port int) string {
 	}
 	return runningStyle.Render(fmt.Sprintf("http://%s:%d", ip, port))
 }
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

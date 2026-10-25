@@ -126,12 +126,6 @@ type WorkerModePhaseEvent struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// ApplyWorkersMode is the exported wrapper around applyWorkersMode used
-// by the dashboard handler so the web toggle drives the same migration
-// path as the CLI. emit may be nil when called from the CLI; the streaming
-// path is only used by the dashboard for live progress.
-func ApplyWorkersMode(newMode string) error { return applyWorkersMode(newMode, nil) }
-
 // ApplyWorkersModeStreaming is the streaming variant called by the web
 // dashboard. Emits phase events at every meaningful step so the modal
 // shows "Stopping lerd-horizon-parkapp", "Starting lerd-schedule-frontend",
@@ -159,7 +153,7 @@ func applyWorkersMode(newMode string, emit func(WorkerModePhaseEvent)) error {
 	if err := config.SaveGlobal(cfg); err != nil {
 		return err
 	}
-	// migrateWorkersOnModeChange is a no-op on Linux (build-tag linked).
+	// migrateWorkersOnModeChangeStreaming is a no-op on Linux (build-tag linked).
 	// On macOS it executes the stop → clean → restart dance per worker.
 	return migrateWorkersOnModeChangeStreaming(prev, newMode, emit)
 }

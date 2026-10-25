@@ -441,11 +441,6 @@ func parseHostNameservers(path string) []string {
 	return servers
 }
 
-// nmcliDNS reads DHCP-assigned DNS servers from NetworkManager via nmcli.
-func nmcliDNS() []string {
-	return nmcliDNSFunc()
-}
-
 // parseNmcliLines parses the output of `nmcli -g IP4.DNS device show`.
 func parseNmcliLines(output string) []string {
 	var servers []string
@@ -464,20 +459,6 @@ func parseNmcliLines(output string) []string {
 		}
 	}
 	return servers
-}
-
-// Setup writes DNS configuration for .test resolution and restarts the resolver.
-// On systemd-resolved + NetworkManager systems (Ubuntu etc.) it uses an NM dispatcher script.
-// On pure systemd-resolved systems it uses a resolved drop-in.
-// On NetworkManager-only systems it uses NM's embedded dnsmasq.
-//
-// Deprecated: prefer calling WriteDnsmasqConfig then ConfigureResolver separately so
-// that the dnsmasq container can be started between the two steps.
-func Setup() error {
-	if err := WriteDnsmasqConfig(config.DnsmasqDir()); err != nil {
-		return fmt.Errorf("writing lerd dnsmasq config: %w", err)
-	}
-	return ConfigureResolver()
 }
 
 var noteNixOSOwnsResolverOnce sync.Once

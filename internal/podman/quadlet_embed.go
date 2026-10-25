@@ -321,15 +321,6 @@ func InjectExtraVolumes(content string, paths []string) string {
 	return content
 }
 
-// OCIRuntime returns the name of the OCI runtime podman is currently configured to use.
-func OCIRuntime() string {
-	out, err := execCommand(PodmanBin(), "info", "--format", "{{.Host.OCIRuntime.Name}}").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
 // BindForLAN flips every PublishPort= between the loopback and LAN form on
 // both stacks in lockstep: 127.0.0.1 ↔ bare and [::1] ↔ [::]. lerd-dns
 // (:5300) is pinned on 127.0.0.1 in the embed because LAN access routes
