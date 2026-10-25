@@ -1,32 +1,22 @@
 import { defineLoader } from 'vitepress'
 import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { COUNTS, countList } from './landing-data.js'
 
-// The hero's framework and service counts, read from the same store indexes
-// lerd itself fetches, so they move with the store instead of the copy. A build
-// with no network answers 0 and the page drops that stat rather than show a wrong one.
+// The hero's counts at build time; the page refreshes them in the browser.
+// A build with no network answers 0 and the page drops that stat rather than show a wrong one.
 export interface Data {
   frameworks: number
   services: number
+  plugins: number
+  // The default stack ships inside the binary rather than the store, so the
+  // browser adds this to the store's live count.
+  builtin: number
 }
 
 declare const data: Data
 export { data }
 
-const STORE = 'https://raw.githubusercontent.com/lerd-env'
-
-async function count(url: string, key: string): Promise<number> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return 0
-    const list = (await res.json())[key]
-    return Array.isArray(list) ? list.length : 0
-  } catch {
-    return 0
-  }
-}
-
-// The default stack ships inside the binary rather than the store.
 function builtinServices(): number {
   const dir = fileURLToPath(new URL('../../../internal/config/presets/', import.meta.url))
   return readdirSync(dir).filter((f) => f.endsWith('.yaml')).length
@@ -34,10 +24,8 @@ function builtinServices(): number {
 
 export default defineLoader({
   async load(): Promise<Data> {
-    const [frameworks, store] = await Promise.all([
-      count(`${STORE}/frameworks/main/frameworks/index.json`, 'frameworks'),
-      count(`${STORE}/services/main/services/index.json`, 'services'),
-    ])
-    return { frameworks, services: store ? store + builtinServices() : 0 }
+    const [frameworks, store, plugins] = await Promise.all([countList(COUNTS.frameworks), countList(COUNTS.services), countList(COUNTS.plugins)])
+    const builtin = builtinServices()
+    return { frameworks, services: store ? store + builtin : 0, plugins, builtin }
   },
 })

@@ -58,14 +58,37 @@ export function glyph(name, size, opts = {}) {
     </svg>`
 }
 
+// The hero's counts. store.data.ts reads them at build so the HTML carries a
+// number, and the page reads them again in the browser, since the stores and
+// the catalog move between releases while lerd.sh only rebuilds on one.
+export const COUNTS = {
+  frameworks: ['https://raw.githubusercontent.com/lerd-env/frameworks/main/frameworks/index.json', 'frameworks'],
+  services: ['https://raw.githubusercontent.com/lerd-env/services/main/services/index.json', 'services'],
+  plugins: ['https://plugins.lerd.sh/index.json', 'plugins'],
+}
+
+// A failed fetch answers 0, and a 0 is never shown.
+export async function countList([url, key]) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return 0
+    const list = (await res.json())[key]
+    return Array.isArray(list) ? list.length : 0
+  } catch {
+    return 0
+  }
+}
+
 export const INSTALL = 'curl -fsSL https://lerd.sh/install.sh | bash'
+// releases/latest/download always resolves to the newest desktop release's asset.
+export const WINDOWS_INSTALLER = 'https://github.com/lerd-env/lerd-desktop/releases/latest/download/Install-Lerd.exe'
 
 /* ---- The lineup: one full-width card per area, screenshot path under public/assets ---- */
 export const LINEUP = [
   { id: 'sites', title: 'Sites', h: 'Run lerd init, get a .test domain.',
     p: 'Lerd detects the framework, runs composer and npm, migrates the database, starts the workers and issues a trusted certificate. Nginx and PHP-FPM serve it at https://project.test.',
     alt: 'Lerd site page with runtime, workers, services and request timing for acme.test',
-    tags: ['Linux', 'macOS', { t: 'WSL2 beta', beta: true }], cli: 'lerd init',
+    tags: ['Linux', 'macOS', 'WSL2'], cli: 'lerd init',
     more: 'Explore sites', href: '/usage/sites', shot: 'landing/site-overview' },
   { id: 'dashboard', title: 'Dashboard', h: 'A dashboard in the browser.',
     p: 'Sites, services, workers and PHP versions on one screen. Start and stop things, tail logs, or open a shell or Tinker without leaving the tab. It installs as a PWA too.',
@@ -135,11 +158,11 @@ export const RUNTIMES = [
 /* ---- Platforms ---- */
 export const PLATFORMS = [
   { name: 'Linux', status: 'STABLE', href: '/getting-started/installation',
-    p: 'Rootless Podman under systemd on Ubuntu, Fedora, Arch, Omarchy and any other systemd distro, with an Omarchy bar widget. No Docker daemon, no sudo.' },
+    p: 'Rootless Podman under systemd on Ubuntu, Fedora, Arch, Omarchy and any other systemd distro, with an Omarchy bar widget. No Docker daemon.' },
   { name: 'macOS', status: 'STABLE', href: '/getting-started/installation',
     p: 'Local PHP development on a Mac without a paid tier, using the same dashboard, TUI and MCP server. PHP-FPM and workers can also run natively on the host, in beta.' },
-  { name: 'Windows', status: 'WSL2 BETA', beta: true, href: '/getting-started/wsl2',
-    p: 'Lerd runs inside WSL2 with the same CLI, dashboard, services and MCP server. Windows support is still in beta, and the WSL2 guide covers the setup.' },
+  { name: 'Windows', status: 'WSL2', href: '/getting-started/wsl2',
+    p: 'Lerd runs inside WSL2 with the same CLI, dashboard, services and MCP server. The Windows installer sets it all up, and the WSL2 guide covers each step.' },
 ]
 
 /* ---- Services showcase ---- */
@@ -175,18 +198,19 @@ export const CMP = {
   rows: [
     { f: 'Runs on Linux',            v: ['yes', 'no', 'no', 'yes', 'yes', 'yes'] },
     { f: 'Runs on macOS',            v: ['yes', 'yes', 'no', 'yes', 'yes', 'yes'] },
-    { f: 'Runs on Windows',          v: ['partial', 'yes', 'yes', 'yes', 'yes', 'yes'] },
+    { f: 'Runs on Windows',          v: ['yes', 'yes', 'yes', 'yes', 'yes', 'yes'] },
     { f: 'No Docker daemon',         v: ['yes', 'yes', 'yes', 'no', 'no', 'no'] },
-    { f: 'Rootless · no sudo',       v: ['yes', 'yes', 'partial', 'partial', 'partial', 'no'] },
+    { f: 'Rootless',                 v: ['yes', 'yes', 'partial', 'partial', 'partial', 'no'] },
     { f: 'Open source',              v: ['yes', 'no', 'no', 'yes', 'yes', 'yes'] },
     { f: 'Free, no paid tier',       v: ['yes', 'partial', 'partial', 'yes', 'yes', 'yes'] },
     { f: 'Automatic .test + TLS',    v: ['yes', 'yes', 'yes', 'yes', 'partial', 'no'] },
     { f: 'Zero required config',    v: ['yes', 'yes', 'yes', 'no', 'no', 'no'] },
-    { f: 'Git worktrees as sites',   v: ['yes', 'no', 'no', 'no', 'no', 'no'] },
+    { f: 'Git worktrees as sites',   v: ['yes', 'yes', 'no', 'no', 'no', 'no'] },
     { f: 'Built-in Web UI',          v: ['yes', 'yes', 'no', 'partial', 'no', 'no'] },
     { f: 'Terminal dashboard',       v: ['yes', 'no', 'no', 'no', 'no', 'no'] },
     { f: 'MCP server for AI agents', v: ['yes', 'yes', 'no', 'no', 'no', 'no'] },
     { f: 'Profiler & debug window',  v: ['yes', 'yes', 'no', 'no', 'no', 'no'] },
+    { f: 'Plugins',                  v: ['yes', 'no', 'no', 'yes', 'yes', 'no'] },
   ],
 }
 
@@ -198,4 +222,15 @@ export const PRINCIPLES = [
   { h: 'Updates within a day', p: 'Frameworks and services are versioned definitions that arrive without a release.' },
   { h: 'Open source, MIT', p: 'All of it is free and in one MIT-licensed binary, with no paid tier and no account.' },
   { h: 'Stays in your home', p: 'Everything lives under your home directory, so uninstalling leaves the machine as it was.' },
+]
+
+// Answers stay plain text; a question that needs a page links out through href.
+export const FAQ = [
+  { q: 'Is Lerd free?', a: 'Yes. Lerd is MIT licensed and all of it is in the one binary, with no paid tier and no account.' },
+  { q: 'Do I need Docker?', a: 'No. Lerd runs everything as rootless Podman containers under your own user, with no daemon. The installer offers to install Podman if it is missing.' },
+  { q: 'Does it work on Windows?', a: 'Yes, inside WSL2. The Windows installer sets up WSL2, an Ubuntu distro with your Linux user, Lerd and the Lerd desktop app.', href: '/getting-started/wsl2', link: 'Windows (WSL2) guide' },
+  { q: 'Do I have to change my project?', a: 'No. Lerd detects the framework from the repository and serves it as it is. An optional .lerd.yaml pins PHP and Node versions, services and workers.' },
+  { q: 'Can it run next to a MySQL or PostgreSQL I already have?', a: 'Yes. When a database installed on the host already holds the default port, Lerd publishes its container on the next free port and writes that into the site .env.' },
+  { q: 'Can I extend it?', a: 'Yes, with plugins that add commands, dashboard pages, AI tools and services. Each one is reviewed at the exact commit Lerd installs.', href: 'https://plugins.lerd.sh/', link: 'Browse plugins' },
+  { q: 'How do I remove it?', a: 'Run lerd uninstall. It stops the containers, removes the units, the binary and the network, and takes the trusted certificate and the DNS rule back out.', href: '/getting-started/installation#uninstall', link: 'What uninstall removes' },
 ]
