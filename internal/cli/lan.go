@@ -128,9 +128,9 @@ ports and devices that require access.`,
 			}
 			expose.OK(feedback.Val(lanIP))
 			if dnsOn {
-				feedback.Note("sites: http://*.test (resolved via dnsmasq on " + lanIP + ":5300)")
+				feedback.Note("sites: http://*.test (resolved via lerd-dns on " + lanIP + ":5300)")
 			} else {
-				feedback.Note("sites: only reachable via per-site `lerd lan:share` (no dnsmasq, *.localhost cannot resolve to a remote host)")
+				feedback.Note("sites: only reachable via per-site `lerd lan:share` (no lerd-dns, *.localhost cannot resolve to a remote host)")
 			}
 			if cfg != nil && cfg.UI.PasswordHash != "" {
 				feedback.Note(fmt.Sprintf("dashboard: http://%s:7073 (HTTP Basic auth required)", lanIP))

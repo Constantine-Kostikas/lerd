@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "僅限 loopback",
   "system_lan_loopbackDescription": "Lerd 僅繫結 loopback（雙堆疊主機上為 {loop4} 和 {loop6}），網路上的其他裝置看不到它。適合不受信任的 Wi-Fi（咖啡廳、會議網路）。公開後即可在受信任的區域網路上與另一台機器分享網站。",
   "system_lan_macosWarning": "macOS：此開關控制 DNS 解析（{pattern} → 127.0.0.1 或區域網路 IP）。由於 gvproxy 的限制，區域網路一律可以連線連接埠 80 和 443。除非透過下方的獨立控制項明確啟用，否則受管理服務的連接埠仍會受到限制。",
-  "system_lan_postExpose_dnsmasq": "dnsmasq 現在以 {ip} 回應 {pattern} 查詢。",
+  "system_lan_postExpose_dnsmasq": "lerd-dns 現在以 {ip} 回應 {pattern} 查詢。",
   "system_lan_postExpose_firewall": "請確認你的防火牆允許你想授權的裝置連線連接埠 5300。",
   "system_lan_postExpose_resolver": "DNS 解析器已透過 {unit} 在 {addr} 上公開（UDP+TCP）。",
   "system_lan_progress_doneExposed": "Lerd 現已在區域網路上透過 {ip} 公開。",

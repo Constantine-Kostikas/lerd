@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "hanya loopback",
   "system_lan_loopbackDescription": "Lerd terikat hanya ke loopback ({loop4} dan {loop6} pada host dual-stack), tidak terlihat oleh perangkat lain di jaringan. Aman untuk wifi yang tidak tepercaya (kafe, jaringan konferensi). Ekspos untuk berbagi situs Anda dengan mesin lain di LAN tepercaya.",
   "system_lan_macosWarning": "macOS: Tombol ini mengontrol resolusi DNS ({pattern} → 127.0.0.1 atau IP LAN). Port 80 dan 443 selalu dapat diakses dari LAN karena keterbatasan gvproxy. Port layanan terkelola tetap dibatasi kecuali diaktifkan secara eksplisit melalui kontrol terpisah di bawah.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq sekarang menjawab kueri {pattern} dengan {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns sekarang menjawab kueri {pattern} dengan {ip}.",
   "system_lan_postExpose_firewall": "Pastikan firewall Anda mengizinkan port 5300 dari perangkat yang ingin Anda beri akses.",
   "system_lan_postExpose_resolver": "Resolver DNS diekspos pada {addr} (UDP+TCP) via {unit}.",
   "system_lan_progress_doneExposed": "Lerd sekarang diekspos di LAN pada {ip}.",

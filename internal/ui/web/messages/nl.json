@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "alleen loopback",
   "system_lan_loopbackDescription": "Lerd is alleen aan loopback gebonden ({loop4} en {loop6} op dual-stack-hosts), onzichtbaar voor andere apparaten op het netwerk. Veilig voor onbetrouwbare wifi (cafés, conferentienetwerken). Stel het bloot om je sites te delen met een andere machine op een vertrouwd LAN.",
   "system_lan_macosWarning": "macOS: Deze schakelaar regelt de DNS-resolutie ({pattern} → 127.0.0.1 of LAN-IP). Poorten 80 en 443 zijn vanwege een beperking van gvproxy altijd bereikbaar vanaf het LAN. Poorten van beheerde services blijven beperkt, tenzij ze expliciet worden ingeschakeld met de afzonderlijke optie hieronder.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq beantwoordt {pattern}-queries nu met {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns beantwoordt {pattern}-queries nu met {ip}.",
   "system_lan_postExpose_firewall": "Zorg dat je firewall poort 5300 toestaat vanaf de apparaten waaraan je toegang wilt geven.",
   "system_lan_postExpose_resolver": "DNS-resolver blootgesteld op {addr} (UDP+TCP) via {unit}.",
   "system_lan_progress_doneExposed": "Lerd is nu blootgesteld op het LAN op {ip}.",

@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "ループバックのみ",
   "system_lan_loopbackDescription": "Lerd はループバックのみ（デュアルスタックホストでは {loop4} と {loop6}）にバインドされ、ネットワーク上の他のデバイスからは見えません。信頼できない wifi（カフェ、カンファレンスのネットワーク）でも安全です。信頼できる LAN 上の別マシンとサイトを共有するには公開してください。",
   "system_lan_macosWarning": "macOS：この切り替えでは、DNS 解決（{pattern} → 127.0.0.1 または LAN IP）を制御します。gvproxy の制限により、ポート 80 と 443 には常に LAN からアクセスできます。管理対象サービスのポートは、下の個別の設定で明示的に有効にしない限り、引き続き制限されます。",
-  "system_lan_postExpose_dnsmasq": "dnsmasq は {pattern} クエリに {ip} で応答するようになりました。",
+  "system_lan_postExpose_dnsmasq": "lerd-dns は {pattern} クエリに {ip} で応答するようになりました。",
   "system_lan_postExpose_firewall": "アクセスを許可したいデバイスからのポート 5300 をファイアウォールが通すよう確認してください。",
   "system_lan_postExpose_resolver": "DNS リゾルバを {unit} 経由で {addr}（UDP+TCP）に公開しました。",
   "system_lan_progress_doneExposed": "Lerd は {ip} で LAN に公開されました。",

@@ -396,7 +396,7 @@ func (m *Model) removeFocusedDomain() (handled bool, cmd tea.Cmd) {
 	full := row.domain
 	m.openConfirm(
 		"Remove domain",
-		"Remove "+full+" from "+siteName+"?\nThis unregisters the alias from nginx and dnsmasq immediately.",
+		"Remove "+full+" from "+siteName+"?\nThis unregisters the alias from nginx and lerd-dns immediately.",
 		runLerd(sitePath, "domain", "remove", short),
 	)
 	return true, nil

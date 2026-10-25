@@ -327,7 +327,7 @@ func confirmRemoveMkcertCA() bool {
 }
 
 func confirmPurgeLerdImages() bool {
-	return feedback.Confirm("Purge lerd-built container images (lerd-php*-fpm, lerd-custom-*, lerd-dnsmasq)? Databases and app files are unaffected.", false)
+	return feedback.Confirm("Purge lerd-built container images (lerd-php*-fpm, lerd-custom-*)? Databases and app files are unaffected.", false)
 }
 
 // removeLerdImages removes locally-built lerd images. Upstream pulls

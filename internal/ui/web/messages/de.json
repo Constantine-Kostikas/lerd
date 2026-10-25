@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "nur Loopback",
   "system_lan_loopbackDescription": "Lerd ist nur an Loopback gebunden ({loop4} und {loop6} auf Dual-Stack-Hosts), für andere Geräte im Netzwerk unsichtbar. Sicher für nicht vertrauenswürdiges WLAN (Cafés, Konferenznetze). Gib es frei, um deine Sites mit einer anderen Maschine in einem vertrauenswürdigen LAN zu teilen.",
   "system_lan_macosWarning": "macOS: Dieser Schalter steuert die DNS-Auflösung ({pattern} → 127.0.0.1 oder LAN-IP). Die Ports 80 und 443 sind aufgrund einer Einschränkung von gvproxy immer aus dem LAN erreichbar. Die Ports verwalteter Dienste bleiben eingeschränkt, sofern sie nicht über die separate Einstellung unten ausdrücklich freigegeben werden.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq beantwortet {pattern}-Anfragen jetzt mit {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns beantwortet {pattern}-Anfragen jetzt mit {ip}.",
   "system_lan_postExpose_firewall": "Stelle sicher, dass deine Firewall Port 5300 von den Geräten zulässt, denen du Zugriff geben willst.",
   "system_lan_postExpose_resolver": "DNS-Resolver freigegeben auf {addr} (UDP+TCP) über {unit}.",
   "system_lan_progress_doneExposed": "Lerd ist jetzt im LAN unter {ip} freigegeben.",

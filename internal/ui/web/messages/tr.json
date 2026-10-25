@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "yalnızca loopback",
   "system_lan_loopbackDescription": "Lerd yalnızca loopback'e bağlı ({loop4} ve dual-stack host'larda {loop6}), ağdaki diğer cihazlara görünmez. Güvenilmeyen wifi (kafeler, konferans ağları) için güvenli. Sitelerinizi güvenilir bir LAN'daki başka bir makineyle paylaşmak için açın.",
   "system_lan_macosWarning": "macOS: Bu anahtar, DNS çözümlemesini denetler ({pattern} → 127.0.0.1 veya LAN IP’si). gvproxy sınırlaması nedeniyle 80 ve 443 numaralı bağlantı noktalarına LAN üzerinden her zaman erişilebilir. Yönetilen hizmet bağlantı noktaları, aşağıdaki ayrı denetimle açıkça etkinleştirilmedikçe kısıtlı kalır.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq artık {pattern} sorgularını {ip} ile yanıtlıyor.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns artık {pattern} sorgularını {ip} ile yanıtlıyor.",
   "system_lan_postExpose_firewall": "Erişim vermek istediğiniz cihazlardan 5300 portuna güvenlik duvarınızın izin verdiğinden emin olun.",
   "system_lan_postExpose_resolver": "DNS çözümleyici {unit} aracılığıyla {addr} (UDP+TCP) üzerinde açıldı.",
   "system_lan_progress_doneExposed": "Lerd artık {ip} adresinde LAN'a açık.",

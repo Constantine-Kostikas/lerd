@@ -62,13 +62,13 @@ func EnableLANExposure(progress LANProgressFunc) (lanIP string, err error) {
 	emit("Detecting primary LAN IP")
 	lanIP, err = detectPrimaryLANIP()
 	if err != nil {
-		return "", fmt.Errorf("could not auto-detect a LAN IP for the dnsmasq target: %w", err)
+		return "", fmt.Errorf("could not auto-detect a LAN IP for lerd-dns to answer with: %w", err)
 	}
 
 	if cfg.DNS.Enabled {
-		emit("Updating dnsmasq config (.test → " + lanIP + ")")
+		emit("Updating lerd-dns config (.test → " + lanIP + ")")
 		if err := dns.WriteDnsmasqConfigFor(config.DnsmasqDir(), lanIP); err != nil {
-			return "", fmt.Errorf("rewriting dnsmasq config: %w", err)
+			return "", fmt.Errorf("rewriting the lerd-dns config: %w", err)
 		}
 
 		emit("Restarting lerd-dns")
@@ -179,9 +179,9 @@ func DisableLANExposure(progress LANProgressFunc) error {
 			return err
 		}
 
-		emit("Reverting dnsmasq to 127.0.0.1")
+		emit("Reverting lerd-dns to 127.0.0.1")
 		if err := dns.WriteDnsmasqConfigFor(config.DnsmasqDir(), "127.0.0.1"); err != nil {
-			return fmt.Errorf("rewriting dnsmasq config: %w", err)
+			return fmt.Errorf("rewriting the lerd-dns config: %w", err)
 		}
 
 		emit("Restarting lerd-dns")
