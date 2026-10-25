@@ -646,7 +646,7 @@ build:
 
 	fmt.Fprintf(w, "  PHP %s image built successfully.\n", version)
 	if before != nil {
-		writePackageChanges(w, packageChanges(before, imagePackages(imageName)))
+		writePackageChanges(w, before, imagePackages(imageName))
 	}
 	if OnImageRebuilt != nil {
 		OnImageRebuilt()
@@ -704,7 +704,14 @@ func packageChanges(before, after map[string]string) []string {
 	return changes
 }
 
-func writePackageChanges(w io.Writer, changes []string) {
+// writePackageChanges reports the diff, or says so when the new image could
+// not be read rather than listing every old package as removed.
+func writePackageChanges(w io.Writer, before, after map[string]string) {
+	if after == nil {
+		fmt.Fprintln(w, "  Could not read the new image's packages.")
+		return
+	}
+	changes := packageChanges(before, after)
 	if len(changes) == 0 {
 		fmt.Fprintln(w, "  No package changes.")
 		return

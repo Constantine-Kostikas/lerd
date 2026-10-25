@@ -38,10 +38,19 @@ func TestPackageChanges(t *testing.T) {
 	}
 }
 
-func TestWritePackageChangesSaysWhenNothingMoved(t *testing.T) {
-	var b strings.Builder
-	writePackageChanges(&b, nil)
-	if b.String() != "  No package changes.\n" {
-		t.Errorf("got %q", b.String())
+func TestWritePackageChanges(t *testing.T) {
+	pkgs := map[string]string{"musl": "1.2.5-r9"}
+	for name, tc := range map[string]struct {
+		after map[string]string
+		want  string
+	}{
+		"nothing moved":    {pkgs, "  No package changes.\n"},
+		"unreadable image": {nil, "  Could not read the new image's packages.\n"},
+	} {
+		var b strings.Builder
+		writePackageChanges(&b, pkgs, tc.after)
+		if b.String() != tc.want {
+			t.Errorf("%s: got %q, want %q", name, b.String(), tc.want)
+		}
 	}
 }
