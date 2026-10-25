@@ -23,16 +23,17 @@ func TestInstallPHPVersionFetchesTheNativeBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var fetched, started string
-	origInstall, origStart := nativeInstallFn, nativeStartFn
+	var fetched, inied, started string
+	origInstall, origStart, origIni := nativeInstallFn, nativeStartFn, ensureXdebugIni
 	nativeInstallFn = func(version string, _ io.Writer) error { fetched = version; return nil }
+	ensureXdebugIni = func(version string) error { inied = version; return nil }
 	nativeStartFn = func(version string) error { started = version; return nil }
-	defer func() { nativeInstallFn, nativeStartFn = origInstall, origStart }()
+	defer func() { nativeInstallFn, nativeStartFn, ensureXdebugIni = origInstall, origStart, origIni }()
 
 	if err := InstallPHPVersion("8.4", io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if fetched != "8.4" || started != "8.4" {
-		t.Errorf("fetched %q, started %q, want both 8.4", fetched, started)
+	if fetched != "8.4" || inied != "8.4" || started != "8.4" {
+		t.Errorf("fetched %q, xdebug ini %q, started %q, want all 8.4", fetched, inied, started)
 	}
 }

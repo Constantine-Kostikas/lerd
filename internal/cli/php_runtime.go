@@ -183,7 +183,7 @@ func ApplyPHPRuntime(mode string) error {
 
 	// The xdebug ini belongs to the runtime that wrote it, and only a switch
 	// changes which one that is.
-	if err := podman.RefreshXdebugInis(versions); err != nil {
+	if err := podman.RefreshXdebugInis(xdebugRefreshVersions(mode, versions)); err != nil {
 		feedback.Warn("refreshing the xdebug ini: %v (xdebug may not load)", err)
 	}
 
@@ -258,6 +258,22 @@ func ApplyPHPRuntime(mode string) error {
 		}
 	}
 	return nil
+}
+
+// xdebugRefreshVersions is which versions a switch rewrites the xdebug ini for:
+// the installed ones, plus under native the ones about to be fetched, which
+// have no ini of their own yet.
+func xdebugRefreshVersions(mode string, installed []string) []string {
+	out := slices.Clone(installed)
+	if mode != config.PHPRuntimeNative {
+		return out
+	}
+	for _, v := range nativeVersionsWanted() {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // nativeVersionsWanted lists the default PHP version plus the ones the sites

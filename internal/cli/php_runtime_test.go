@@ -67,3 +67,21 @@ func TestNativeVersionsWantedIgnoresContainerImages(t *testing.T) {
 		t.Errorf("wanted = %v, want [8.4 8.5]", got)
 	}
 }
+
+// A version a switch to native is about to fetch has no xdebug ini of its own
+// yet, so the refresh has to cover it too or xdebug never loads there.
+func TestXdebugRefreshCoversNativeVersionsWanted(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	reg := &config.SiteRegistry{Sites: []config.Site{{Name: "app", Path: t.TempDir(), PHPVersion: "8.4"}}}
+	if err := config.SaveSites(reg); err != nil {
+		t.Fatal(err)
+	}
+	if got := xdebugRefreshVersions(config.PHPRuntimeNative, []string{"8.3"}); !slices.Contains(got, "8.3") || !slices.Contains(got, "8.4") {
+		t.Errorf("native refresh = %v, want 8.3 and 8.4", got)
+	}
+	if got := xdebugRefreshVersions(config.PHPRuntimeContainer, []string{"8.3"}); !slices.Equal(got, []string{"8.3"}) {
+		t.Errorf("container refresh = %v, want [8.3]", got)
+	}
+}
