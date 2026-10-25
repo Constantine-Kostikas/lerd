@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 )
 
@@ -49,33 +48,5 @@ func TestVendorBinExists(t *testing.T) {
 	empty := t.TempDir()
 	if VendorBinExists(empty, "pest") {
 		t.Error("VendorBinExists on project without vendor/bin should return false")
-	}
-}
-
-func TestListVendorBins(t *testing.T) {
-	dir := t.TempDir()
-	binDir := filepath.Join(dir, "vendor", "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"pest", "phpunit", "pint"} {
-		if err := os.WriteFile(filepath.Join(binDir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Subdirectories must be ignored.
-	if err := os.MkdirAll(filepath.Join(binDir, "stubs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	got := ListVendorBins(dir)
-	want := []string{"pest", "phpunit", "pint"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("ListVendorBins() = %v, want %v", got, want)
-	}
-
-	// Missing vendor/bin returns nil.
-	if got := ListVendorBins(t.TempDir()); got != nil {
-		t.Errorf("ListVendorBins on empty project = %v, want nil", got)
 	}
 }

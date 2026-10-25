@@ -441,21 +441,3 @@ func ConstraintsOverlap(constraints ...string) bool {
 	}
 	return false
 }
-
-// ClampToConstraint returns version when it satisfies constraint, else the best
-// installed version that does, else the constraint's own minimum. Unlike a
-// min/max range this keeps an alternation intact, so a project requiring
-// "^7.3|^8.0" is allowed 7.4 rather than being pushed to the top of one branch.
-// An empty or unreadable constraint clamps nothing.
-func ClampToConstraint(version, constraint string) string {
-	if constraint == "" || satisfiesConstraint(version, constraint) {
-		return version
-	}
-	if best := bestInstalledVersion(constraint); best != "" {
-		return best
-	}
-	if min := parseComposerPHP(constraint); min != "" {
-		return min
-	}
-	return version
-}

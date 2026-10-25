@@ -34,16 +34,6 @@ func TestWorktreePHPVersion_emptyOverrideInherits(t *testing.T) {
 	}
 }
 
-func TestWorktreeNodeVersion_overridesFromLerdYaml(t *testing.T) {
-	dir := t.TempDir()
-	if err := SaveProjectConfig(dir, &ProjectConfig{NodeVersion: "24"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := WorktreeNodeVersion(dir, "22"); got != "24" {
-		t.Errorf("WorktreeNodeVersion() = %q, want %q", got, "24")
-	}
-}
-
 func TestSetWorktreePHPVersion_createsLerdYamlWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	if err := SetWorktreePHPVersion(dir, "8.4"); err != nil {

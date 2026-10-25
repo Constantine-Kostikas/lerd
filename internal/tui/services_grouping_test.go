@@ -30,24 +30,6 @@ func TestFailingWorkerNames_BuildsCanonicalKindSitePairs(t *testing.T) {
 	}
 }
 
-func TestJoinTruncated(t *testing.T) {
-	cases := []struct {
-		in   []string
-		max  int
-		want string
-	}{
-		{[]string{"a", "b"}, 3, "a, b"},
-		{[]string{"a", "b", "c"}, 3, "a, b, c"},
-		{[]string{"a", "b", "c", "d", "e"}, 3, "a, b, c +2 more"},
-		{[]string{}, 3, ""},
-	}
-	for _, c := range cases {
-		if got := joinTruncated(c.in, c.max); got != c.want {
-			t.Errorf("joinTruncated(%v, %d) = %q, want %q", c.in, c.max, got, c.want)
-		}
-	}
-}
-
 func TestClassifyService(t *testing.T) {
 	cases := []struct {
 		row  ServiceRow

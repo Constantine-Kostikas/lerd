@@ -28,40 +28,6 @@ func NewEnvCheckCmd() *cobra.Command {
 	return cmd
 }
 
-// diffEnvKeys compares envFile against exampleFile and returns
-// keys missing from envFile and keys extra in envFile.
-func diffEnvKeys(exampleFile, envFile string) (missing, extra []string) {
-	exampleKeys, err := envfile.ReadKeys(exampleFile)
-	if err != nil {
-		return nil, nil
-	}
-	envKeys, err := envfile.ReadKeys(envFile)
-	if err != nil {
-		return nil, nil
-	}
-
-	envSet := make(map[string]bool, len(envKeys))
-	for _, k := range envKeys {
-		envSet[k] = true
-	}
-	exampleSet := make(map[string]bool, len(exampleKeys))
-	for _, k := range exampleKeys {
-		exampleSet[k] = true
-	}
-
-	for _, k := range exampleKeys {
-		if !envSet[k] {
-			missing = append(missing, k)
-		}
-	}
-	for _, k := range envKeys {
-		if !exampleSet[k] {
-			extra = append(extra, k)
-		}
-	}
-	return missing, extra
-}
-
 // findEnvFiles returns all .env* files in dir except .env.example, sorted.
 func findEnvFiles(dir string) []string {
 	entries, err := os.ReadDir(dir)

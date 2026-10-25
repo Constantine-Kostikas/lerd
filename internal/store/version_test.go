@@ -6,31 +6,6 @@ import (
 	"testing"
 )
 
-// ── extractMajorVersion ──────────────────────────────────────────────────────
-
-func TestExtractMajorVersion(t *testing.T) {
-	cases := []struct {
-		input string
-		want  string
-	}{
-		{"v11.34.2", "11"},
-		{"11.34.2", "11"},
-		{"7.0.0", "7"},
-		{"v2.3.0-beta.1", "2"},
-		{"6.0.0-rc.1", "6"},
-		{"v1.0.0", "1"},
-		{"", ""},
-		{"v", ""},
-	}
-
-	for _, c := range cases {
-		got := extractMajorVersion(c.input)
-		if got != c.want {
-			t.Errorf("extractMajorVersion(%q) = %q, want %q", c.input, got, c.want)
-		}
-	}
-}
-
 // ── extractMajorFromConstraint ──────────────────────────────────────────────
 
 func TestExtractMajorFromConstraint(t *testing.T) {

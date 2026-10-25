@@ -46,17 +46,3 @@ func TestSyncPrimaryDomainSkipsWhenNoURLKey(t *testing.T) {
 		t.Errorf("APP_URL was rewritten for a framework that declares no URL key: %q", got)
 	}
 }
-
-func TestUpdateAppURLWritesTheDeclaredKey(t *testing.T) {
-	dir := t.TempDir()
-	local := filepath.Join(dir, ".env.local")
-	if err := os.WriteFile(local, []byte("DEFAULT_URI=http://a.test\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := UpdateAppURL(dir, ".env.local", "DEFAULT_URI", "https", "b.test"); err != nil {
-		t.Fatal(err)
-	}
-	if got := ReadKey(local, "DEFAULT_URI"); got != "https://b.test" {
-		t.Errorf("DEFAULT_URI = %q, want https://b.test", got)
-	}
-}

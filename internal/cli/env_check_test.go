@@ -22,66 +22,6 @@ func envPaths(dir string, names ...string) (string, []string) {
 	return example, envs
 }
 
-func TestEnvCheck_inSync(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".env.example", "APP_NAME=\nDB_HOST=\n")
-	writeFile(t, dir, ".env", "APP_NAME=MyApp\nDB_HOST=localhost\n")
-
-	ex, envs := envPaths(dir, ".env")
-	missing, extra := diffEnvKeys(ex, envs[0])
-	if len(missing) != 0 {
-		t.Errorf("expected no missing keys, got %v", missing)
-	}
-	if len(extra) != 0 {
-		t.Errorf("expected no extra keys, got %v", extra)
-	}
-}
-
-func TestEnvCheck_missingKeys(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".env.example", "APP_NAME=\nDB_HOST=\nMAIL_HOST=\n")
-	writeFile(t, dir, ".env", "APP_NAME=MyApp\n")
-
-	ex, envs := envPaths(dir, ".env")
-	missing, extra := diffEnvKeys(ex, envs[0])
-	if len(missing) != 2 {
-		t.Errorf("expected 2 missing keys, got %v", missing)
-	}
-	if len(extra) != 0 {
-		t.Errorf("expected no extra keys, got %v", extra)
-	}
-}
-
-func TestEnvCheck_extraKeys(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".env.example", "APP_NAME=\n")
-	writeFile(t, dir, ".env", "APP_NAME=MyApp\nCUSTOM_KEY=val\n")
-
-	ex, envs := envPaths(dir, ".env")
-	missing, extra := diffEnvKeys(ex, envs[0])
-	if len(missing) != 0 {
-		t.Errorf("expected no missing keys, got %v", missing)
-	}
-	if len(extra) != 1 || extra[0] != "CUSTOM_KEY" {
-		t.Errorf("expected [CUSTOM_KEY], got %v", extra)
-	}
-}
-
-func TestEnvCheck_commentsIgnored(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".env.example", "# comment\nAPP_NAME=\n")
-	writeFile(t, dir, ".env", "# different comment\nAPP_NAME=MyApp\n")
-
-	ex, envs := envPaths(dir, ".env")
-	missing, extra := diffEnvKeys(ex, envs[0])
-	if len(missing) != 0 {
-		t.Errorf("expected no missing keys, got %v", missing)
-	}
-	if len(extra) != 0 {
-		t.Errorf("expected no extra keys, got %v", extra)
-	}
-}
-
 func TestMergeEnvFile_insertsInPlace(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".env.example", "DB_HOST=localhost\nDB_PORT=5432\nDB_DATABASE=app\n")
