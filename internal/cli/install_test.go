@@ -232,11 +232,6 @@ func TestInstallAutostart(t *testing.T) {
 	}
 }
 
-func TestInstallCleanupScript(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	installCleanupScript()
-}
-
 func TestAddShellShims_LaravelShim(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)

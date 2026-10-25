@@ -20,15 +20,11 @@ func setupConfigHome(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", tmp)
 	t.Setenv("PATH", filepath.Join(tmp, "no-bin"))
 
-	// WriteFPMQuadlet shells out through a hook; stub it so the test doesn't
-	// need the full container environment. DaemonReload is stubbed for the
-	// same reason.
-	prevWrite := podman.WriteContainerUnitFn
+	// DaemonReload shells out to the service manager; stub it so the test
+	// doesn't need the full container environment.
 	prevReload := podman.DaemonReloadFn
-	podman.WriteContainerUnitFn = func(name, content string) error { return nil }
 	podman.DaemonReloadFn = func() error { return nil }
 	t.Cleanup(func() {
-		podman.WriteContainerUnitFn = prevWrite
 		podman.DaemonReloadFn = prevReload
 	})
 
