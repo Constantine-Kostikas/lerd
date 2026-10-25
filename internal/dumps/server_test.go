@@ -214,3 +214,53 @@ func TestServer_DropsTestRunsUnlessKept(t *testing.T) {
 		t.Errorf("after dropping tests ring = %v, want only a", got)
 	}
 }
+
+// The bridge keeps one connection for a whole request, so the read deadline
+// has to count from the last line, not from accept.
+func TestServer_DeadlineIsIdleNotTotal(t *testing.T) {
+	old := idleTimeout
+	idleTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { idleTimeout = old })
+	s := startServer(t)
+
+	c, err := net.DialTimeout("tcp", s.Addr(), 2*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.Close()
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := c.Write([]byte(`{"v":1,"id":"` + id + `","kind":"dump"}` + "\n")); err != nil {
+			t.Fatalf("write %s: %v", id, err)
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	if !waitFor(func() bool { return s.Len() == 3 }, time.Second) {
+		t.Fatalf("expected 3 events over 450ms on one connection, got %d", s.Len())
+	}
+}
+
+func TestServer_CloseDoesNotWaitForOpenConnections(t *testing.T) {
+	s, err := Listen(context.Background(), "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	c, err := net.DialTimeout("tcp", s.Addr(), 2*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.Close()
+	if _, err := c.Write([]byte(`{"v":1,"id":"held","kind":"dump"}` + "\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if !waitFor(func() bool { return s.Len() == 1 }, time.Second) {
+		t.Fatal("event never landed")
+	}
+
+	done := make(chan struct{})
+	go func() { _ = s.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Close blocked on a connection the client still holds")
+	}
+}

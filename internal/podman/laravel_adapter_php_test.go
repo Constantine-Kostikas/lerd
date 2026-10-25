@@ -2,15 +2,11 @@ package podman
 
 import (
 	"encoding/json"
-	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 )
 
 // runLaravelAdapterPHP writes the real laravel-adapter.php next to a probe
@@ -43,30 +39,8 @@ func runLaravelAdapterPHP(t *testing.T, body string) []string {
 		t.Skip("php cannot read host files (containerised/sandboxed wrapper); native php needed")
 	}
 
-	sock := shortSocketPath(t)
-	ln, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer ln.Close()
-
-	var mu sync.Mutex
-	var lines []string
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			b, _ := io.ReadAll(conn)
-			conn.Close()
-			if s := strings.TrimSpace(string(b)); s != "" {
-				mu.Lock()
-				lines = append(lines, s)
-				mu.Unlock()
-			}
-		}
-	}()
+	sink := listenCapture(t, false)
+	sock := sink.sock
 
 	script := strings.ReplaceAll(body, "ADAPTER", phpQuote(adapterPath))
 	scriptPath := filepath.Join(dir, "probe.php")
@@ -85,11 +59,8 @@ func runLaravelAdapterPHP(t *testing.T, body string) []string {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("php run failed: %v\n%s", err, out)
 	}
-	time.Sleep(200 * time.Millisecond) // let the accept loop drain
-
-	mu.Lock()
-	defer mu.Unlock()
-	return append([]string(nil), lines...)
+	lines, _ := sink.result()
+	return lines
 }
 
 // TestLaravelAdapterPHP_StampsCommandForCLI pins that the adapter's own

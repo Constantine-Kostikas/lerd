@@ -73,7 +73,15 @@ type Server struct {
 	// siteName maps the site an event names to the registered one, since a
 	// CLI run without LERD_SITE names its working folder instead.
 	siteName atomic.Pointer[func(string) string]
+	// conns holds the open bridge connections so Close can end them; a
+	// request or worker keeps its connection until it is done.
+	connMu sync.Mutex
+	conns  map[net.Conn]struct{}
 }
+
+// idleTimeout ends a connection that has sent nothing for this long, so a
+// stuck or idle bridge can't hold a goroutine forever.
+var idleTimeout = 5 * time.Second
 
 // Listen binds a TCP listener on addr and starts the accept loop. If addr
 // is empty, DefaultAddr is used. The returned Server keeps running until
@@ -253,20 +261,48 @@ func (s *Server) acceptLoop() {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
+		if !s.track(conn) {
+			_ = conn.Close()
+			return
+		}
 		s.wg.Add(1)
 		go s.handle(conn)
 	}
 }
 
+// track registers conn for Close, refusing it once the server is closing.
+func (s *Server) track(conn net.Conn) bool {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	select {
+	case <-s.closed:
+		return false
+	default:
+	}
+	if s.conns == nil {
+		s.conns = map[net.Conn]struct{}{}
+	}
+	s.conns[conn] = struct{}{}
+	return true
+}
+
+func (s *Server) untrack(conn net.Conn) {
+	s.connMu.Lock()
+	delete(s.conns, conn)
+	s.connMu.Unlock()
+}
+
 func (s *Server) handle(conn net.Conn) {
 	defer s.wg.Done()
+	defer s.untrack(conn)
 	defer conn.Close()
-	// Bound the read so a stuck bridge can't tie up a goroutine forever.
-	// The bridge writes one event per connection and disconnects.
-	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	// The bridge keeps one connection per request and writes an event per
+	// line, so the deadline is renewed after each line.
+	_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, initialLineBuf), MaxLineBytes)
 	for scanner.Scan() {
+		_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -286,7 +322,12 @@ func (s *Server) handle(conn net.Conn) {
 // outstanding goroutines to drain. Safe to call multiple times.
 func (s *Server) Close() error {
 	s.once.Do(func() {
+		s.connMu.Lock()
 		close(s.closed)
+		for c := range s.conns {
+			_ = c.Close()
+		}
+		s.connMu.Unlock()
 		if s.ln != nil {
 			_ = s.ln.Close()
 		}

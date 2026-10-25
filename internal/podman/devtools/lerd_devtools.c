@@ -60,26 +60,21 @@ static const char *lerd_asset(char *buf, size_t len, const char *name)
 
 /* ── transport ──────────────────────────────────────────────────────────── */
 
-/* lerd_send writes one NDJSON line to the configured socket and closes it.
- * Fire-and-forget with a 50ms connect budget; any error is swallowed so a
- * down or slow lerd-ui never disturbs the request. */
-static void lerd_send(const char *line, size_t len)
+/* lerd_connect opens a non-blocking socket to the configured host, or
+ * returns -1. Errors are swallowed so a down lerd-ui never disturbs the
+ * request. */
+static int lerd_connect(const char *host)
 {
-	const char *host = LERD_G(host);
-	if (!host || !host[0]) {
-		return;
-	}
-
 	int fd = -1;
 	if (strncmp(host, "unix://", 7) == 0) {
 		const char *path = host + 7;
 		struct sockaddr_un sa;
 		if (strlen(path) >= sizeof(sa.sun_path)) {
-			return;
+			return -1;
 		}
 		fd = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (fd < 0) {
-			return;
+			return -1;
 		}
 		memset(&sa, 0, sizeof(sa));
 		sa.sun_family = AF_UNIX;
@@ -87,68 +82,117 @@ static void lerd_send(const char *line, size_t len)
 		fcntl(fd, F_SETFL, O_NONBLOCK);
 		if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0 && errno != EINPROGRESS) {
 			close(fd);
-			return;
+			return -1;
 		}
-	} else {
-		/* tcp://host:port (used on macOS where the unix socket can't cross
-		 * the podman-machine boundary). */
-		const char *hp = host;
-		if (strncmp(host, "tcp://", 6) == 0) {
-			hp = host + 6;
-		}
-		char hbuf[256];
-		strncpy(hbuf, hp, sizeof(hbuf) - 1);
-		hbuf[sizeof(hbuf) - 1] = '\0';
-		char *colon = strrchr(hbuf, ':');
-		if (!colon) {
-			return;
-		}
-		*colon = '\0';
-		int port = atoi(colon + 1);
-		if (port <= 0) {
-			return;
-		}
-		struct addrinfo hints, *res = NULL;
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype = SOCK_STREAM;
-		if (getaddrinfo(hbuf, colon + 1, &hints, &res) != 0 || !res) {
-			return;
-		}
-		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (fd < 0) {
-			freeaddrinfo(res);
-			return;
-		}
+		return fd;
+	}
+	/* tcp://host:port (used on macOS where the unix socket can't cross
+	 * the podman-machine boundary). */
+	const char *hp = host;
+	if (strncmp(host, "tcp://", 6) == 0) {
+		hp = host + 6;
+	}
+	char hbuf[256];
+	strncpy(hbuf, hp, sizeof(hbuf) - 1);
+	hbuf[sizeof(hbuf) - 1] = '\0';
+	char *colon = strrchr(hbuf, ':');
+	if (!colon) {
+		return -1;
+	}
+	*colon = '\0';
+	if (atoi(colon + 1) <= 0) {
+		return -1;
+	}
+	struct addrinfo hints, *res = NULL;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	if (getaddrinfo(hbuf, colon + 1, &hints, &res) != 0 || !res) {
+		return -1;
+	}
+	fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+	if (fd >= 0) {
 		fcntl(fd, F_SETFL, O_NONBLOCK);
 		if (connect(fd, res->ai_addr, res->ai_addrlen) != 0 && errno != EINPROGRESS) {
-			freeaddrinfo(res);
 			close(fd);
-			return;
+			fd = -1;
 		}
-		freeaddrinfo(res);
 	}
+	freeaddrinfo(res);
+	return fd;
+}
 
+/* lerd_write_line sends line plus its newline on fd within 50ms, and reports
+ * whether all of it went. MSG_NOSIGNAL because the fd now outlives one event:
+ * writing to a socket lerd-ui has closed must fail, not SIGPIPE the worker. */
+static int lerd_write_line(int fd, const char *line, size_t len)
+{
 	struct pollfd pfd;
 	pfd.fd = fd;
 	pfd.events = POLLOUT;
-	if (poll(&pfd, 1, 50) <= 0 || !(pfd.revents & POLLOUT)) {
-		close(fd);
-		return;
+	if (poll(&pfd, 1, 50) <= 0 || !(pfd.revents & POLLOUT) || (pfd.revents & (POLLERR | POLLHUP))) {
+		return 0;
 	}
-
 	size_t off = 0;
 	while (off < len) {
-		ssize_t n = write(fd, line + off, len - off);
+		ssize_t n = send(fd, line + off, len - off, MSG_NOSIGNAL);
 		if (n <= 0) {
-			break;
+			return 0;
 		}
 		off += (size_t)n;
 	}
-	if (off >= len) {
-		(void)write(fd, "\n", 1);
+	return send(fd, "\n", 1, MSG_NOSIGNAL) == 1;
+}
+
+/* lerd_peer_gone reports whether lerd-ui closed fd, which it does once the
+ * socket has been idle a while, as between a queue worker's jobs. */
+static int lerd_peer_gone(int fd)
+{
+	struct pollfd pfd;
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	return poll(&pfd, 1, 0) != 0;
+}
+
+static void lerd_disconnect(void)
+{
+	if (LERD_G(fd) >= 0) {
+		close(LERD_G(fd));
+		LERD_G(fd) = -1;
 	}
-	close(fd);
+}
+
+/* lerd_send writes one NDJSON line on the request's connection, opening it
+ * on first use, so a request costs one connection rather than one per event.
+ * A failed or partial write closes it, since the next line would otherwise
+ * land mid-line, and the event gets one retry on a fresh connection. */
+static void lerd_send(const char *line, size_t len)
+{
+	const char *host = LERD_G(host);
+	if (!host || !host[0]) {
+		return;
+	}
+	/* A forked child shares the parent's socket; writing to it would
+	 * interleave both processes' lines, so the child opens its own. */
+	if (LERD_G(fd) >= 0 && (LERD_G(fd_pid) != getpid() || lerd_peer_gone(LERD_G(fd)))) {
+		lerd_disconnect();
+	}
+	for (int attempt = 0; attempt < 2; attempt++) {
+		int fresh = LERD_G(fd) < 0;
+		if (fresh) {
+			if ((LERD_G(fd) = lerd_connect(host)) < 0) {
+				return;
+			}
+			LERD_G(fd_pid) = getpid();
+		}
+		if (lerd_write_line(LERD_G(fd), line, len)) {
+			return;
+		}
+		lerd_disconnect();
+		if (fresh) {
+			return;
+		}
+	}
 }
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
@@ -1238,6 +1282,7 @@ static PHP_GINIT_FUNCTION(lerd_devtools)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
 	memset(lerd_devtools_globals, 0, sizeof(*lerd_devtools_globals));
+	lerd_devtools_globals->fd = -1;
 }
 
 PHP_MINIT_FUNCTION(lerd_devtools)
@@ -1267,6 +1312,7 @@ PHP_RINIT_FUNCTION(lerd_devtools)
 	LERD_G(collector_loaded) = 0;
 	LERD_G(bind_buf_init) = 0;
 	LERD_G(is_test) = 0;
+	lerd_disconnect();
 	/* Reset per request: FPM reuses the worker process across requests with a
 	 * fresh app each time, so the adapter must be re-loaded (and the PDO
 	 * suppression re-armed) on every request, not just the first. */
@@ -1319,6 +1365,7 @@ PHP_RINIT_FUNCTION(lerd_devtools)
 PHP_RSHUTDOWN_FUNCTION(lerd_devtools)
 {
 #ifdef LERD_OBSERVE
+	lerd_disconnect();
 	if (LERD_G(bind_buf_init)) {
 		zend_hash_destroy(&LERD_G(bind_buf));
 		LERD_G(bind_buf_init) = 0;
