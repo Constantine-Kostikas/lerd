@@ -109,8 +109,10 @@ mkdir -p "$W/vmclash/services"
 printf 'name: redis\nimage: docker.io/library/redis:7.4\n' >"$W/vmclash/services/redis.yaml"
 check_out "15.13 a PHP script is refused by name" 'php' lerd plugin install "$W/vmphp"
 check_out "15.13 a platform this is not is refused by name" "runs only on $other" lerd plugin install "$W/vmplat"
-# A dev build past a tag loads every plugin on purpose, so only a release build can refuse one.
-if lerd --version | grep -Eq -- '-[0-9]+-g[0-9a-f]+|-dirty'; then
+# A dev build loads every plugin on purpose, so only a release build can refuse one.
+# Dev is what plugins.Compatible calls it: past a tag, dirty, or no version number.
+ver=$(lerd --version | awk '{print $3}')
+if ! echo "$ver" | grep -Eq '^v?[0-9]+\.[0-9]+' || echo "$ver" | grep -Eq -- '-[0-9]+-g[0-9a-f]+(-dirty)?$|-dirty$'; then
 	check "15.13 a dev build installs a plugin bound to a newer lerd" lerd plugin install "$W/vmnew"
 	lerd plugin remove vmnew </dev/null >/dev/null 2>&1
 else
