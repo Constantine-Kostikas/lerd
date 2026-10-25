@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pollWhileVisible } from '$lib/pollWhileVisible';
   import { onMount, onDestroy } from 'svelte';
   import Badge from '$components/Badge.svelte';
   import BackButton from '$components/BackButton.svelte';
@@ -162,19 +163,11 @@
   $effect(() => {
     const domain = site.domain;
     if (!showWorktreeTabs) return;
-    const refresh = () => {
-      if (document.hidden) return;
+    return pollWhileVisible(() => {
       loadGitStatus(domain)
         .then((checkouts) => (gitLast = { domain, checkouts }))
         .catch(() => {});
-    };
-    refresh();
-    const timer = setInterval(refresh, 10_000);
-    window.addEventListener('focus', refresh);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', refresh);
-    };
+    }, 10_000);
   });
   // No branch can also mean a subfolder of a bigger repo, where a nested init
   // would shadow the parent. Keyed on the values that matter, not the site
@@ -184,16 +177,7 @@
   $effect(() => {
     const domain = repoCheckFor;
     if (!domain) return;
-    const refresh = () => {
-      if (!document.hidden) refreshNoRepo(domain).catch(() => {});
-    };
-    refresh();
-    const timer = setInterval(refresh, 10_000);
-    window.addEventListener('focus', refresh);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', refresh);
-    };
+    return pollWhileVisible(() => void refreshNoRepo(domain).catch(() => {}), 10_000);
   });
   // Pull is fast-forward only, so a failure means git refused and its own words say why.
   function refreshGit() {

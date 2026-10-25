@@ -39,19 +39,21 @@ var (
 // good for focusLeaseTTL and the page renews it while it still holds focus.
 func noteFocus(conn uint64, focused bool) {
 	focusMu.Lock()
-	defer focusMu.Unlock()
-	if !focused {
+	if focused {
+		focusLeases[conn] = time.Now().Add(focusLeaseTTL)
+	} else {
 		delete(focusLeases, conn)
-		return
 	}
-	focusLeases[conn] = time.Now().Add(focusLeaseTTL)
+	focusMu.Unlock()
+	recomputeInterval()
 }
 
 // dropFocus releases a connection's claim when it goes away.
 func dropFocus(conn uint64) {
 	focusMu.Lock()
-	defer focusMu.Unlock()
 	delete(focusLeases, conn)
+	focusMu.Unlock()
+	recomputeInterval()
 }
 
 const (
@@ -75,19 +77,18 @@ const (
 // the handler's deferred join leaks. A var so tests can shorten it.
 var wsWriteTimeout = 10 * time.Second
 
-// chooseInterval returns the cache poll cadence implied by the current
-// (visibility, session-idle) pair. Fast cadence requires both an engaged
-// browser tab and an active desktop session: a focused tab on a locked
-// laptop still drops to idle, matching the watcher's idle backoff.
-func chooseInterval(visible int32, idle bool) time.Duration {
-	if visible > 0 && !idle {
+// chooseInterval returns the cache poll cadence. Fast cadence needs a tab
+// shown and focused in an active desktop session: one left open behind
+// another window, or on a locked laptop, drops to idle.
+func chooseInterval(visible int32, focused, idle bool) time.Duration {
+	if visible > 0 && focused && !idle {
 		return intervalFocused
 	}
 	return intervalIdle
 }
 
 func recomputeInterval() {
-	podman.Cache.SetInterval(chooseInterval(visibleClients.Load(), sessionIdle.Load()))
+	podman.Cache.SetInterval(chooseInterval(visibleClients.Load(), uiWindowFocused(), sessionIdle.Load()))
 }
 
 // uiWindowFocused reports whether any dashboard window holds a live claim on
@@ -130,10 +131,10 @@ func startIdleWatcher(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				idle := lerdSystemd.SessionIsIdleOrLocked()
-				if sessionIdle.Swap(idle) != idle {
-					recomputeInterval()
-				}
+				// Recomputed on every tick, not only when idle flips, since a
+				// focus lease that ran out says nothing when it goes.
+				sessionIdle.Store(lerdSystemd.SessionIsIdleOrLocked())
+				recomputeInterval()
 			}
 		}
 	}()

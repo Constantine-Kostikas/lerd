@@ -141,9 +141,11 @@ describe('AppLogsTab', () => {
     beforeEach(() => {
       serveOneFile();
       vi.useFakeTimers();
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     });
     afterEach(() => {
       vi.useRealTimers();
+      vi.restoreAllMocks();
     });
 
     it('re-fetches the entries every 5 seconds', async () => {

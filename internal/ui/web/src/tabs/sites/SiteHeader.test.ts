@@ -219,8 +219,10 @@ describe('SiteHeader', () => {
       await findByText('Initialize git');
 
       stubCheckouts([{ branch: 'main', path: '/home/u/Code', main: true }]);
+      const focused = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
       window.dispatchEvent(new Event('focus'));
       await waitFor(() => expect(queryByText('Initialize git')).not.toBeInTheDocument());
+      focused.mockRestore();
     });
 
     it('shows the last answer at once when the site is opened again', async () => {
