@@ -23,8 +23,6 @@
 
   // A block with no lines on the working side sits after its start line.
   const anchor = (c: Monaco.editor.ILineChange) => (c.modifiedEndLineNumber > 0 ? c.modifiedStartLineNumber : Math.max(c.modifiedStartLineNumber, 1));
-  const linesOf = (model: Monaco.editor.ITextModel, start: number, end: number) =>
-    end > 0 ? Array.from({ length: end - start + 1 }, (_, i) => model.getLineContent(start + i)) : [];
 
   let container: HTMLDivElement | undefined = $state();
   let editor: Monaco.editor.IStandaloneDiffEditor | undefined = $state();
@@ -68,8 +66,8 @@
           orig_end: c.originalEndLineNumber,
           mod_start: c.modifiedStartLineNumber,
           mod_end: c.modifiedEndLineNumber,
-          removed: linesOf(model.original, c.originalStartLineNumber, c.originalEndLineNumber),
-          added: linesOf(model.modified, c.modifiedStartLineNumber, c.modifiedEndLineNumber)
+          original: model.original.getValue(),
+          modified: model.modified.getValue()
         });
       });
       const retheme = () => {

@@ -251,6 +251,35 @@ describe('GitDiffModal', () => {
     expect(commitChanges).toHaveBeenCalledWith('acme.test', '/srv/acme', 'feat: earlier', true, true);
   });
 
+  it('keeps a commit whose push failed, and says so', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] })
+      .mockResolvedValueOnce({ staged: [], unstaged: [], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    commitChanges.mockResolvedValue({ ok: true, warning: 'Committed, but the push failed: no remote' });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'fix: a' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Commit and push' }));
+    expect(await screen.findByText('Committed, but the push failed: no remote')).toBeInTheDocument();
+    expect(screen.getByText('No uncommitted changes.')).toBeInTheDocument();
+  });
+
+  // The last message arrives after a round trip; text typed meanwhile wins.
+  it('does not overwrite a message typed while amend loads', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    let answer: (m: string) => void = () => {};
+    loadLastMessage.mockReturnValue(new Promise((r) => (answer = r)));
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Amend last commit' }));
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'typed' } });
+    answer('feat: earlier');
+    await new Promise((r) => setTimeout(r, 0));
+    expect((screen.getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('typed');
+  });
+
   it('shows why a commit failed and keeps the message', async () => {
     loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] });
     loadGitVersions.mockResolvedValue(text('a', 'b'));
@@ -282,7 +311,7 @@ describe('GitDiffModal', () => {
     await screen.findByTestId('diff');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Stage this change' }));
-    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.objectContaining({ added: ['b'] }), false);
+    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.objectContaining({ modified: 'b' }), false);
     await waitFor(() => expect(screen.getByText(/Staged · 1/)).toBeInTheDocument());
     expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'unstaged', 'a.php');
   });

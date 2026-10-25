@@ -47,6 +47,8 @@
   let stats = $state<{ added: number; removed: number } | null>(null);
   let error = $state('');
   let ignoreSpace = $state(false);
+  // Outlives the commit box, which goes once the last change is committed.
+  let notice = $state('');
   let filesHidden = $state(false);
 
   // Full screen and the view are remembered, so the next diff opens the way this one was left.
@@ -205,6 +207,7 @@
       </button>
     </div>
   {/snippet}
+  {#if notice}<p class="px-5 pt-3 text-xs text-amber-600 dark:text-amber-400">{notice}</p>{/if}
   {#if empty}
     <p class="px-5 py-6 text-sm text-gray-500 dark:text-gray-400">{commit ? m.gitDiff_commitEmpty() : m.gitDiff_empty()}</p>
   {:else}
@@ -257,7 +260,15 @@
         {/each}
       </nav>
       {#if uncommitted}
-        <GitCommitBox {domain} {path} staged={stagedCount} oncommitted={() => refresh(selected?.file)} />
+        <GitCommitBox
+          {domain}
+          {path}
+          staged={stagedCount}
+          oncommitted={(warning) => {
+            notice = warning ?? '';
+            refresh(selected?.file);
+          }}
+        />
       {/if}
       </div>
       </div>

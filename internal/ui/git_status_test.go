@@ -473,7 +473,7 @@ func TestHandleSiteGitCommit(t *testing.T) {
 		return rec.Body.String()
 	}
 
-	hunk := `{"op":"stage-hunk","file":"a.php","hunk":{"orig_start":1,"orig_end":1,"mod_start":1,"mod_end":1,"removed":["a"],"added":["changed"]}}`
+	hunk := `{"op":"stage-hunk","file":"a.php","hunk":{"orig_start":1,"orig_end":1,"mod_start":1,"mod_end":1,"original":"a\n","modified":"changed\n"}}`
 	if got := post(main, hunk); !strings.Contains(got, `"ok":true`) {
 		t.Fatalf("stage-hunk: %s", got)
 	}
@@ -495,6 +495,22 @@ func TestHandleSiteGitCommit(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"message":"fix: a"`) {
 		t.Errorf("last message: %s", rec.Body.String())
 	}
+	// No remote to push to: the commit is made and the push failure comes back as a warning.
+	if err := os.WriteFile(filepath.Join(sitePath, "a.php"), []byte("again\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	post(main, `{"op":"stage","file":"a.php"}`)
+	if got := post(main, `{"op":"commit","message":"fix: again","push":true}`); !strings.Contains(got, `"ok":true`) || !strings.Contains(got, "push failed") {
+		t.Fatalf("commit and push: %s", got)
+	}
+	if got := strings.TrimSpace(runGitOutput(sitePath, "log", "-1", "--format=%s")); got != "fix: again" {
+		t.Errorf("last commit %q", got)
+	}
+	release := cli.CheckoutLock(main)
+	if got := post(main, `{"op":"stage","file":"a.php"}`); !strings.Contains(got, "switch or pull is running") {
+		t.Errorf("during a switch: %s", got)
+	}
+	release()
 	if got := post(main, `{"op":"rebase"}`); !strings.Contains(got, "unknown git operation rebase") {
 		t.Errorf("unknown op: %s", got)
 	}

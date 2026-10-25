@@ -6773,6 +6773,10 @@ func handleSiteGitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, versions)
 }
 
+// gitIndexMu runs one staging or commit at a time, so two quick clicks never
+// read the same index and the second write never drops the first one's block.
+var gitIndexMu sync.Mutex
+
 // handleSiteGitCommit stages, unstages and commits in one of a site's
 // checkouts. GET answers the last commit's message, for amending it.
 func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
@@ -6806,6 +6810,14 @@ func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, SiteActionResponse{Error: "invalid request body"})
 		return
 	}
+	gitIndexMu.Lock()
+	defer gitIndexMu.Unlock()
+	release := cli.CheckoutLock(dir)
+	if release == nil {
+		writeJSON(w, SiteActionResponse{Error: "a branch switch or pull is running on this checkout"})
+		return
+	}
+	defer release()
 	var out string
 	switch req.Op {
 	case "stage":
@@ -6817,7 +6829,11 @@ func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
 	case "commit":
 		out, err = gitpkg.CommitStaged(dir, req.Message, req.Amend)
 		if err == nil && req.Push {
-			out, err = gitpkg.Push(dir)
+			// The commit stands either way; a failed push is said apart, to retry on its own.
+			if _, pushErr := gitpkg.Push(dir); pushErr != nil {
+				writeJSON(w, SiteActionResponse{OK: true, Warning: "Committed, but the push failed: " + pushErr.Error()})
+				return
+			}
 		}
 	default:
 		err = fmt.Errorf("unknown git operation %s", req.Op)

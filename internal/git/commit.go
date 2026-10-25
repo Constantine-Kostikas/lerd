@@ -5,15 +5,21 @@ import (
 	"strings"
 )
 
-// Stage adds one file's change to the index, a deletion included.
+// Stage adds one file's change to the index, a deletion included. The name is
+// taken literally, so a file called *.txt never stages every text file.
 func Stage(dir, file string) error {
-	_, err := runQuiet(dir, "add", "-A", "--", file)
+	_, err := runQuiet(dir, "--literal-pathspecs", "add", "-A", "--", file)
 	return err
 }
 
-// Unstage takes one file's change back out of the index, leaving the file as it is.
+// Unstage takes one file's change back out of the index, leaving the file as it
+// is. Before the first commit there is no HEAD to restore from, so it is dropped.
 func Unstage(dir, file string) error {
-	_, err := runQuiet(dir, "restore", "--staged", "--", file)
+	if _, err := Output(dir, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
+		_, err = runQuiet(dir, "--literal-pathspecs", "rm", "-q", "--cached", "--", file)
+		return err
+	}
+	_, err := runQuiet(dir, "--literal-pathspecs", "restore", "--staged", "--", file)
 	return err
 }
 

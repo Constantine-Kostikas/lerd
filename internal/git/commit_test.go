@@ -58,6 +58,39 @@ func TestStage_deletion(t *testing.T) {
 	}
 }
 
+// A name that looks like a pattern means that one file only.
+func TestStage_takesTheNameLiterally(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, "*.txt"), "star")
+	write(t, filepath.Join(dir, "notes.txt"), "other")
+	if err := Stage(dir, "*.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(mustOut(t, dir, "diff", "--cached", "--name-only")); got != "*.txt" {
+		t.Fatalf("staged %q", got)
+	}
+	gitRun(t, dir, "add", "notes.txt")
+	if err := Unstage(dir, "*.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(mustOut(t, dir, "diff", "--cached", "--name-only")); got != "notes.txt" {
+		t.Errorf("after unstaging *.txt, staged %q", got)
+	}
+}
+
+func TestUnstage_beforeTheFirstCommit(t *testing.T) {
+	dir := t.TempDir()
+	gitRun(t, dir, "init", "-q")
+	write(t, filepath.Join(dir, "a"), "new")
+	gitRun(t, dir, "add", "a")
+	if err := Unstage(dir, "a"); err != nil {
+		t.Fatalf("Unstage: %v", err)
+	}
+	if got := strings.TrimSpace(mustOut(t, dir, "status", "--porcelain")); got != "?? a" {
+		t.Errorf("status %q", got)
+	}
+}
+
 func TestCommitStaged_staged(t *testing.T) {
 	dir := commitFixture(t)
 	write(t, filepath.Join(dir, "a"), "changed")

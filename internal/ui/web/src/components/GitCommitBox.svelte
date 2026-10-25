@@ -7,7 +7,8 @@
     domain: string;
     path: string;
     staged: number;
-    oncommitted: () => void;
+    // warning says what went wrong after the commit was made, such as its push.
+    oncommitted: (warning?: string) => void;
   }
   let { domain, path, staged, oncommitted }: Props = $props();
 
@@ -21,12 +22,13 @@
 
   async function toggleAmend() {
     amend = !amend;
-    if (amend && message.trim() === '') {
-      try {
-        message = await loadLastMessage(domain, path);
-      } catch {
-        /* the box stays empty to type into */
-      }
+    if (!amend || message.trim() !== '') return;
+    try {
+      const last = await loadLastMessage(domain, path);
+      // Typing, or turning amend off, while it loaded wins over the old message.
+      if (amend && message.trim() === '') message = last;
+    } catch {
+      /* the box stays empty to type into */
     }
   }
 
@@ -38,7 +40,7 @@
       if (res.error) throw new Error(res.error);
       message = '';
       amend = false;
-      oncommitted();
+      oncommitted(res.warning);
     } catch (e) {
       error = e instanceof Error ? e.message : m.common_failed();
     } finally {

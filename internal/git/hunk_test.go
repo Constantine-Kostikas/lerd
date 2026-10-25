@@ -17,6 +17,17 @@ func hunkFixture(t *testing.T) string {
 	return dir
 }
 
+// shown is the hunk as the editor sends it, with both texts it showed.
+func shown(t *testing.T, dir string, h Hunk, section string) Hunk {
+	t.Helper()
+	v, err := FileVersions(dir, section, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Original, h.Modified = v.Original, v.Modified
+	return h
+}
+
 func index(t *testing.T, dir string) string {
 	t.Helper()
 	return mustOut(t, dir, "show", ":a")
@@ -24,7 +35,7 @@ func index(t *testing.T, dir string) string {
 
 func TestStageHunk_onlyThatBlock(t *testing.T) {
 	dir := hunkFixture(t)
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 5, OrigEnd: 5, ModStart: 5, ModEnd: 5, Removed: []string{"5"}, Added: []string{"five"}}, false); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 5, OrigEnd: 5, ModStart: 5, ModEnd: 5}, SectionUnstaged), false); err != nil {
 		t.Fatalf("StageHunk: %v", err)
 	}
 	if got := index(t, dir); got != "1\n2\n3\n4\nfive\n" {
@@ -39,7 +50,7 @@ func TestStageHunk_unstageTakesTheBlockBackOut(t *testing.T) {
 	dir := hunkFixture(t)
 	gitRun(t, dir, "add", "a")
 	// Staged compares HEAD with the index, so the block is numbered the same way.
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1, Removed: []string{"1"}, Added: []string{"one"}}, true); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1}, SectionStaged), true); err != nil {
 		t.Fatalf("unstage: %v", err)
 	}
 	if got := index(t, dir); got != "1\n2\n3\n4\nfive\n" {
@@ -51,14 +62,14 @@ func TestStageHunk_insertionAndDeletion(t *testing.T) {
 	dir := hunkFixture(t)
 	write(t, filepath.Join(dir, "a"), "1\n2\nnew\n3\n5\n")
 	// Line 4 removed: no lines on the working side, after its line 4.
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 4, OrigEnd: 4, ModStart: 4, ModEnd: 0, Removed: []string{"4"}}, false); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 4, OrigEnd: 4, ModStart: 4, ModEnd: 0}, SectionUnstaged), false); err != nil {
 		t.Fatalf("deletion: %v", err)
 	}
 	if got := index(t, dir); got != "1\n2\n3\n5\n" {
 		t.Fatalf("after deletion %q", got)
 	}
 	// "new" added after line 2.
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 2, OrigEnd: 0, ModStart: 3, ModEnd: 3, Added: []string{"new"}}, false); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 2, OrigEnd: 0, ModStart: 3, ModEnd: 3}, SectionUnstaged), false); err != nil {
 		t.Fatalf("insertion: %v", err)
 	}
 	if got := index(t, dir); got != "1\n2\nnew\n3\n5\n" {
@@ -66,10 +77,15 @@ func TestStageHunk_insertionAndDeletion(t *testing.T) {
 	}
 }
 
-// A block the file no longer has is refused rather than staged in the wrong place.
+// A block from a view of the file that has since changed is refused, even one
+// whose own lines still match, such as a deletion the user has undone.
 func TestStageHunk_refusesAStaleBlock(t *testing.T) {
 	dir := hunkFixture(t)
-	err := StageHunk(dir, "a", Hunk{OrigStart: 5, OrigEnd: 5, ModStart: 5, ModEnd: 5, Removed: []string{"5"}, Added: []string{"FIVE"}}, false)
+	write(t, filepath.Join(dir, "a"), "one\n2\n3\nfive\n")
+	stale := shown(t, dir, Hunk{OrigStart: 4, OrigEnd: 4, ModStart: 3, ModEnd: 0}, SectionUnstaged)
+	write(t, filepath.Join(dir, "a"), "one\n2\n3\n4\nFIVE\n")
+
+	err := StageHunk(dir, "a", stale, false)
 	if err == nil || !strings.Contains(err.Error(), "changed since") {
 		t.Fatalf("want a refusal, got %v", err)
 	}
@@ -78,12 +94,43 @@ func TestStageHunk_refusesAStaleBlock(t *testing.T) {
 	}
 }
 
+// With eol=crlf the index holds LF; a staged block goes through that conversion.
+func TestStageHunk_convertsLineEndings(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, ".gitattributes"), "a text eol=crlf\n")
+	write(t, filepath.Join(dir, "a"), "1\r\n2\r\n3\r\n")
+	gitRun(t, dir, "add", ".")
+	gitRun(t, dir, "commit", "-q", "-m", "crlf")
+	write(t, filepath.Join(dir, "a"), "one\r\n2\r\n3\r\n")
+	v, err := FileVersions(dir, SectionUnstaged, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Index and working tree differ in line endings, so every line is in the block.
+	h := Hunk{OrigStart: 1, OrigEnd: 3, ModStart: 1, ModEnd: 3, Original: v.Original, Modified: v.Modified}
+	if err := StageHunk(dir, "a", h, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := index(t, dir); got != "one\n2\n3\n" {
+		t.Errorf("index %q", got)
+	}
+}
+
+func TestStageHunk_filteredFilesStageWhole(t *testing.T) {
+	dir := hunkFixture(t)
+	write(t, filepath.Join(dir, ".gitattributes"), "a filter=lfs\n")
+	err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1}, SectionUnstaged), false)
+	if err == nil || !strings.Contains(err.Error(), "whole file") {
+		t.Fatalf("want a refusal, got %v", err)
+	}
+}
+
 func TestStageHunk_onlyModifiedFiles(t *testing.T) {
 	dir := hunkFixture(t)
 	if err := os.Remove(filepath.Join(dir, "a")); err != nil {
 		t.Fatal(err)
 	}
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 1, OrigEnd: 5, ModStart: 0, ModEnd: 0, Removed: []string{"1", "2", "3", "4", "5"}}, false); err == nil {
+	if err := StageHunk(dir, "a", Hunk{OrigStart: 1, OrigEnd: 5, ModStart: 0, ModEnd: 0}, false); err == nil {
 		t.Fatal("want a refusal for a deleted file")
 	}
 }
@@ -99,7 +146,7 @@ func TestStageHunk_keepsTheMode(t *testing.T) {
 	if err := os.Chmod(filepath.Join(dir, "a"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1, Removed: []string{"1"}, Added: []string{"one"}}, false); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1}, SectionUnstaged), false); err != nil {
 		t.Fatal(err)
 	}
 	if got := mustOut(t, dir, "ls-files", "-s", "a"); !strings.HasPrefix(got, "100755 ") {
@@ -113,7 +160,7 @@ func TestStageHunk_crlf(t *testing.T) {
 	write(t, filepath.Join(dir, "a"), "1\r\n2\r\n")
 	gitRun(t, dir, "commit", "-q", "-am", "crlf")
 	write(t, filepath.Join(dir, "a"), "one\r\n2\r\n")
-	if err := StageHunk(dir, "a", Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1, Removed: []string{"1"}, Added: []string{"one"}}, false); err != nil {
+	if err := StageHunk(dir, "a", shown(t, dir, Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1}, SectionUnstaged), false); err != nil {
 		t.Fatal(err)
 	}
 	if got := index(t, dir); got != "one\r\n2\r\n" {

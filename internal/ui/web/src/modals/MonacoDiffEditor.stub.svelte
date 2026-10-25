@@ -15,7 +15,7 @@
     sideBySide: boolean;
     hunkAction?: { label: string; unstage: boolean; run: (h: Hunk) => void };
   } = $props();
-  const hunk: Hunk = { orig_start: 1, orig_end: 1, mod_start: 1, mod_end: 1, removed: ['a'], added: ['b'] };
+  const hunk = (): Hunk => ({ orig_start: 1, orig_end: 1, mod_start: 1, mod_end: 1, original, modified });
 </script>
 
 <div
@@ -26,4 +26,4 @@
   data-ignore-space={String(ignoreSpace)}
   data-side-by-side={String(sideBySide)}
 ></div>
-{#if hunkAction}<button type="button" onclick={() => hunkAction.run(hunk)}>{hunkAction.label}</button>{/if}
+{#if hunkAction}<button type="button" onclick={() => hunkAction.run(hunk())}>{hunkAction.label}</button>{/if}

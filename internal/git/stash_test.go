@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // The work comes back after the move, untracked files included, and the
@@ -85,5 +87,66 @@ func TestWithStash_conflictKeepsTheWorkStashed(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, "a")); statErr != nil {
 		t.Error(statErr)
+	}
+}
+
+// What was staged before is staged again after.
+func TestWithStash_keepsWhatWasStaged(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, "a"), "staged")
+	gitRun(t, dir, "add", "a")
+	write(t, filepath.Join(dir, "b"), "untracked")
+	if _, err := WithStash(dir, "lerd: test", func() (string, error) { return "", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(mustOut(t, dir, "diff", "--cached", "--name-only")); got != "a" {
+		t.Errorf("staged after %q", got)
+	}
+}
+
+// An untracked file the move brought in cannot come back; git's reason is
+// passed on, and dropping the stash is not suggested while it holds that copy.
+func TestWithStash_untrackedCollisionKeepsGitsReason(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, "new"), "mine")
+	_, err := WithStash(dir, "lerd: test", func() (string, error) {
+		write(t, filepath.Join(dir, "new"), "theirs")
+		gitRun(t, dir, "add", "new")
+		gitRun(t, dir, "commit", "-q", "-m", "theirs")
+		return "", nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "drop") {
+		t.Fatalf("want git's reason without drop advice, got %v", err)
+	}
+	if !strings.Contains(mustOut(t, dir, "stash", "list"), "lerd: test") {
+		t.Error("the stash holding the file is gone")
+	}
+}
+
+// Two worktrees share one stash list; each gets its own work back.
+func TestWithStash_worktreesDoNotSwapWork(t *testing.T) {
+	dir := commitFixture(t)
+	other := filepath.Join(t.TempDir(), "wt")
+	gitRun(t, dir, "worktree", "add", "-q", "-b", "side", other)
+	write(t, filepath.Join(dir, "a"), "main work")
+	write(t, filepath.Join(other, "a"), "side work")
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i, d := range []string{dir, other} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = WithStash(d, "lerd: "+d, func() (string, error) { time.Sleep(50 * time.Millisecond); return "", nil })
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if readFile(t, filepath.Join(dir, "a")) != "main work" || readFile(t, filepath.Join(other, "a")) != "side work" {
+		t.Error("work landed in the wrong checkout")
 	}
 }
