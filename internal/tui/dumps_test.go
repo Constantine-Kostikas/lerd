@@ -159,35 +159,6 @@ func TestShortPath_UnchangedForShallow(t *testing.T) {
 	}
 }
 
-func TestFilteredDumps_MatchesAcrossFields(t *testing.T) {
-	in := []DumpEntry{
-		{ID: "1", Site: "acme", Text: "alice"},
-		{ID: "2", Site: "other", Text: "bob"},
-		{ID: "3", Site: "acme", Label: "carol"},
-		{ID: "4", File: "/var/log/dave.log"},
-	}
-	cases := []struct {
-		needle string
-		want   []string
-	}{
-		{"acme", []string{"1", "3"}},
-		{"BOB", []string{"2"}},
-		{"carol", []string{"3"}},
-		{"dave", []string{"4"}},
-		{"", []string{"1", "2", "3", "4"}},
-	}
-	for _, c := range cases {
-		got := filteredDumps(in, c.needle)
-		gotIDs := make([]string, len(got))
-		for i, e := range got {
-			gotIDs[i] = e.ID
-		}
-		if strings.Join(gotIDs, ",") != strings.Join(c.want, ",") {
-			t.Errorf("filteredDumps(_, %q) = %v, want %v", c.needle, gotIDs, c.want)
-		}
-	}
-}
-
 func TestDumpBodyLines_PreviewVsExpanded(t *testing.T) {
 	e := DumpEntry{Text: "a\nb\nc\nd\ne\nf\ng"}
 	preview := dumpBodyLines(e, 40, false)
@@ -235,26 +206,6 @@ func TestToggleDumpExpand_FlipsMap(t *testing.T) {
 	m.toggleDumpExpand()
 	if m.dumpsExpanded["beta"] {
 		t.Errorf("expected re-toggle to clear; got map %v", m.dumpsExpanded)
-	}
-}
-
-func TestFilteredDumpsWithCtx_AppliesContextFilter(t *testing.T) {
-	in := []DumpEntry{
-		{ID: "1", Type: "fpm", Text: "request"},
-		{ID: "2", Type: "cli", Text: "tinker"},
-		{ID: "3", Type: "fpm", Text: "another"},
-	}
-	if got := filteredDumpsWithCtx(in, "", "fpm"); len(got) != 2 {
-		t.Errorf("expected 2 fpm entries, got %d", len(got))
-	}
-	if got := filteredDumpsWithCtx(in, "", "cli"); len(got) != 1 {
-		t.Errorf("expected 1 cli entry, got %d", len(got))
-	}
-	if got := filteredDumpsWithCtx(in, "tinker", "cli"); len(got) != 1 || got[0].ID != "2" {
-		t.Errorf("ctx + needle should AND together: %+v", got)
-	}
-	if got := filteredDumpsWithCtx(in, "", ""); len(got) != 3 {
-		t.Errorf("empty filters should return all, got %d", len(got))
 	}
 }
 

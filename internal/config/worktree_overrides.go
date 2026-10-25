@@ -17,16 +17,6 @@ func WorktreePHPVersion(worktreePath, fallback string) string {
 	return fallback
 }
 
-// WorktreeNodeVersion mirrors WorktreePHPVersion for Node. No nginx side
-// effects, but the same precedence so `lerd sites` and the dashboard report
-// the worktree's effective version rather than the parent's.
-func WorktreeNodeVersion(worktreePath, fallback string) string {
-	if cfg, err := LoadProjectConfig(worktreePath); err == nil && cfg != nil && cfg.NodeVersion != "" {
-		return cfg.NodeVersion
-	}
-	return fallback
-}
-
 // SetWorktreePHPVersion writes the override to the worktree's .lerd.yaml,
 // creating the file if missing. Passing "" clears the override. Unlike
 // SetProjectPHPVersion this always materialises the file.

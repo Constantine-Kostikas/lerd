@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
@@ -143,7 +144,7 @@ func ApplyPHPRuntime(mode string) error {
 			}
 		}
 		pins := &pinnedTools{}
-		for _, v := range versionsInUse(versions) {
+		for _, v := range nativeVersionsWanted() {
 			if err := ensureNativePHPInstalled(pins, v, os.Stdout); err != nil {
 				return err
 			}
@@ -182,7 +183,7 @@ func ApplyPHPRuntime(mode string) error {
 
 	// The xdebug ini belongs to the runtime that wrote it, and only a switch
 	// changes which one that is.
-	if err := podman.RefreshXdebugInis(versions); err != nil {
+	if err := podman.RefreshXdebugInis(xdebugRefreshVersions(mode, versions)); err != nil {
 		feedback.Warn("refreshing the xdebug ini: %v (xdebug may not load)", err)
 	}
 
@@ -193,7 +194,7 @@ func ApplyPHPRuntime(mode string) error {
 		if err := podman.EnsureDumpAssets(); err != nil {
 			feedback.Warn("refreshing the debug bridge assets: %v (dump()/dd() may not capture)", err)
 		}
-		for _, v := range versionsInUse(versions) {
+		for _, v := range nativeVersionsWanted() {
 			if err := nativephp.Ensure(v); err != nil {
 				return fmt.Errorf("starting native php-fpm %s: %w", v, err)
 			}
@@ -257,6 +258,45 @@ func ApplyPHPRuntime(mode string) error {
 		}
 	}
 	return nil
+}
+
+// xdebugRefreshVersions is which versions a switch rewrites the xdebug ini for:
+// the installed ones, plus under native the ones about to be fetched, which
+// have no ini of their own yet.
+func xdebugRefreshVersions(mode string, installed []string) []string {
+	out := slices.Clone(installed)
+	if mode != config.PHPRuntimeNative {
+		return out
+	}
+	for _, v := range nativeVersionsWanted() {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// nativeVersionsWanted lists the default PHP version plus the ones the sites
+// the native runtime serves run on. Not narrowed by the container images: a
+// switch on a machine that never built one has to fetch these, not skip them.
+func nativeVersionsWanted() []string {
+	var out []string
+	// The default backs the php and composer shims even with no site linked.
+	if cfg, err := config.LoadGlobal(); err == nil && nativephp.Supported(cfg.PHP.DefaultVersion) {
+		out = append(out, cfg.PHP.DefaultVersion)
+	}
+	sites, err := config.LoadSites()
+	if err != nil {
+		return out
+	}
+	for i := range sites.Sites {
+		s := &sites.Sites[i]
+		if switchableToNative(s) && s.PHPVersion != "" && !slices.Contains(out, s.PHPVersion) {
+			out = append(out, s.PHPVersion)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // versionsInUse narrows the installed PHP versions to those a site the shared
@@ -366,21 +406,16 @@ func unsupportedSitesMessage(sites []config.Site) string {
 }
 
 // startNativeRuntime brings up the host PHP-FPM listeners a native install is
-// served by, and does nothing at all in container mode. Called from the start
-// path, where the FPM containers are absent by design.
+// served by, fetching any wanted version that is missing, the way container
+// mode builds the default's image. Does nothing at all in container mode.
 func startNativeRuntime() {
 	cfg, err := config.LoadGlobal()
 	if err != nil || cfg.PHPRuntimeMode() != config.PHPRuntimeNative {
 		return
 	}
-	versions, _ := phpDet.ListInstalled()
-	for _, v := range versionsInUse(versions) {
-		if err := nativephp.Ensure(v); err != nil {
-			feedback.Warn("starting native php-fpm %s: %v", v, err)
-			continue
-		}
-		if _, err := nativephp.EnsureShim(v, nativephp.BinaryPath(v)); err != nil {
-			feedback.Warn("linking the native php %s: %v", v, err)
+	for _, v := range nativeVersionsWanted() {
+		if err := bringUpNativePHP(v, os.Stdout); err != nil {
+			feedback.Warn("php %s: %v", v, err)
 		}
 	}
 }

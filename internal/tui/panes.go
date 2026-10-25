@@ -235,16 +235,6 @@ func failingWorkers(snap Snapshot) []failingWorker {
 	return out
 }
 
-// joinTruncated joins names with ", " up to max entries; anything beyond
-// is collapsed into "+N more". Keeps the header pill from spilling onto a
-// second row when many workers are failing at once.
-func joinTruncated(names []string, max int) string {
-	if len(names) <= max {
-		return strings.Join(names, ", ")
-	}
-	return strings.Join(names[:max], ", ") + fmt.Sprintf(" +%d more", len(names)-max)
-}
-
 // siteHasFailingWorker is the predicate the sites pane uses to tint a
 // row's name with the failing colour. Mirrors the gates in
 // failingWorkerNames but scoped to a single site so we avoid the cost of

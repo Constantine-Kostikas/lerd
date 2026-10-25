@@ -164,36 +164,6 @@ func WriteDumpBridgeAssets() error {
 	return nil
 }
 
-// RemoveDumpAssets deletes the host-side bridge file, ini, and enable flag.
-// Used by `lerd uninstall` and tests; not called on `lerd dump off` because
-// the assets are always-mounted into FPM and removing them would force a
-// container restart on the next FPM start. Safe to call repeatedly.
-func RemoveDumpAssets() error {
-	for _, p := range []string{
-		config.DumpsBridgeFile(),
-		config.DumpsIniFile(),
-		config.LaravelAdapterFile(),
-		config.DevtoolsCollectorFile(),
-		config.DevtoolsSeamsFile(),
-		config.DumpsEnabledFlagFile(),
-		config.DevtoolsWorkersFlagFile(),
-		// Legacy: the devtools collector used to have its own enable sentinel
-		// before it was unified onto enabled.flag. Clean up any stale copy so
-		// an old install doesn't leave an orphan nothing reads.
-		filepath.Join(config.DumpsAssetsDir(), "devtools.flag"),
-	} {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("removing %s: %w", p, err)
-		}
-	}
-	dir := config.DumpsAssetsDir()
-	entries, err := os.ReadDir(dir)
-	if err == nil && len(entries) == 0 {
-		_ = os.Remove(dir)
-	}
-	return nil
-}
-
 // EnsureDumpAssets guarantees the bridge PHP file and conf.d ini exist as
 // regular files on disk so podman doesn't auto-create directories at the
 // bind-mount source paths when an FPM container first starts. Always runs

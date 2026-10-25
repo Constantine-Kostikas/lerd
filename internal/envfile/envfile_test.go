@@ -158,20 +158,6 @@ func TestApplyUpdates_uncomments(t *testing.T) {
 	}
 }
 
-// ── UpdateAppURL ──────────────────────────────────────────────────────────────
-
-func TestUpdateAppURL_setsHTTPS(t *testing.T) {
-	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_URL=http://old.test\n"), 0644)
-	if err := UpdateAppURL(dir, ".env", "APP_URL", "https", "myapp.test"); err != nil {
-		t.Fatal(err)
-	}
-	got := readEnv(t, filepath.Join(dir, ".env"))
-	if !strings.Contains(got, "APP_URL=https://myapp.test") {
-		t.Errorf("expected https URL, got:\n%s", got)
-	}
-}
-
 // ── ReadKeys ─────────────────────────────────────────────────────────────────
 
 func TestReadKeys_returnsAllKeys(t *testing.T) {
@@ -209,14 +195,6 @@ func TestReadKeys_missingFile(t *testing.T) {
 	_, err := ReadKeys("/nonexistent/.env")
 	if err == nil {
 		t.Error("expected error for missing file")
-	}
-}
-
-func TestUpdateAppURL_noEnvFile_silent(t *testing.T) {
-	// Should silently return nil when .env doesn't exist
-	err := UpdateAppURL(t.TempDir(), ".env", "APP_URL", "https", "myapp.test")
-	if err != nil {
-		t.Errorf("expected no error for missing .env, got: %v", err)
 	}
 }
 

@@ -108,6 +108,8 @@ func installNativePHP(pins *pinnedTools, version string, w io.Writer) (string, e
 		step.Fail(err)
 		return "", fmt.Errorf("downloading php %s: %w", pin.Version, err)
 	}
+	// A checksum retry may have re-read the pins, so record what actually arrived.
+	pin = pins.m.Tools[tool]
 	step.OK("downloaded")
 
 	extract := exec.Command("tar", "-xzf", archive, "-C", stage)

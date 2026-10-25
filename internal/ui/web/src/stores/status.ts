@@ -112,7 +112,8 @@ const reloadPage = () => {
 export function applyStatus(data: unknown, reload: () => void = reloadPage) {
   if (!data || typeof data !== 'object') return;
   const next = data as StatusResponse;
-  status.set({ ...empty, ...next });
+  // Older servers encode an empty version list as null, and every view reads it as an array.
+  status.set({ ...empty, ...next, php_fpms: next.php_fpms ?? [] });
   statusLoaded.set(true);
   noteInstance(next.instance, reload);
 }

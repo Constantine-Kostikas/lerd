@@ -83,27 +83,6 @@ func TestWriteDumpBridgeAssets_ReplacesDirectory(t *testing.T) {
 	}
 }
 
-func TestRemoveDumpAssets(t *testing.T) {
-	withTempXDG(t)
-	if err := WriteDumpBridgeAssets(); err != nil {
-		t.Fatal(err)
-	}
-	if err := SetDumpsBridgeFlag(true); err != nil {
-		t.Fatal(err)
-	}
-	if err := RemoveDumpAssets(); err != nil {
-		t.Fatalf("RemoveDumpAssets: %v", err)
-	}
-	for _, p := range []string{config.DumpsBridgeFile(), config.DumpsIniFile(), config.DumpsEnabledFlagFile()} {
-		if _, err := os.Stat(p); !os.IsNotExist(err) {
-			t.Errorf("%s still present: %v", filepath.Base(p), err)
-		}
-	}
-	if err := RemoveDumpAssets(); err != nil {
-		t.Errorf("second remove: %v", err)
-	}
-}
-
 func TestSetDumpsBridgeFlag_TogglesFile(t *testing.T) {
 	withTempXDG(t)
 	if err := SetDumpsBridgeFlag(true); err != nil {
