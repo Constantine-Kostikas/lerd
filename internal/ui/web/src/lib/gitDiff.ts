@@ -72,6 +72,37 @@ export function loadUptoVersions(domain: string, path: string, hash: string, fil
   return apiJson<GitVersions>(`/api/sites/git-diff?${query(domain, path)}&upto=${hash}&file=${encodeURIComponent(file)}`);
 }
 
+export interface GitResult {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+}
+
+function gitCommitApi(domain: string, path: string, body: object): Promise<GitResult> {
+  return apiJson<GitResult>(`/api/sites/git-commit?${query(domain, path)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+
+export function stageFile(domain: string, path: string, file: string): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'stage', file });
+}
+
+export function unstageFile(domain: string, path: string, file: string): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'unstage', file });
+}
+
+// Commits what is staged, or rewrites the last commit with it, and pushes after when asked.
+export function commitChanges(domain: string, path: string, message: string, amend: boolean, push: boolean): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'commit', message, amend, push });
+}
+
+export async function loadLastMessage(domain: string, path: string): Promise<string> {
+  return (await apiJson<{ message: string }>(`/api/sites/git-commit?${query(domain, path)}`)).message;
+}
+
 // One change as the diff editor reports it; an end of 0 means no lines on that side.
 export interface LineChange {
   originalStartLineNumber: number;

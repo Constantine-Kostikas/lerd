@@ -5,6 +5,7 @@
   import Icon from '$components/Icon.svelte';
   import { tooltip } from '$lib/tooltip';
   import MonacoDiffEditor from '$components/MonacoDiffEditor.svelte';
+  import GitCommitBox from '$components/GitCommitBox.svelte';
   import { closeModal } from '$stores/modals';
   import {
     SECTIONS,
@@ -15,6 +16,8 @@
     loadGitVersions,
     loadUptoFiles,
     loadUptoVersions,
+    stageFile,
+    unstageFile,
     type GitChangedFile,
     type GitCommit,
     type GitDiffSection,
@@ -82,6 +85,34 @@
   };
 
   const empty = $derived(!!groups && groups.every((g) => g.files.length === 0));
+  // Only uncommitted work can be staged and committed; a commit or a pull is history.
+  const uncommitted = $derived(!commit && !upto);
+  const stagedCount = $derived(groups?.find((g) => g.key === 'staged')?.files.length ?? 0);
+
+  async function loadUncommitted() {
+    const changes = await loadGitChanges(domain, path);
+    groups = SECTIONS.map((s) => ({ key: s, label: sectionLabel[s](), files: changes[s] }));
+  }
+
+  // After staging or committing, the open file follows to its new section when it still has changes.
+  async function refresh(keep?: string) {
+    try {
+      await loadUncommitted();
+    } catch (e) {
+      error = e instanceof Error ? e.message : m.common_failed();
+      return;
+    }
+    const all = (groups ?? []).flatMap((g) => g.files.map((f) => ({ group: g.key, file: f.path })));
+    const next = all.find((x) => x.file === keep) ?? all[0];
+    if (next) select(next.group, next.file);
+    else selected = versions = null;
+  }
+
+  async function toggleStage(group: Group['key'], file: string) {
+    const res = await (group === 'staged' ? unstageFile : stageFile)(domain, path, file);
+    if (res.error) error = res.error;
+    else await refresh(file);
+  }
 
   onMount(async () => {
     try {
@@ -90,10 +121,9 @@
       } else if (upto) {
         groups = [{ key: 'upto', label: '', files: await loadUptoFiles(domain, path, upto) }];
       } else {
-        const changes = await loadGitChanges(domain, path);
-        groups = SECTIONS.map((s) => ({ key: s, label: sectionLabel[s](), files: changes[s] }));
+        await loadUncommitted();
       }
-      const first = groups.find((g) => g.files.length > 0);
+      const first = groups?.find((g) => g.files.length > 0);
       if (first) select(first.key, first.files[0].path);
     } catch (e) {
       error = e instanceof Error ? e.message : m.common_failed();
@@ -161,10 +191,12 @@
       <!-- Width animates like the dashboard's own side panel; the list keeps its
            width inside so rows slide out instead of squeezing. -->
       <div
+        data-testid="file-list"
         inert={filesHidden}
         class="shrink-0 overflow-hidden md:flex md:transition-[width] md:duration-200 md:ease-out {filesHidden ? 'hidden md:w-0' : 'md:w-72'}"
       >
-      <nav class="md:w-72 shrink-0 max-h-48 md:max-h-none md:h-full overflow-y-auto border-b md:border-b-0 md:border-r border-gray-100 dark:border-lerd-border py-2">
+      <div class="md:w-72 shrink-0 flex flex-col md:h-full border-b md:border-b-0 md:border-r border-gray-100 dark:border-lerd-border">
+      <nav class="max-h-48 md:max-h-none md:flex-1 min-h-0 overflow-y-auto py-2">
         {#each groups ?? [] as g (g.key)}
           {#if g.files.length > 0}
             {#if g.label}
@@ -174,21 +206,39 @@
             {/if}
             {#each g.files as f (f.path)}
               {@const active = selected?.group === g.key && selected.file === f.path}
-              <button
-                type="button"
-                onclick={() => select(g.key, f.path)}
-                aria-current={active ? 'true' : undefined}
-                class="w-full flex items-center gap-2 px-4 py-1 text-left font-mono text-xs {active
-                  ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'}"
-              >
-                <span class="w-3 shrink-0 font-semibold {statusClass[f.status] ?? 'text-amber-600 dark:text-amber-400'}">{f.status}</span>
-                <span class="truncate" title={f.path}>{f.path}</span>
-              </button>
+              {@const staging = g.key === 'staged' ? m.gitDiff_unstage() : m.gitDiff_stage()}
+              <div class="group flex items-center {active
+                ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'}">
+                <button
+                  type="button"
+                  onclick={() => select(g.key, f.path)}
+                  aria-current={active ? 'true' : undefined}
+                  class="flex-1 min-w-0 flex items-center gap-2 pl-4 pr-1 py-1 text-left font-mono text-xs"
+                >
+                  <span class="w-3 shrink-0 font-semibold {statusClass[f.status] ?? 'text-amber-600 dark:text-amber-400'}">{f.status}</span>
+                  <span class="truncate" title={f.path}>{f.path}</span>
+                </button>
+                {#if uncommitted}
+                  <button
+                    type="button"
+                    onclick={() => toggleStage(g.key, f.path)}
+                    class="shrink-0 mr-2 p-0.5 rounded-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    use:tooltip={staging}
+                    aria-label="{staging} {f.path}"
+                  >
+                    <Icon name={g.key === 'staged' ? 'minus' : 'plus'} class="w-3.5 h-3.5" />
+                  </button>
+                {/if}
+              </div>
             {/each}
           {/if}
         {/each}
       </nav>
+      {#if uncommitted}
+        <GitCommitBox {domain} {path} staged={stagedCount} oncommitted={() => refresh(selected?.file)} />
+      {/if}
+      </div>
       </div>
       <div class="flex-1 min-w-0 min-h-0 flex flex-col">
         {#if error}
