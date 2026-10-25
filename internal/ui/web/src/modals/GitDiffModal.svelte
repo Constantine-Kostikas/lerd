@@ -42,14 +42,32 @@
   let stats = $state<{ added: number; removed: number } | null>(null);
   let error = $state('');
   let ignoreSpace = $state(false);
-  let fullscreen = $state(false);
   let filesHidden = $state(false);
 
-  // Escape and the close button leave full screen first, as Tinker's does.
-  function close() {
-    if (fullscreen) fullscreen = false;
-    else onclose();
+  // Full screen and the view are remembered, so the next diff opens the way this one was left.
+  const PREFS_KEY = 'lerd:gitDiff';
+  type Prefs = { fullscreen: boolean; unified: boolean };
+  function readPrefs(): Prefs {
+    try {
+      const v = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
+      return { fullscreen: v.fullscreen === true, unified: v.unified === true };
+    } catch {
+      return { fullscreen: false, unified: false };
+    }
   }
+  const prefs = readPrefs();
+  let fullscreen = $state(prefs.fullscreen);
+  let unified = $state(prefs.unified);
+  $effect(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ fullscreen, unified }));
+    } catch {
+      /* localStorage may be unavailable (private mode, quota), non-fatal */
+    }
+  });
+
+  // Close never just restores the size: full screen is a remembered choice, not a step to back out of.
+  const close = () => onclose();
 
   const sectionLabel: Record<GitDiffSection, () => string> = {
     staged: m.gitDiff_staged,
@@ -108,6 +126,15 @@
     <div class="flex items-center gap-3">
       <button
         type="button"
+        onclick={() => (unified = !unified)}
+        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        use:tooltip={unified ? m.gitDiff_sideBySide() : m.gitDiff_unified()}
+        aria-label={unified ? m.gitDiff_sideBySide() : m.gitDiff_unified()}
+      >
+        <Icon name={unified ? 'splitHorizontal' : 'splitVertical'} class="w-5 h-5" />
+      </button>
+      <button
+        type="button"
         onclick={() => (filesHidden = !filesHidden)}
         class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
         use:tooltip={filesHidden ? m.gitDiff_showFiles() : m.gitDiff_hideFiles()}
@@ -120,8 +147,8 @@
         type="button"
         onclick={() => (fullscreen = !fullscreen)}
         class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        use:tooltip={fullscreen ? m.tinker_exitFullscreenTitle() : m.tinker_fullscreenTitle()}
-        aria-label={fullscreen ? m.tinker_exitFullscreenTitle() : m.tinker_fullscreenTitle()}
+        use:tooltip={fullscreen ? m.gitDiff_exitFullscreen() : m.tinker_fullscreenTitle()}
+        aria-label={fullscreen ? m.gitDiff_exitFullscreen() : m.tinker_fullscreenTitle()}
       >
         <Icon name={fullscreen ? 'minimize' : 'maximize'} class="w-5 h-5" />
       </button>
@@ -189,6 +216,7 @@
                 modified={versions.modified}
                 language={languageFor(selected.file)}
                 {ignoreSpace}
+                sideBySide={!unified}
                 onStats={(s) => (stats = s)}
               />
             </div>

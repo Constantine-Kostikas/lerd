@@ -12,10 +12,11 @@
     /** Monaco language id, e.g. 'php', 'ini', 'plaintext'. */
     language?: string;
     ignoreSpace?: boolean;
+    sideBySide?: boolean;
     /** Fires each time Monaco finishes computing the diff. */
     onStats?: (s: { added: number; removed: number }) => void;
   }
-  let { original, modified, language = 'plaintext', ignoreSpace = false, onStats }: Props = $props();
+  let { original, modified, language = 'plaintext', ignoreSpace = false, sideBySide = true, onStats }: Props = $props();
 
   let container: HTMLDivElement | undefined = $state();
   let editor: Monaco.editor.IStandaloneDiffEditor | undefined = $state();
@@ -39,7 +40,10 @@
         renderOverviewRuler: false,
         // Long unchanged stretches fold away, as on a code review page.
         hideUnchangedRegions: { enabled: true },
-        ignoreTrimWhitespace: ignoreSpace
+        ignoreTrimWhitespace: ignoreSpace,
+        renderSideBySide: sideBySide,
+        // Otherwise a narrow window silently goes unified and the toggle says the opposite.
+        useInlineViewWhenSpaceIsLimited: false
       });
       ed.onDidUpdateDiff(() => {
         const model = ed.getModel();
@@ -79,8 +83,9 @@
   });
 
   $effect(() => {
-    editor?.updateOptions({ ignoreTrimWhitespace: ignoreSpace });
+    editor?.updateOptions({ ignoreTrimWhitespace: ignoreSpace, renderSideBySide: sideBySide });
   });
+
 </script>
 
 <div bind:this={container} class="h-full w-full"></div>

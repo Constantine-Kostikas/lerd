@@ -21,6 +21,7 @@ const text = (original: string, modified: string) => ({ original, modified, bina
 describe('GitDiffModal', () => {
   beforeEach(() => {
     closeModal.mockReset();
+    localStorage.clear();
     loadGitChanges.mockReset();
     loadGitVersions.mockReset();
   });
@@ -54,20 +55,38 @@ describe('GitDiffModal', () => {
     expect(screen.getByTestId('diff').dataset.ignoreSpace).toBe('true');
   });
 
-  it('fills the window, and Escape leaves full screen before it closes the modal', async () => {
+  it('closes from full screen and opens full screen next time', async () => {
     loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
     loadGitVersions.mockResolvedValue(text('a', 'b'));
-    render(GitDiffModal, { props });
+    const first = render(GitDiffModal, { props });
     await screen.findByTestId('diff');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Enter full screen' }));
     expect(screen.getByRole('dialog').className).toContain('h-dvh');
     await fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.getByRole('dialog').className).toContain('h-[85vh]');
-    expect(closeModal).not.toHaveBeenCalled();
-
-    await fireEvent.keyDown(window, { key: 'Escape' });
     expect(closeModal).toHaveBeenCalledOnce();
+    first.unmount();
+
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    expect(screen.getByRole('dialog').className).toContain('h-dvh');
+    await fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
+    expect(screen.getByRole('dialog').className).toContain('h-[85vh]');
+  });
+
+  it('switches between side by side and unified, and keeps the choice', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    const first = render(GitDiffModal, { props });
+    expect((await screen.findByTestId('diff')).dataset.sideBySide).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Unified view' }));
+    expect(screen.getByTestId('diff').dataset.sideBySide).toBe('false');
+    first.unmount();
+
+    render(GitDiffModal, { props });
+    expect((await screen.findByTestId('diff')).dataset.sideBySide).toBe('false');
+    expect(screen.getByRole('button', { name: 'Side by side view' })).toBeTruthy();
   });
 
   it('hides the file list and brings it back', async () => {
