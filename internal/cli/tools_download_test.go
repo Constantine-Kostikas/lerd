@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +10,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/download"
 	"github.com/geodro/lerd/internal/tools"
 )
@@ -67,5 +70,61 @@ func TestDownloadKeepsAMismatchTheRefreshDoesNotExplain(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("downloaded %d times, want 1", calls)
+	}
+}
+
+// fakeNativeTarball writes a gzipped build holding what unpackNativePHP needs.
+func fakeNativeTarball(t *testing.T, dest, version string) {
+	t.Helper()
+	f, err := os.Create(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: "modules/", Typeflag: tar.TypeDir, Mode: 0o755}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"php-native-" + version, "php-native-fpm-" + version} {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: 0}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tw.Close()
+	gz.Close()
+}
+
+// A refreshed pin can name a newer patch than the one the install set out to
+// fetch, and the build on disk has to be recorded as the one that arrived.
+func TestNativeInstallRecordsThePatchTheRefreshFetched(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	if err := os.MkdirAll(config.DataDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	origVerified, origRefresh := verifiedDownload, refreshPins
+	defer func() { verifiedDownload, refreshPins = origVerified, origRefresh }()
+
+	verifiedDownload = func(_ context.Context, _, dest string, _ os.FileMode, digest string, _ io.Writer) error {
+		if digest == "old" {
+			return fmt.Errorf("%w: got new, expected old", download.ErrChecksumMismatch)
+		}
+		fakeNativeTarball(t, dest, "8.4")
+		return nil
+	}
+	fresh := pinnedManifest("new")
+	tool := fresh.Tools["php-native-8.4"]
+	tool.Version = "8.4.28"
+	fresh.Tools["php-native-8.4"] = tool
+	refreshPins = func(context.Context) *tools.Manifest { return fresh }
+
+	got, err := installNativePHP(&pinnedTools{m: pinnedManifest("old")}, "8.4", io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "8.4.28" {
+		t.Errorf("recorded patch %q, want the refreshed 8.4.28", got)
 	}
 }
