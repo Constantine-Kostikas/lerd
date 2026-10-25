@@ -9,6 +9,7 @@ import (
 // before the client is told it is done, or the card keeps the old number until
 // the snapshot's TTL expires.
 func TestRefreshAfterPHPBuild(t *testing.T) {
+	stubNativeRuntime(t, false)
 	origPoll, origPatch := pollContainersFn, refreshPHPPatchFn
 	t.Cleanup(func() {
 		pollContainersFn, refreshPHPPatchFn = origPoll, origPatch

@@ -196,6 +196,7 @@ func main() {
 	root.AddCommand(cli.NewOctaneReloadCmd())
 	root.AddCommand(cli.NewAutostartCmd())
 	root.AddCommand(cli.NewMCPCmd())
+	root.AddCommand(cli.NewLSPCmd())
 	root.AddCommand(cli.NewMCPInjectCmd())
 	root.AddCommand(cli.NewMCPEjectCmd())
 	root.AddCommand(cli.NewMCPEnableGlobalCmd())

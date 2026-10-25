@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,6 +32,10 @@ var (
 func File(ctx context.Context, url, dest string, mode os.FileMode, w io.Writer) error {
 	return Verified(ctx, url, dest, mode, "", w)
 }
+
+// ErrChecksumMismatch marks a download whose bytes arrived intact but do not
+// match the pinned digest, which a caller can answer by re-reading the pins.
+var ErrChecksumMismatch = errors.New("checksum mismatch")
 
 // Verified is File with an expected sha256 of the downloaded bytes. An empty
 // digest skips the check, for a tool the manifest pins no hash for. Bytes land
@@ -112,7 +117,7 @@ func fetchOnce(ctx context.Context, url, dest string, mode os.FileMode, sha256He
 	if sha256Hex != "" {
 		if got := hex.EncodeToString(sum.Sum(nil)); !strings.EqualFold(got, sha256Hex) {
 			// Not retryable: the bytes arrived intact and are the wrong ones.
-			return false, fmt.Errorf("checksum mismatch for %s: got %s, expected %s", url, got, sha256Hex)
+			return false, fmt.Errorf("%w for %s: got %s, expected %s", ErrChecksumMismatch, url, got, sha256Hex)
 		}
 	}
 	if err := os.Chmod(tmp, mode); err != nil {

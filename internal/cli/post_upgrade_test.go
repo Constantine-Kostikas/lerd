@@ -53,7 +53,7 @@ func TestShouldApplyUpgradeSkipsWithoutATerminal(t *testing.T) {
 // The install is what the reapply runs, so triggering from it would recurse,
 // and the commands that already reapply have no need of a second pass.
 func TestShouldApplyUpgradeSkipsTheCommandsThatRunItThemselves(t *testing.T) {
-	for _, name := range []string{"install", "update", "bootstrap", "uninstall", "serve-ui", "watch", "mcp"} {
+	for _, name := range []string{"install", "update", "bootstrap", "uninstall", "serve-ui", "watch", "mcp", "lsp"} {
 		if shouldApplyUpgrade(name, "1.32.0", "1.31.0", true, true) {
 			t.Errorf("%s should not trigger the reapply", name)
 		}

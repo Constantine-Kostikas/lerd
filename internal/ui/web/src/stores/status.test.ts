@@ -184,4 +184,14 @@ describe('server restart reload', () => {
     applyStatus({}, reload);
     expect(reload).not.toHaveBeenCalled();
   });
+
+  // An older server encodes an empty version list as null. Every PHP view reads
+  // it as an array, so one null took the whole System PHP section down.
+  it('keeps php_fpms a list when the server sends null', async () => {
+    const { applyStatus, status } = await import('./status');
+    const { get } = await import('svelte/store');
+
+    applyStatus({ php_fpms: null }, vi.fn());
+    expect(get(status).php_fpms).toEqual([]);
+  });
 });

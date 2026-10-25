@@ -337,27 +337,6 @@ func ReadKeys(path string) ([]string, error) {
 	return keys, nil
 }
 
-// UpdateAppURL sets the framework's URL key in envFile to scheme://domain.
-// envFile and urlKey come from the framework definition (config.URLTargetFor),
-// so Symfony's DEFAULT_URI in .env.local is written the same way Laravel's
-// APP_URL in .env is. An empty urlKey means the framework holds its base URL
-// somewhere other than the env file. Silently does nothing if the file is absent.
-func UpdateAppURL(projectPath, envFile, urlKey, scheme, domain string) error {
-	if urlKey == "" {
-		return nil
-	}
-	if envFile == "" {
-		envFile = ".env"
-	}
-	envPath := filepath.Join(projectPath, envFile)
-	if _, err := os.Stat(envPath); os.IsNotExist(err) {
-		return nil
-	}
-	return ApplyUpdates(envPath, map[string]string{
-		urlKey: scheme + "://" + domain,
-	})
-}
-
 // SyncPrimaryDomain updates the framework's URL key and VITE_REVERB_HOST/SCHEME/PORT
 // in the project's env file to reflect the current primary domain and TLS state.
 // envFile and urlKey are the framework's, resolved by config.URLTargetFor.

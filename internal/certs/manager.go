@@ -196,10 +196,3 @@ func copyFile(src, dst string) error {
 	}
 	return out.Close()
 }
-
-// CertExists returns true if the certificate for the domain already exists.
-func CertExists(domain string) bool {
-	certFile := filepath.Join(config.CertsDir(), "sites", domain+".crt")
-	_, err := os.Stat(certFile)
-	return err == nil
-}

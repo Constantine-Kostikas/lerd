@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/geodro/lerd/internal/config"
 )
@@ -57,18 +56,4 @@ func DetectVersionFromFile(dir, relPath, pattern string) string {
 		return ""
 	}
 	return extractMajorFromConstraint(string(m[1]))
-}
-
-// extractMajorVersion extracts the major version from a composer version string.
-// Examples: "v11.34.2" -> "11", "7.0.0" -> "7", "v2.3.0-beta.1" -> "2"
-func extractMajorVersion(version string) string {
-	v := strings.TrimPrefix(version, "v")
-	if i := strings.IndexByte(v, '-'); i != -1 {
-		v = v[:i]
-	}
-	parts := strings.SplitN(v, ".", 2)
-	if len(parts) == 0 || parts[0] == "" {
-		return ""
-	}
-	return parts[0]
 }
