@@ -7,6 +7,7 @@ import (
 
 	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/feedback"
+	"github.com/geodro/lerd/internal/nativephp"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,30 @@ import (
 // be tested without a download.
 var nativeInstallFn = func(version string, w io.Writer) error {
 	return ensureNativePHPInstalled(&pinnedTools{}, version, w)
+}
+
+// bringUpNativePHP fetches a version's native build when missing, writes its
+// xdebug ini and starts its pool, which is all a native version needs to serve.
+func bringUpNativePHP(version string, w io.Writer) error {
+	if err := nativeInstallFn(version, w); err != nil {
+		return err
+	}
+	if err := ensureXdebugIni(version); err != nil {
+		return fmt.Errorf("writing the xdebug ini for php %s: %w", version, err)
+	}
+	if err := nativeStartFn(version); err != nil {
+		return fmt.Errorf("starting native php-fpm %s: %w", version, err)
+	}
+	return nil
+}
+
+// nativeStartFn brings a fetched version's pool up and links its shim.
+var nativeStartFn = func(version string) error {
+	if err := nativephp.Ensure(version); err != nil {
+		return err
+	}
+	_, err := nativephp.EnsureShim(version, nativephp.BinaryPath(version))
+	return err
 }
 
 // NewUseCmd returns the use command.

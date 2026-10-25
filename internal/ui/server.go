@@ -830,7 +830,8 @@ func buildStatus() StatusResponse {
 	watcherRunning := services.Mgr.IsActive("lerd-watcher")
 
 	versions, _ := phpPkg.InstalledForRuntime()
-	var phpStatuses []PHPStatus
+	// Never nil: the UI reads php_fpms as a list, and a nil slice encodes as null.
+	phpStatuses := []PHPStatus{}
 	native := nativeRuntimeActive()
 	// Loaded once rather than per version: the pins are what says whether a
 	// host build is behind, and they are the same for all of them.
@@ -5183,7 +5184,12 @@ func handlePHPVersionAction(w http.ResponseWriter, r *http.Request) {
 // versions (7.4 .. 8.5) minus the ones already installed, so the UI can offer
 // them in a dropdown.
 func handlePHPInstallable(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, installablePHPVersions(cli.SupportedPHPVersions, fullyInstalledPHPVersions()))
+	supported := cli.SupportedPHPVersions
+	// The native runtime cannot serve below its minimum, so offering those only leads to a refusal.
+	if nativeRuntimeActive() {
+		supported = slices.DeleteFunc(slices.Clone(supported), func(v string) bool { return !nativephp.Supported(v) })
+	}
+	writeJSON(w, installablePHPVersions(supported, fullyInstalledPHPVersions()))
 }
 
 // fullyInstalledPHPVersions returns the versions that are both registered (a
@@ -5192,6 +5198,10 @@ func handlePHPInstallable(w http.ResponseWriter, _ *http.Request) {
 // excluded so it stays installable for repair; orphaned :local images for
 // versions with no quadlet are ignored so they don't hide installable versions.
 func fullyInstalledPHPVersions() []string {
+	// A native build is the binary pair on disk; there is no image to check.
+	if nativeRuntimeActive() {
+		return installedPHPVersions(true, nil, nativephp.ListInstalled)
+	}
 	installed, _ := phpPkg.ListInstalled()
 	out := []string{}
 	for _, v := range installed {
@@ -5279,10 +5289,6 @@ func handlePHPInstall(w http.ResponseWriter, r *http.Request) {
 		done(map[string]any{"ok": false, "error": "unsupported PHP version"})
 		return
 	}
-	if err := nativeInstallRefusal(nativeRuntimeActive(), version); err != nil {
-		done(map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
 	// Reject a second concurrent install of the same version so two clients can't
 	// race on the same image build and quadlet file.
 	if _, busy := phpBuildInFlight.LoadOrStore(version, struct{}{}); busy {
@@ -5298,7 +5304,7 @@ func handlePHPInstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	err := cli.InstallPHPVersion(version, sw)
+	err := installPHPVersionFn(version, sw)
 	sw.flushTail()
 	// Notify regardless of whether the client is still connected, so a user who
 	// closed the modal still learns the build finished or failed.
@@ -5306,8 +5312,8 @@ func handlePHPInstall(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Roll back a half-registered version (quadlet written before the build
 		// failed) so it doesn't linger as a broken, stopped tab in the UI.
-		if !podman.ImageExists(podman.FPMImageName(version)) {
-			_ = teardownPHPFPM(version)
+		if !nativeRuntimeActive() && !podman.ImageExists(podman.FPMImageName(version)) {
+			_ = teardownPHPFPMFn(version)
 		}
 		done(map[string]any{"ok": false, "error": err.Error(), "version": version})
 		return
@@ -5320,8 +5326,9 @@ func handlePHPInstall(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	pollContainersFn  = podman.Cache.PollNow
-	refreshPHPPatchFn = podman.RefreshFPMPHPVersion
+	installPHPVersionFn = cli.InstallPHPVersion
+	pollContainersFn    = podman.Cache.PollNow
+	refreshPHPPatchFn   = podman.RefreshFPMPHPVersion
 )
 
 // refreshAfterPHPBuild brings back what a finished install or rebuild made
@@ -5330,8 +5337,11 @@ var (
 // done event because the client loads status the moment the modal closes,
 // ahead of publishAfter's own invalidation.
 func refreshAfterPHPBuild(version string) {
-	pollContainersFn()
-	refreshPHPPatchFn(version)
+	// A native install has no container or image to probe; only the snapshot is stale.
+	if !nativeRuntimeActive() {
+		pollContainersFn()
+		refreshPHPPatchFn(version)
+	}
 	snapshots.Invalidate(eventbus.KindStatus)
 }
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,11 +43,27 @@ func (p *pinnedTools) downloadCtx(ctx context.Context, name, dest string, mode o
 		return "", err
 	}
 	digest := p.m.Digest(name, runtime.GOOS, runtime.GOARCH)
-	if err := download.Verified(ctx, url, dest, mode, digest, w); err != nil {
+	err = verifiedDownload(ctx, url, dest, mode, digest, w)
+	// A build republished under the same version changes its digest while the
+	// cached pins keep the old one for up to a day; fresh pins settle which is right.
+	if errors.Is(err, download.ErrChecksumMismatch) {
+		fresh := refreshPins(ctx)
+		if freshDigest := fresh.Digest(name, runtime.GOOS, runtime.GOARCH); freshDigest != "" && freshDigest != digest {
+			p.m = fresh
+			return p.downloadCtx(ctx, name, dest, mode, w)
+		}
+	}
+	if err != nil {
 		return "", err
 	}
 	return p.m.Tools[name].Version, nil
 }
+
+// Seams so the pin refresh on a checksum mismatch can be tested offline.
+var (
+	verifiedDownload = download.Verified
+	refreshPins      = tools.Refresh
+)
 
 // ensureFnmBinary installs fnm into BinDir when it is missing. Called from
 // downloadBinaries on a normal (fnm) install, and on demand when switching
