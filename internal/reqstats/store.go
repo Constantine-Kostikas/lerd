@@ -2,8 +2,8 @@ package reqstats
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -476,7 +476,11 @@ func (s *Store) SlowestRIDs(since time.Time) (map[string]bool, error) {
 // one arrival at a time. The zero value is empty and reads from the start.
 type Leaders struct {
 	routes map[[2]string][]leader
-	last   int64
+	// last is the newest row taken in, and lastAt and lastRID what it held, so
+	// a rowid handed out again once its row was deleted is told apart.
+	last    int64
+	lastAt  int64
+	lastRID string
 }
 
 type leader struct {
@@ -498,12 +502,16 @@ func (l *Leaders) RIDs() map[string]bool {
 }
 
 // add takes in a request newer than every one held: it leads its route from
-// now on, and whatever it outran never can again.
+// now on, and whatever it outran never can again. A route's leaders run from
+// slowest to fastest, so the ones it outran are all at the end.
 func (l *Leaders) add(k [2]string, rid string, ms float64) {
 	if l.routes == nil {
 		l.routes = map[[2]string][]leader{}
 	}
-	route := slices.DeleteFunc(l.routes[k], func(ld leader) bool { return ld.ms < ms })
+	route := l.routes[k]
+	for len(route) > 0 && route[len(route)-1].ms < ms {
+		route = route[:len(route)-1]
+	}
 	l.routes[k] = append(route, leader{rid: rid, ms: ms})
 }
 
@@ -511,20 +519,22 @@ func (l *Leaders) add(k [2]string, rid string, ms float64) {
 // whether there were any. Rows older than since never enter, so dropping
 // requests that aged out means following again from a fresh Leaders.
 func (s *Store) Follow(l *Leaders, since time.Time) (bool, error) {
-	// A store emptied by a prune hands out low rowids again.
-	var newest int64
-	if err := s.db.QueryRow(`SELECT COALESCE(MAX(rowid), 0) FROM requests`).Scan(&newest); err != nil {
-		return false, err
-	}
-	if newest < l.last {
-		*l = Leaders{}
+	if l.last > 0 {
+		var at int64
+		var rid string
+		err := s.db.QueryRow(`SELECT at_ms, rid FROM requests WHERE rowid = ?`, l.last).Scan(&at, &rid)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && (at != l.lastAt || rid != l.lastRID)) {
+			*l = Leaders{}
+		} else if err != nil {
+			return false, err
+		}
 	}
 	excluded, err := s.AllExcludedRoutes()
 	if err != nil {
 		return false, err
 	}
 	rows, err := s.db.Query(
-		`SELECT rowid, site, route, status, ms, uri, rid FROM requests
+		`SELECT rowid, at_ms, site, route, status, ms, uri, rid FROM requests
 		 WHERE rowid > ? AND at_ms >= ? AND cold = 0 ORDER BY at_ms, rowid`,
 		l.last, since.UnixMilli())
 	if err != nil {
@@ -534,14 +544,16 @@ func (s *Store) Follow(l *Leaders, since time.Time) (bool, error) {
 
 	took := false
 	for rows.Next() {
-		var id int64
+		var id, at int64
 		var key, route, uri, rid string
 		var status int
 		var ms float64
-		if err := rows.Scan(&id, &key, &route, &status, &ms, &uri, &rid); err != nil {
+		if err := rows.Scan(&id, &at, &key, &route, &status, &ms, &uri, &rid); err != nil {
 			return took, err
 		}
-		l.last = max(l.last, id)
+		if id > l.last {
+			l.last, l.lastAt, l.lastRID = id, at, rid
+		}
 		site, _ := SplitKey(key)
 		if !IsAppRequest(status, uri, ms) || excluded[site][route] {
 			continue

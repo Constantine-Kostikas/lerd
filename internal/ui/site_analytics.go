@@ -120,16 +120,26 @@ func (k *slowestKeeper) refresh(rebuild bool) {
 	k.srv.SetKeep(k.leaders.RIDs())
 }
 
+// keepRetryEvery is how often a file watch that failed to start is tried
+// again, and the store read meanwhile. It stays under the debug buffer's grace
+// so no request is trimmed before it could be kept.
+const keepRetryEvery = 10 * time.Second
+
 // follow refreshes on every batch the watcher writes, for lerd-ui's life.
 func (k *slowestKeeper) follow() {
 	stored := requestsFeed.subscribe()
 	rebuild := time.NewTicker(keepRebuildEvery)
+	retry := time.NewTicker(keepRetryEvery)
 	for {
 		select {
 		case <-stored:
 			k.refresh(false)
 		case <-rebuild.C:
 			k.refresh(true)
+		case <-retry.C:
+			if requestsFeed.restartIfDown() {
+				k.refresh(false)
+			}
 		}
 	}
 }

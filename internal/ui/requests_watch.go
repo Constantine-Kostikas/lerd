@@ -29,17 +29,34 @@ func newChangeFeed(start func(ctx context.Context, onChange func()) error) *chan
 func (f *changeFeed) subscribe() chan struct{} {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.cancel == nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		if err := f.start(ctx, f.notify); err != nil {
-			cancel()
-		} else {
-			f.cancel = cancel
-		}
-	}
+	f.startLocked()
 	ch := make(chan struct{}, 1)
 	f.subs[ch] = struct{}{}
 	return ch
+}
+
+// restartIfDown retries a source whose start failed, for a subscriber that
+// never leaves, and reports whether it was down: nudges went missing meanwhile.
+func (f *changeFeed) restartIfDown() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cancel != nil {
+		return false
+	}
+	f.startLocked()
+	return true
+}
+
+func (f *changeFeed) startLocked() {
+	if f.cancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := f.start(ctx, f.notify); err != nil {
+		cancel()
+		return
+	}
+	f.cancel = cancel
 }
 
 // unsubscribe stops the source with the last subscriber.
