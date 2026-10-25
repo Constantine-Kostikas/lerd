@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/spf13/cobra"
 )
@@ -65,23 +64,4 @@ func VendorBinExists(cwd, name string) bool {
 		return false
 	}
 	return true
-}
-
-// ListVendorBins returns the names of executable files in <cwd>/vendor/bin,
-// sorted alphabetically. Returns an empty slice if the directory doesn't exist.
-func ListVendorBins(cwd string) []string {
-	dir := filepath.Join(cwd, "vendor", "bin")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var bins []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		bins = append(bins, e.Name())
-	}
-	sort.Strings(bins)
-	return bins
 }
