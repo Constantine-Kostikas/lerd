@@ -29,9 +29,6 @@ type Ring struct {
 	cap int
 	// onDisk is false for an in-memory ring, which a restart loses.
 	onDisk bool
-	// keep names the requests whose events survive past the newest cap: each
-	// route's slowest, which the dashboard links to for days.
-	keep map[string]bool
 	// untrimmed counts appends since the last trim. Readers only look at the
 	// newest cap anyway, so the delete runs in batches rather than per event.
 	untrimmed int
@@ -49,8 +46,8 @@ type seqMark struct {
 // trimEvery is how many appends go by between trims.
 const trimEvery = 256
 
-// trimGrace is how long a trim spares events past the newest cap: two of
-// lerd-ui's slowest-request refreshes, so one has run before a request can go.
+// trimGrace is how long a trim spares events past the newest cap: well past
+// the second or so a request's timing takes to reach lerd-ui and mark it kept.
 const trimGrace = 30 * time.Second
 
 // ringNow is the clock trims age events by; a seam for tests.
@@ -86,7 +83,13 @@ CREATE INDEX IF NOT EXISTS idx_events_kept ON events(kept);
 CREATE INDEX IF NOT EXISTS idx_events_site_kind ON events(site, kind);
 CREATE INDEX IF NOT EXISTS idx_events_grp ON events(grp);
 CREATE INDEX IF NOT EXISTS idx_events_job ON events(job);
-CREATE INDEX IF NOT EXISTS idx_events_id ON events(id);`
+CREATE INDEX IF NOT EXISTS idx_events_id ON events(id);
+CREATE TABLE IF NOT EXISTS kept (rid TEXT PRIMARY KEY);`
+
+// keptRow selects the events of a kept request: each route's slowest, which the
+// dashboard links to for days. The set lives apart from the events, since
+// marking a request in place rewrote every payload it carries.
+const keptRow = `(rid IN (SELECT rid FROM kept) OR reached IN (SELECT rid FROM kept))`
 
 // OpenRing opens (creating if needed) the ring stored at path, so the buffer
 // survives a lerd-ui restart. Non-positive capacity means DefaultCapacity.
@@ -202,11 +205,11 @@ func (r *Ring) store(q querier, e Event) error {
 		fp, ms = normalizeSQL(qd.SQL), qd.TimeMS
 	}
 	_, err = q.Exec(
-		`INSERT INTO events(id, rid, reached, site, branch, ctx, kind, test, nav, grp, route, worker, facet, hay, fp, ms, job, kept, data, brief)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO events(id, rid, reached, site, branch, ctx, kind, test, nav, grp, route, worker, facet, hay, fp, ms, job, data, brief)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.ID, e.Ctx.RID, reached, e.Ctx.Site, e.Ctx.Branch, e.Ctx.Type, e.Kind, e.Ctx.Test, e.isPageView(),
 		groupKey(e), routeOf(e), e.Ctx.Worker, facetOf(e), haystack(e), fp, ms, job,
-		r.keep[e.Ctx.RID] || r.keep[reached], data, brief(e, data))
+		data, brief(e, data))
 	return err
 }
 
@@ -215,18 +218,17 @@ func (r *Ring) store(q querier, e Event) error {
 func (r *Ring) SetKeep(keep map[string]bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.keep = keep
 	tx, err := r.db.Begin()
 	if err != nil {
 		warnRing("marking kept requests", err)
 		return
 	}
-	_, err = tx.Exec(`UPDATE events SET kept = 0 WHERE kept = 1`)
+	_, err = tx.Exec(`DELETE FROM kept`)
 	for rid := range keep {
 		if err != nil {
 			break
 		}
-		_, err = tx.Exec(`UPDATE events SET kept = 1 WHERE rid = ? OR reached = ?`, rid, rid)
+		_, err = tx.Exec(`INSERT INTO kept(rid) VALUES(?)`, rid)
 	}
 	if err != nil {
 		tx.Rollback()
@@ -242,7 +244,7 @@ func (r *Ring) SetKeep(keep map[string]bool) {
 func (r *Ring) trim() {
 	r.untrimmed = 0
 	settled := r.settle()
-	_, err := r.db.Exec(`DELETE FROM events WHERE kept = 0 AND seq < ? AND seq <= ?
+	_, err := r.db.Exec(`DELETE FROM events WHERE NOT `+keptRow+` AND seq < ? AND seq <= ?
 		AND rid NOT IN (SELECT rid FROM events WHERE seq > ? AND rid != '' AND ctx = 'fpm')`, r.floor(), settled, settled)
 	warnRing("dropping old events", err)
 }
@@ -256,7 +258,7 @@ func (r *Ring) forgetAges() {
 // dropBefore deletes the events before seq that no kept request ran.
 func (r *Ring) dropBefore(seq int64) {
 	r.untrimmed = 0
-	_, err := r.db.Exec(`DELETE FROM events WHERE kept = 0 AND seq < ?`, seq)
+	_, err := r.db.Exec(`DELETE FROM events WHERE NOT `+keptRow+` AND seq < ?`, seq)
 	warnRing("dropping old events", err)
 }
 
@@ -410,8 +412,8 @@ func (r *Ring) RequestIDs() map[string]bool {
 	defer r.mu.Unlock()
 	out := map[string]bool{}
 	rows, err := r.db.Query(
-		`SELECT rid FROM events WHERE seq >= ?1 OR kept = 1
-		 UNION SELECT reached FROM events WHERE reached != '' AND (seq >= ?1 OR kept = 1)`, r.floor())
+		`SELECT rid FROM events WHERE seq >= ?1 OR `+keptRow+`
+		 UNION SELECT reached FROM events WHERE reached != '' AND (seq >= ?1 OR `+keptRow+`)`, r.floor())
 	if err != nil {
 		warnRing("listing requests", err)
 		return out
@@ -486,7 +488,7 @@ func (r *Ring) where(opts FilterOpts) (string, []any) {
 	where := []string{"seq >= ?"}
 	args := []any{r.floor()}
 	if opts.RID != "" {
-		where = []string{"(seq >= ? OR kept = 1)", "(rid = ? OR reached = ?)"}
+		where = []string{"(seq >= ? OR " + keptRow + ")", "(rid = ? OR reached = ?)"}
 		args = append(args, opts.RID, opts.RID)
 	}
 	for _, f := range []struct{ col, val string }{
