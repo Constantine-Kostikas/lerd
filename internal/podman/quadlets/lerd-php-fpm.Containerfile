@@ -181,10 +181,10 @@ RUN { cd /tmp/lerd-devtools && phpize && ./configure --enable-lerd-devtools && m
 # ── Runtime stage ───────────────────────────────────────────────────────────
 FROM docker.io/library/php:{{.Version}}-fpm-alpine
 
-# Runtime libraries only (no -dev headers, no toolchain). PHP's compiled
-# extensions dlopen these. gcompat + libstdc++ are the musl/glibc shim a vendor
-# ODBC driver (HANA, Oracle, MSSQL) needs before unixODBC can load it at all.
-RUN apk update && apk add --no-cache \
+# Runtime libraries only, which PHP's extensions dlopen; gcompat + libstdc++ let
+# unixODBC load a vendor ODBC driver. The upgrade brings Alpine's fixes to the
+# packages upstream php already ships, which apk add never touches (#2333).
+RUN apk update && apk upgrade --no-cache && apk add --no-cache \
         ghostscript \
         imagemagick \
         libgomp \

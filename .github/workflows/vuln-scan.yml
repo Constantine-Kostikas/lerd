@@ -1,0 +1,90 @@
+name: Vulnerability Scan
+
+# Daily scan of what CI's govulncheck does not cover: the UI's npm tree, the
+# published PHP base images and the pinned host tools. A base image with an
+# Alpine fix out is rebuilt, since its build runs apk upgrade (#2333).
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+env:
+  GRYPE: docker.io/anchore/grype:v0.120.1
+
+jobs:
+  ui:
+    name: UI dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: npm audit
+        working-directory: internal/ui/web
+        run: npm audit --audit-level=high
+
+  images:
+    name: PHP base images
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan the published images
+        id: scan
+        run: python3 .github/scripts/vuln_scan.py
+
+      # A failed scan of one image still rebuilds the ones that were read.
+      - name: Trigger base image rebuild
+        if: ${{ !cancelled() && steps.scan.outputs.stale != '' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'base-images.yml',
+              ref: 'main',
+              inputs: {
+                force_rebuild: 'true',
+                versions: '${{ steps.scan.outputs.stale }}'
+              }
+            });
+
+  tools:
+    name: Host tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Every platform's build of every pin, each in its own directory, since
+      # they are separate binaries. mkcert stays out: its 2022 release is built
+      # with Go 1.18, so no pin bump clears it until lerd stops using it.
+      - name: Download the pinned tools
+        run: |
+          set -euo pipefail
+          FILE=internal/tools/tools.yaml
+          for tool in $(yq -r '.tools | keys | .[] | select(. != "mkcert")' "$FILE"); do
+            version=$(yq -r ".tools.\"${tool}\".version" "$FILE")
+            template=$(yq -r ".tools.\"${tool}\".url" "$FILE")
+            assets=$(yq -r ".tools.\"${tool}\".assets // {} | to_entries | .[].value" "$FILE" | sort -u)
+            for asset in ${assets:-none}; do
+              asset="${asset//\{version\}/$version}"
+              url="${template//\{version\}/$version}"
+              url="${url//\{asset\}/$asset}"
+              dir="/tmp/tools/${tool}/${asset}"
+              mkdir -p "$dir"
+              curl -fsSL -o "${dir}/${url##*/}" "$url"
+              case "$url" in
+                *.tar.gz) tar -xzf "${dir}/${url##*/}" -C "$dir" ;;
+                *.zip) unzip -qo "${dir}/${url##*/}" -d "$dir" ;;
+              esac
+            done
+          done
+
+      - name: Scan
+        run: docker run --rm -v /tmp/tools:/scan:ro "$GRYPE" dir:/scan --only-fixed --fail-on high

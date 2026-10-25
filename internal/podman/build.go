@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -563,6 +564,13 @@ func buildFPMImage(version string, force, local bool, customExts []string, extDe
 		return false, nil
 	}
 
+	// Read before the build replaces the tag, so the rebuild can say which
+	// packages it changed, the fixes a security rebuild exists to bring in.
+	var before map[string]string
+	if force {
+		before = imagePackages(imageName)
+	}
+
 	fmt.Fprintf(w, "\n  Building PHP %s image...\n", version)
 
 	tmp, err := os.MkdirTemp("", "lerd-php-build-*")
@@ -637,10 +645,81 @@ build:
 	forgetRecordedBaseDigest(version)
 
 	fmt.Fprintf(w, "  PHP %s image built successfully.\n", version)
+	if before != nil {
+		writePackageChanges(w, before, imagePackages(imageName))
+	}
 	if OnImageRebuilt != nil {
 		OnImageRebuilt()
 	}
 	return true, nil
+}
+
+// imagePackages lists the Alpine packages image carries, name to version, or
+// nil when the image does not exist or cannot run.
+func imagePackages(image string) map[string]string {
+	out, err := execCommand(PodmanBin(), "run", "--rm", "--network", "none", image, "apk", "info", "-v").Output()
+	if err != nil {
+		return nil
+	}
+	pkgs := map[string]string{}
+	for _, line := range strings.Fields(string(out)) {
+		if name, ver, ok := splitApkPackage(line); ok {
+			pkgs[name] = ver
+		}
+	}
+	return pkgs
+}
+
+// splitApkPackage splits apk's name-version-rN at the hyphen before the
+// version: Alpine versions hold no hyphen, so it is the second-to-last one.
+func splitApkPackage(s string) (name, version string, ok bool) {
+	rel := strings.LastIndex(s, "-")
+	if rel <= 0 {
+		return "", "", false
+	}
+	i := strings.LastIndex(s[:rel], "-")
+	if i <= 0 || !strings.HasPrefix(s[rel+1:], "r") {
+		return "", "", false
+	}
+	return s[:i], s[i+1:], true
+}
+
+// packageChanges lists what moved between two package sets, sorted by name.
+func packageChanges(before, after map[string]string) []string {
+	var changes []string
+	for name, old := range before {
+		switch cur, ok := after[name]; {
+		case !ok:
+			changes = append(changes, name+" "+old+" removed")
+		case cur != old:
+			changes = append(changes, name+" "+old+" → "+cur)
+		}
+	}
+	for name, cur := range after {
+		if _, ok := before[name]; !ok {
+			changes = append(changes, name+" "+cur+" added")
+		}
+	}
+	sort.Strings(changes)
+	return changes
+}
+
+// writePackageChanges reports the diff, or says so when the new image could
+// not be read rather than listing every old package as removed.
+func writePackageChanges(w io.Writer, before, after map[string]string) {
+	if after == nil {
+		fmt.Fprintln(w, "  Could not read the new image's packages.")
+		return
+	}
+	changes := packageChanges(before, after)
+	if len(changes) == 0 {
+		fmt.Fprintln(w, "  No package changes.")
+		return
+	}
+	fmt.Fprintln(w, "  Package changes:")
+	for _, c := range changes {
+		fmt.Fprintln(w, "    "+c)
+	}
 }
 
 // extApkDeps maps a custom PHP extension to the Alpine packages its build needs.
