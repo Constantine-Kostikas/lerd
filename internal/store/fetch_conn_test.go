@@ -15,11 +15,15 @@ import (
 func TestFetch_ReusesTheConnectionsAcrossParallelWaves(t *testing.T) {
 	var conns, arrived atomic.Int64
 	release := make(chan struct{})
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if arrived.Add(1) == FetchConcurrency {
 			close(release)
 		}
-		<-release
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
 		_, _ = w.Write([]byte("ok"))
 	}))
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
