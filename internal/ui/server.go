@@ -6800,6 +6800,7 @@ func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Op, File, Message string
 		Amend, Push       bool
+		Hunk              gitpkg.Hunk
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, SiteActionResponse{Error: "invalid request body"})
@@ -6811,6 +6812,8 @@ func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
 		err = gitpkg.Stage(dir, req.File)
 	case "unstage":
 		err = gitpkg.Unstage(dir, req.File)
+	case "stage-hunk", "unstage-hunk":
+		err = gitpkg.StageHunk(dir, req.File, req.Hunk, req.Op == "unstage-hunk")
 	case "commit":
 		out, err = gitpkg.CommitStaged(dir, req.Message, req.Amend)
 		if err == nil && req.Push {

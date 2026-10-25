@@ -1684,6 +1684,8 @@
   "gitDiff_exitFullscreen": "退出全屏",
   "gitDiff_stage": "暂存",
   "gitDiff_unstage": "取消暂存",
+  "gitDiff_stageHunk": "暂存此更改",
+  "gitDiff_unstageHunk": "取消暂存此更改",
   "gitDiff_commitMessage": "提交信息",
   "gitDiff_amend": "修改上一次提交",
   "gitDiff_commit": "提交",

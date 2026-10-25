@@ -1684,6 +1684,8 @@
   "gitDiff_exitFullscreen": "Quitter le plein écran",
   "gitDiff_stage": "Indexer",
   "gitDiff_unstage": "Désindexer",
+  "gitDiff_stageHunk": "Indexer ce changement",
+  "gitDiff_unstageHunk": "Désindexer ce changement",
   "gitDiff_commitMessage": "Message de commit",
   "gitDiff_amend": "Modifier le dernier commit",
   "gitDiff_commit": "Commiter",

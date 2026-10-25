@@ -94,6 +94,21 @@ export function unstageFile(domain: string, path: string, file: string): Promise
   return gitCommitApi(domain, path, { op: 'unstage', file });
 }
 
+// One change block, numbered the way LineChange numbers it, with the lines
+// the editor showed so the server can refuse a file that changed since.
+export interface Hunk {
+  orig_start: number;
+  orig_end: number;
+  mod_start: number;
+  mod_end: number;
+  removed: string[];
+  added: string[];
+}
+
+export function stageHunk(domain: string, path: string, file: string, hunk: Hunk, unstage: boolean): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: unstage ? 'unstage-hunk' : 'stage-hunk', file, hunk });
+}
+
 // Commits what is staged, or rewrites the last commit with it, and pushes after when asked.
 export function commitChanges(domain: string, path: string, message: string, amend: boolean, push: boolean): Promise<GitResult> {
   return gitCommitApi(domain, path, { op: 'commit', message, amend, push });

@@ -1,8 +1,9 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { loadGitChanges, loadGitVersions, loadCommitFiles, loadCommitVersions, stageFile, unstageFile, commitChanges, loadLastMessage, closeModal } =
+const { loadGitChanges, loadGitVersions, loadCommitFiles, loadCommitVersions, stageFile, unstageFile, stageHunk, commitChanges, loadLastMessage, closeModal } =
   vi.hoisted(() => ({
+    stageHunk: vi.fn(),
     loadGitChanges: vi.fn(),
     loadGitVersions: vi.fn(),
     loadCommitFiles: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('$lib/gitDiff', async (orig) => ({
   loadCommitVersions,
   stageFile,
   unstageFile,
+  stageHunk,
   commitChanges,
   loadLastMessage
 }));
@@ -39,7 +41,7 @@ describe('GitDiffModal', () => {
     localStorage.clear();
     loadGitChanges.mockReset();
     loadGitVersions.mockReset();
-    for (const f of [stageFile, unstageFile, commitChanges, loadLastMessage]) f.mockReset();
+    for (const f of [stageFile, unstageFile, stageHunk, commitChanges, loadLastMessage]) f.mockReset();
   });
 
   it('opens the first changed file and loads another on click', async () => {
@@ -270,4 +272,33 @@ describe('GitDiffModal', () => {
     expect(screen.queryByRole('button', { name: 'Stage a.php' })).toBeNull();
   });
 
+  it('stages one change block and stays on the part left unstaged', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [{ path: 'n.md', status: '?' }] })
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    stageHunk.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Stage this change' }));
+    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.objectContaining({ added: ['b'] }), false);
+    await waitFor(() => expect(screen.getByText(/Staged · 1/)).toBeInTheDocument());
+    expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'unstaged', 'a.php');
+  });
+
+  it('unstages a block from the staged side, and offers none for a new file', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [{ path: 'n.md', status: '?' }] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    stageHunk.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.click(screen.getByRole('button', { name: 'Unstage this change' }));
+    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.any(Object), true);
+    await waitFor(() => expect(loadGitVersions).toHaveBeenCalledTimes(2));
+
+    await fireEvent.click(screen.getByText('n.md'));
+    await waitFor(() => expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'untracked', 'n.md'));
+    expect(screen.queryByRole('button', { name: /this change/ })).toBeNull();
+  });
 });

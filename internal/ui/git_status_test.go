@@ -473,6 +473,14 @@ func TestHandleSiteGitCommit(t *testing.T) {
 		return rec.Body.String()
 	}
 
+	hunk := `{"op":"stage-hunk","file":"a.php","hunk":{"orig_start":1,"orig_end":1,"mod_start":1,"mod_end":1,"removed":["a"],"added":["changed"]}}`
+	if got := post(main, hunk); !strings.Contains(got, `"ok":true`) {
+		t.Fatalf("stage-hunk: %s", got)
+	}
+	if got := runGitOutput(sitePath, "show", ":a.php"); got != "changed\n" {
+		t.Fatalf("index after stage-hunk %q", got)
+	}
+	gitIn(t, sitePath, "reset", "-q")
 	if got := post(main, `{"op":"stage","file":"a.php"}`); !strings.Contains(got, `"ok":true`) {
 		t.Fatalf("stage: %s", got)
 	}

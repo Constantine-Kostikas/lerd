@@ -1684,6 +1684,8 @@
   "gitDiff_exitFullscreen": "Tam ekrandan çık",
   "gitDiff_stage": "Stage’e ekle",
   "gitDiff_unstage": "Stage’den çıkar",
+  "gitDiff_stageHunk": "Bu değişikliği stage’e ekle",
+  "gitDiff_unstageHunk": "Bu değişikliği stage’den çıkar",
   "gitDiff_commitMessage": "Commit mesajı",
   "gitDiff_amend": "Son commit’i düzelt",
   "gitDiff_commit": "Commit",

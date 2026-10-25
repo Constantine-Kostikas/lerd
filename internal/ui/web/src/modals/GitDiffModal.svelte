@@ -17,11 +17,13 @@
     loadUptoFiles,
     loadUptoVersions,
     stageFile,
+    stageHunk,
     unstageFile,
     type GitChangedFile,
     type GitCommit,
     type GitDiffSection,
-    type GitVersions
+    type GitVersions,
+    type Hunk
   } from '$lib/gitDiff';
   import { m } from '../paraglide/messages.js';
 
@@ -94,8 +96,9 @@
     groups = SECTIONS.map((s) => ({ key: s, label: sectionLabel[s](), files: changes[s] }));
   }
 
-  // After staging or committing, the open file follows to its new section when it still has changes.
-  async function refresh(keep?: string) {
+  // After staging or committing, the open file stays in its section while it has
+  // changes there, and otherwise follows to the section it moved to.
+  async function refresh(keep?: string, inGroup?: Group['key']) {
     try {
       await loadUncommitted();
     } catch (e) {
@@ -103,10 +106,28 @@
       return;
     }
     const all = (groups ?? []).flatMap((g) => g.files.map((f) => ({ group: g.key, file: f.path })));
-    const next = all.find((x) => x.file === keep) ?? all[0];
+    const next = all.find((x) => x.file === keep && x.group === inGroup) ?? all.find((x) => x.file === keep) ?? all[0];
     if (next) select(next.group, next.file);
     else selected = versions = null;
   }
+
+  // Blocks of a modified file can move on their own; an added or deleted one moves whole.
+  const hunkAction = $derived.by(() => {
+    const sel = selected;
+    if (!uncommitted || !sel || (sel.group !== 'staged' && sel.group !== 'unstaged')) return undefined;
+    const f = groups?.find((g) => g.key === sel.group)?.files.find((f) => f.path === sel.file);
+    if (f?.status !== 'M') return undefined;
+    const unstage = sel.group === 'staged';
+    return {
+      label: unstage ? m.gitDiff_unstageHunk() : m.gitDiff_stageHunk(),
+      unstage,
+      run: async (h: Hunk) => {
+        const res = await stageHunk(domain, path, sel.file, h, unstage);
+        if (res.error) error = res.error;
+        else await refresh(sel.file, sel.group);
+      }
+    };
+  });
 
   async function toggleStage(group: Group['key'], file: string) {
     const res = await (group === 'staged' ? unstageFile : stageFile)(domain, path, file);
@@ -267,6 +288,7 @@
                 language={languageFor(selected.file)}
                 {ignoreSpace}
                 sideBySide={!unified}
+                {hunkAction}
                 onStats={(s) => (stats = s)}
               />
             </div>
