@@ -49,11 +49,7 @@ var (
 		out, err := exec.Command("resolvectl", "dns").Output()
 		return err == nil && globalDNSSet(string(out))
 	}
-	// systemdBooted is sd_booted(3): systemd is PID 1 when this directory exists.
-	systemdBooted = func() bool {
-		_, err := os.Stat("/run/systemd/system")
-		return err == nil
-	}
+	systemdBooted = wsl.SystemdBooted
 	// resolvConfIsStub reports resolv.conf linked to systemd-resolved's stub.
 	resolvConfIsStub = func() bool {
 		target, err := os.Readlink(resolvConfPath)
