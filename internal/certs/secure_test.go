@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 	"testing"
 	"time"
 
@@ -53,30 +53,7 @@ func TestReissueCertForWorktree_includesWorktreeSubdomains(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	binDir := filepath.Join(tmp, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	// Fake mkcert that echoes the SAN args into the cert so the test can
-	// grep them. Matches the pattern used by manager_test.go.
-	fakeMkcert := `#!/bin/sh
-CRT=""
-KEY=""
-SANS=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -cert-file) shift; CRT="$1" ;;
-    -key-file)  shift; KEY="$1" ;;
-    *) SANS="$SANS $1" ;;
-  esac
-  shift
-done
-printf '%s' "$SANS" > "$CRT"
-printf 'KEY' > "$KEY"
-`
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(fakeMkcert), 0755); err != nil {
-		t.Fatal(err)
-	}
+	useTestCA(t)
 
 	// Lay out a fake main repo with one worktree on branch "main".
 	sitePath := filepath.Join(tmp, "project")
@@ -107,11 +84,7 @@ printf 'KEY' > "$KEY"
 	}
 
 	certPath := filepath.Join(tmp, "lerd", "certs", "sites", "harborlist.test.crt")
-	body, err := os.ReadFile(certPath)
-	if err != nil {
-		t.Fatalf("reading cert: %v", err)
-	}
-	got := string(body)
+	got := certDNSNames(t, certPath)
 	wantSANs := []string{
 		"harborlist.test",
 		"*.harborlist.test",
@@ -121,8 +94,8 @@ printf 'KEY' > "$KEY"
 		"*.main.harborlist.test",
 	}
 	for _, san := range wantSANs {
-		if !strings.Contains(got, san) {
-			t.Errorf("SAN %q missing from cert; got %q", san, got)
+		if !slices.Contains(got, san) {
+			t.Errorf("SAN %q missing from cert; got %v", san, got)
 		}
 	}
 }
@@ -147,11 +120,11 @@ func TestSecureSite_RefusesWhenDNSDisabled(t *testing.T) {
 }
 
 // EnsureCert is the routine boot/watcher self-heal: it must leave a still-valid
-// cert untouched (no mkcert run) so calling it every scan is cheap.
+// cert untouched so calling it every scan is cheap.
 func TestEnsureCert_reusesValidCert(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
-	fakeMkcertBin(t, tmp)
+	useTestCA(t)
 
 	certsDir := filepath.Join(tmp, "lerd", "certs", "sites")
 	if err := os.MkdirAll(certsDir, 0755); err != nil {
@@ -186,7 +159,7 @@ func TestEnsureCert_reusesValidCert(t *testing.T) {
 func TestEnsureCert_reissuesAgingCert(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
-	fakeMkcertBin(t, tmp)
+	useTestCA(t)
 
 	certsDir := filepath.Join(tmp, "lerd", "certs", "sites")
 	if err := os.MkdirAll(certsDir, 0755); err != nil {
@@ -203,14 +176,10 @@ func TestEnsureCert_reissuesAgingCert(t *testing.T) {
 	if err := EnsureCert(site); err != nil {
 		t.Fatalf("EnsureCert: %v", err)
 	}
-	got, err := os.ReadFile(certPath)
-	if err != nil {
-		t.Fatal(err)
+	if certNeedsReissue(certPath, certReissueWindow) {
+		t.Error("EnsureCert did not reissue an aging cert")
 	}
-	if !strings.Contains(string(got), "REISSUED") {
-		t.Errorf("EnsureCert did not reissue an aging cert; body %q", got)
-	}
-	if !strings.Contains(string(got), "myapp.test") {
-		t.Errorf("reissued cert missing SAN; body %q", got)
+	if names := certDNSNames(t, certPath); !slices.Contains(names, "myapp.test") {
+		t.Errorf("reissued cert SANs = %v, want myapp.test", names)
 	}
 }

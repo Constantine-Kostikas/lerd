@@ -1,46 +1,19 @@
 package ui
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/geodro/lerd/internal/certs"
 	"github.com/geodro/lerd/internal/config"
 )
-
-// installFakeMkcert writes a stub mkcert binary into the test's bin dir.
-// The stub echoes every SAN it was asked for into the cert file body so
-// callers can grep for them. Mirrors the pattern used by the certs
-// package tests so it stays familiar.
-func installFakeMkcert(t *testing.T, dataHome string) {
-	t.Helper()
-	binDir := filepath.Join(dataHome, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	const script = `#!/bin/sh
-CRT=""
-KEY=""
-SANS=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -cert-file) shift; CRT="$1" ;;
-    -key-file)  shift; KEY="$1" ;;
-    *) SANS="$SANS $1" ;;
-  esac
-  shift
-done
-printf '%s' "$SANS" > "$CRT"
-printf 'KEY' > "$KEY"
-`
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
 
 // stubPodmanOnPath installs a no-op podman binary into stubDir and prepends
 // stubDir to PATH. Without it nginx.Reload would shell out to real podman
@@ -75,7 +48,7 @@ func makeWorktree(t *testing.T, sitePath, name, branch, checkoutPath string) {
 	}
 }
 
-// setupSecuredSite primes XDG, fake mkcert, global config, and registers a
+// setupSecuredSite primes XDG, global config, and registers a
 // secured site at sitePath with the given domains. Returns the site struct
 // so the test can call config.AddSite again after mutating Domains, etc.
 func setupSecuredSite(t *testing.T, primary string, extras ...string) (sitePath string) {
@@ -84,7 +57,6 @@ func setupSecuredSite(t *testing.T, primary string, extras ...string) (sitePath 
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 	stubPodmanOnPath(t)
-	installFakeMkcert(t, tmp)
 
 	cfg := &config.GlobalConfig{}
 	cfg.DNS.Enabled = true
@@ -114,15 +86,23 @@ func setupSecuredSite(t *testing.T, primary string, extras ...string) (sitePath 
 	return sitePath
 }
 
-// readSiteCert returns the raw bytes of <XDG_DATA_HOME>/lerd/certs/sites/<primary>.crt.
-func readSiteCert(t *testing.T, primary string) string {
+// readSiteSANs returns the DNS names of <XDG_DATA_HOME>/lerd/certs/sites/<primary>.crt.
+func readSiteSANs(t *testing.T, primary string) []string {
 	t.Helper()
 	path := filepath.Join(os.Getenv("XDG_DATA_HOME"), "lerd", "certs", "sites", primary+".crt")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading cert %q: %v", path, err)
 	}
-	return string(body)
+	block, _ := pem.Decode(body)
+	if block == nil {
+		t.Fatalf("cert %q is not PEM", path)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leaf.DNSNames
 }
 
 // Adding a domain to a secured site must reissue the cert so the new SAN
@@ -163,14 +143,14 @@ func TestHandleSiteAction_domainAdd_keepsWorktreeSANs(t *testing.T) {
 		t.Fatalf("expected ok response, got %s", rec.Body.String())
 	}
 
-	cert := readSiteCert(t, "harborlist.test")
+	sans := readSiteSANs(t, "harborlist.test")
 	for _, san := range []string{
 		"harborlist.test", "*.harborlist.test",
 		"aaaddd.test", "*.aaaddd.test",
 		"main.harborlist.test", "*.main.harborlist.test",
 	} {
-		if !strings.Contains(cert, san) {
-			t.Errorf("SAN %q missing after domain:add; cert body: %q", san, cert)
+		if !slices.Contains(sans, san) {
+			t.Errorf("SAN %q missing after domain:add; SANs: %v", san, sans)
 		}
 	}
 }
@@ -200,20 +180,18 @@ func TestHandleSiteAction_domainRemove_keepsWorktreeSANs(t *testing.T) {
 		t.Fatalf("expected ok response, got %s", rec.Body.String())
 	}
 
-	cert := readSiteCert(t, "harborlist.test")
+	sans := readSiteSANs(t, "harborlist.test")
 	for _, san := range []string{
 		"harborlist.test", "*.harborlist.test",
 		"main.harborlist.test", "*.main.harborlist.test",
 	} {
-		if !strings.Contains(cert, san) {
-			t.Errorf("SAN %q missing after domain:remove; cert body: %q", san, cert)
+		if !slices.Contains(sans, san) {
+			t.Errorf("SAN %q missing after domain:remove; SANs: %v", san, sans)
 		}
 	}
 	for _, gone := range []string{"aaaddd.test", "*.aaaddd.test"} {
-		// The fake mkcert echoes every arg, so the removed SAN must
-		// not appear anywhere in the rewritten cert body.
-		if strings.Contains(cert, gone) {
-			t.Errorf("SAN %q should have been dropped after domain:remove; cert body: %q", gone, cert)
+		if slices.Contains(sans, gone) {
+			t.Errorf("SAN %q should have been dropped after domain:remove; SANs: %v", gone, sans)
 		}
 	}
 }

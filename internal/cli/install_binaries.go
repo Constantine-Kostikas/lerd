@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
-	"github.com/geodro/lerd/internal/certs"
 	"github.com/geodro/lerd/internal/composer"
 	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/feedback"
@@ -45,13 +45,10 @@ func downloadBinaries(w io.Writer) error {
 		removeFnmBinary()
 	}
 
-	// mkcert
-	mkcertPath := certs.MkcertPath()
-	if _, err := os.Stat(mkcertPath); os.IsNotExist(err) {
-		if err := replaceTool(&pins, "mkcert", mkcertPath, w); err != nil {
-			return fmt.Errorf("mkcert download: %w", err)
-		}
-	}
+	// lerd issues certificates itself now, so the mkcert an older install
+	// downloaded is only an unmaintained binary left on disk.
+	os.Remove(filepath.Join(config.BinDir(), "mkcert"))         //nolint:errcheck
+	os.Remove(filepath.Join(config.BinDir(), "mkcert.version")) //nolint:errcheck
 
 	// phpantom_lsp powers tinker autocomplete in the web UI. Best-effort:
 	// the UI also fetches it lazily on first tinker connect, so a failure

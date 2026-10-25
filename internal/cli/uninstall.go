@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -188,14 +187,7 @@ func runUninstall(force, keepData bool) error {
 	}
 
 	if removeMkcertCA {
-		feedback.Sudo("Uninstalling mkcert CA from system trust stores")
-		cmd := exec.Command(certs.MkcertPath(), "-uninstall")
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		_ = cmd.Run()
-		// mkcert only removes the anchor it wrote itself, so the one lerd
-		// installed as root has to go separately or it stays trusted for good.
+		certs.RemoveBrowserTrust()
 		removeSystemTrustAnchor()
 	}
 
@@ -331,7 +323,7 @@ func confirmRemoveMCPIntegration() bool {
 }
 
 func confirmRemoveMkcertCA() bool {
-	return feedback.Confirm("Uninstall mkcert CA from system trust stores?", false)
+	return feedback.Confirm("Uninstall the lerd CA from system and browser trust stores?", false)
 }
 
 func confirmPurgeLerdImages() bool {

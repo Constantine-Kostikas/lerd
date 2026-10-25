@@ -348,7 +348,7 @@ systemctl --user restart lerd-watcher
 :::
 
 ::: details HTTPS certificate warning in browser
-The mkcert CA must be installed in your browser's trust store. Ensure `certutil` / `nss-tools` is installed, then re-run `lerd install`:
+The lerd CA must be installed in your browser's trust store. Ensure `certutil` / `nss-tools` is installed, then re-run `lerd install`:
 
 - Arch: `sudo pacman -S nss`
 - Debian/Ubuntu: `sudo apt install libnss3-tools`

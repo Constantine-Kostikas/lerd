@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/pem"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
+
+	"github.com/geodro/lerd/internal/config"
 )
 
 // caTrustPaths lists the aggregated system trust bundles searched for the
@@ -40,14 +40,8 @@ var platformPresenceCheck func(der []byte) bool
 // anything wrong. nil where there is nothing that can fail to answer.
 var platformTrustReadable func() bool
 
-// caRootFunc resolves mkcert's CAROOT directory. Overridable in tests.
-var caRootFunc = func() (string, error) {
-	out, err := exec.Command(MkcertPath(), "-CAROOT").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
+// caRootFunc resolves the CAROOT directory. Overridable in tests.
+var caRootFunc = config.CARootDir
 
 // CARoot returns mkcert's CAROOT directory, so a caller escalating to root can
 // name the user's real CA location instead of assuming the default.

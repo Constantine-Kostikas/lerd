@@ -56,26 +56,27 @@ func runBootstrapSystem(target string, skipSudoers bool) error {
 	return nil
 }
 
-// runBootstrapUntrustCA drops lerd's CA from the system trust store. Pairs with
-// runBootstrapTrustCA on uninstall, since mkcert's own -uninstall only knows the
-// anchor filename mkcert itself wrote.
-func runBootstrapUntrustCA() error {
-	if err := certs.UntrustCAFromSystemStore(); err != nil {
+// runBootstrapUntrustCA drops lerd's CA from the system trust store on
+// uninstall. caRoot names the CA so an anchor an older install let mkcert
+// write is found too; without it only lerd's own anchor goes.
+func runBootstrapUntrustCA(caRoot string) error {
+	var pem []byte
+	if caRoot != "" {
+		pem, _ = os.ReadFile(filepath.Join(caRoot, "rootCA.pem"))
+	}
+	if err := certs.UntrustCAFromSystemStore(pem); err != nil {
 		if errors.Is(err, certs.ErrNoSystemTrustStore) {
 			return nil
 		}
 		return fmt.Errorf("removing CA from system store: %w", err)
 	}
-	feedback.Done("mkcert CA removed from the system store")
+	feedback.Done("lerd CA removed from the system store")
 	return nil
 }
 
-// runBootstrapTrustCA installs the user-generated mkcert root CA into the system
-// trust store, the one managed-DNS step the per-user install cannot do without
-// an interactive sudo. Run after the per-user install has generated the CA. A
-// missing CA is not an error (localhost-mode installs have none). caRoot names
-// the CAROOT directly; without it the target user's default location is used,
-// since asking mkcert as root would resolve root's CAROOT instead.
+// runBootstrapTrustCA trusts the user's root CA in the system store, as root.
+// A missing CA is no error (localhost installs have none). Without caRoot the
+// target user's default is used, since resolving it as root finds root's.
 func runBootstrapTrustCA(target, caRoot string) error {
 	if target == "" && caRoot == "" {
 		return fmt.Errorf("--trust-ca needs a target user (pass --user)")
@@ -90,7 +91,7 @@ func runBootstrapTrustCA(target, caRoot string) error {
 	caPath := filepath.Join(caRoot, "rootCA.pem")
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
-		feedback.Note("no mkcert CA at " + caPath + " yet, skipping system trust")
+		feedback.Note("no lerd CA at " + caPath + " yet, skipping system trust")
 		return nil
 	}
 	if err := certs.TrustCAInSystemStore(pem); err != nil {
@@ -100,6 +101,6 @@ func runBootstrapTrustCA(target, caRoot string) error {
 		}
 		return fmt.Errorf("trusting CA in system store: %w", err)
 	}
-	feedback.Done("mkcert CA trusted in the system store")
+	feedback.Done("lerd CA trusted in the system store")
 	return nil
 }

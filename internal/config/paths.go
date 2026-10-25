@@ -61,6 +61,16 @@ func CacheDir() string {
 	return filepath.Join(home, ".cache", "lerd")
 }
 
+// CARootDir resolves the root CA's directory the way mkcert does, the CAROOT
+// variable or else the platform data directory, so a CA either generated is
+// the one the other finds.
+func CARootDir() (string, error) {
+	if dir := os.Getenv("CAROOT"); dir != "" {
+		return dir, nil
+	}
+	return defaultCARootDir()
+}
+
 // BinDir returns the lerd bin directory.
 func BinDir() string {
 	return filepath.Join(DataDir(), "bin")

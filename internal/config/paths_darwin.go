@@ -18,3 +18,12 @@ func LaunchAgentsDir() string {
 // ProvidedEnvDir is empty on macOS: there is no tmpfs runtime dir to keep
 // env_provider secrets off disk, so the feature is off.
 func ProvidedEnvDir() string { return "" }
+
+// defaultCARootDir is mkcert's macOS CAROOT.
+func defaultCARootDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "Library", "Application Support", "mkcert"), nil
+}

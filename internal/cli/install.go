@@ -195,11 +195,9 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	// dns:disable rather than by re-prompting.
 	_, cfgStatErr := os.Stat(config.GlobalConfigFile())
 	configExisted := cfgStatErr == nil
-	// Unattended runs are driven by a package maintainer script: reuse the
-	// non-interactive update path for prompts. The sudo-gated system steps are
-	// skipped here because `lerd bootstrap --system` performs them as root
-	// beforehand, and the mkcert CA's system-trust is done afterward by
-	// `lerd bootstrap --trust-ca`, so managed .test DNS works with no prompts.
+	// A package maintainer script drives unattended runs and does the sudo
+	// steps itself, `lerd bootstrap --system` before and `--trust-ca` after,
+	// so this path only reuses the non-interactive prompts.
 	if err := checkUnattendedSupported(unattended); err != nil {
 		return err
 	}
@@ -417,7 +415,7 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// 3. Binaries (composer, fnm, mkcert) — after manager is persisted so an
+	// 3. Binaries (composer, fnm) — after manager is persisted so an
 	// nvm choice skips the fnm download.
 	step("Downloading binaries")
 	if err := downloadBinaries(os.Stdout); err != nil {
@@ -517,13 +515,11 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	}
 
 	if wantDNS {
-		// 4. mkcert CA.
-		ensureMkcertCA(unattended)
+		// 4. Root CA.
+		ensureCA(unattended)
 
-		// mkcert only adds the CA to the browser NSS stores when certutil is
-		// present, and it exits 0 with a warning otherwise (which the discard
-		// path above hides). Surface it ourselves so the user knows .test HTTPS
-		// works for tooling but not the browser, and how to fix or side-step it.
+		// The browser NSS stores need certutil. Without it .test HTTPS works for
+		// tooling but not the browser, so say how to fix or side-step it.
 		if !certs.BrowserTrustAvailable() {
 			feedback.Note(browserTrustGuidance(ostreeBootedFn()))
 		}
@@ -542,7 +538,7 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 			ensureResolverSudoers()
 		}
 	} else {
-		feedback.Line("DNS disabled, skipping mkcert CA, dnsmasq and sudoers")
+		feedback.Line("DNS disabled, skipping the local CA, dnsmasq and sudoers")
 	}
 
 	// 6. Nginx

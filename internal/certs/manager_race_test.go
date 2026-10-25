@@ -19,26 +19,16 @@ func TestIssueCertForce_certNeverAbsentDuringReissue(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	binDir := filepath.Join(tmp, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	fakeMkcert := `#!/bin/sh
-CRT=""
-KEY=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -cert-file) shift; CRT="$1" ;;
-    -key-file)  shift; KEY="$1" ;;
-  esac
-  shift
-done
-printf 'CERT' > "$CRT"
-printf 'KEY' > "$KEY"
-exit 0
-`
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(fakeMkcert), 0755); err != nil {
-		t.Fatal(err)
+	// The renames are under test, not the signing, so the leaf is a stub
+	// that keeps the reissue loop fast.
+	useTestCA(t)
+	orig := writeLeafFn
+	t.Cleanup(func() { writeLeafFn = orig })
+	writeLeafFn = func(_ []string, certFile, keyFile string) error {
+		if err := os.WriteFile(certFile, []byte("CERT"), 0644); err != nil {
+			return err
+		}
+		return os.WriteFile(keyFile, []byte("KEY"), 0600)
 	}
 
 	certsDir := filepath.Join(tmp, "lerd", "certs", "sites")

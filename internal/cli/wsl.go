@@ -228,8 +228,7 @@ func trustCAOnWindows() caResult {
 	return caTrusted
 }
 
-// mkcertRootCAPEM finds rootCA.pem through lerd's own mkcert, which lives in
-// BinDir and is never on PATH.
+// mkcertRootCAPEM finds the root CA's rootCA.pem in CAROOT.
 func mkcertRootCAPEM() (string, bool) {
 	root, err := certs.CARoot()
 	if err != nil || root == "" {

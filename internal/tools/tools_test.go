@@ -205,20 +205,20 @@ func TestInstalledVersion_StampAndProbe(t *testing.T) {
 	}
 
 	// Missing binary reports empty.
-	if v := InstalledVersion("mkcert"); v != "" {
+	if v := InstalledVersion("fnm"); v != "" {
 		t.Errorf("InstalledVersion for missing binary = %q, want empty", v)
 	}
 
 	// A stamped binary reports the stamp without probing.
-	bin := filepath.Join(config.BinDir(), "mkcert")
+	bin := filepath.Join(config.BinDir(), "fnm")
 	if err := os.WriteFile(bin, []byte("bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteStamp("mkcert", "v1.4.4"); err != nil {
+	if err := WriteStamp("fnm", "v1.39.0"); err != nil {
 		t.Fatal(err)
 	}
-	if v := InstalledVersion("mkcert"); v != "v1.4.4" {
-		t.Errorf("InstalledVersion = %q, want v1.4.4", v)
+	if v := InstalledVersion("fnm"); v != "v1.39.0" {
+		t.Errorf("InstalledVersion = %q, want v1.39.0", v)
 	}
 
 	// A binary newer than its stamp (self-updated) invalidates the stamp and
@@ -230,7 +230,7 @@ func TestInstalledVersion_StampAndProbe(t *testing.T) {
 	orig := probeOutput
 	probeOutput = func(path string, args ...string) ([]byte, error) { return []byte("v2.0.0\n"), nil }
 	defer func() { probeOutput = orig }()
-	if v := InstalledVersion("mkcert"); v != "v2.0.0" {
+	if v := InstalledVersion("fnm"); v != "v2.0.0" {
 		t.Errorf("InstalledVersion after newer binary = %q, want probed v2.0.0", v)
 	}
 }
@@ -256,14 +256,15 @@ func TestStatusAll_FlagsUpdates(t *testing.T) {
 	if err := os.MkdirAll(config.BinDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	pin := embeddedManifest().Tools["mkcert"].Version
+	t.Setenv("HOME", t.TempDir())
+	pin := embeddedManifest().Tools["fnm"].Version
 
-	// mkcert matches the pin (v-prefix differences must not count as updates),
-	// composer is stamped behind the pin, fnm is absent.
-	if err := os.WriteFile(filepath.Join(config.BinDir(), "mkcert"), []byte("b"), 0o755); err != nil {
+	// fnm matches the pin (v-prefix differences must not count as updates),
+	// composer is stamped behind the pin, mise is absent.
+	if err := os.WriteFile(filepath.Join(config.BinDir(), "fnm"), []byte("b"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteStamp("mkcert", strings.TrimPrefix(pin, "v")); err != nil {
+	if err := WriteStamp("fnm", strings.TrimPrefix(pin, "v")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(config.BinDir(), "composer.phar"), []byte("b"), 0o755); err != nil {
@@ -277,14 +278,17 @@ func TestStatusAll_FlagsUpdates(t *testing.T) {
 	for _, s := range StatusAll(context.Background()) {
 		byName[s.Name] = s
 	}
-	if s := byName["mkcert"]; !s.Present || s.UpdateAvailable {
-		t.Errorf("mkcert status = %+v, want present with no update", s)
+	if s := byName["fnm"]; !s.Present || s.UpdateAvailable {
+		t.Errorf("fnm status = %+v, want present with no update", s)
 	}
 	if s := byName["composer"]; !s.Present || !s.UpdateAvailable || s.Installed != "0.0.1" {
 		t.Errorf("composer status = %+v, want present with update available", s)
 	}
-	if s := byName["fnm"]; s.Present || s.UpdateAvailable {
-		t.Errorf("fnm status = %+v, want absent without update", s)
+	if s := byName["mise"]; s.Present || s.UpdateAvailable {
+		t.Errorf("mise status = %+v, want absent without update", s)
+	}
+	if _, ok := byName["mkcert"]; ok {
+		t.Error("mkcert is still reported as a managed tool")
 	}
 }
 

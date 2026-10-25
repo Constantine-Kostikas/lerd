@@ -3,6 +3,7 @@ package certs
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -159,5 +160,59 @@ func TestNSSDBDirsOnlyReportsStoresMkcertWritesTo(t *testing.T) {
 	dirs := nssDBDirs()
 	if len(dirs) != 1 || dirs[0] != native {
 		t.Fatalf("nssDBDirs() = %v, want only %s", dirs, native)
+	}
+}
+
+func stubCertutil(t *testing.T) *[][]string {
+	t.Helper()
+	orig := runCertutil
+	t.Cleanup(func() { runCertutil = orig })
+	var calls [][]string
+	runCertutil = func(args ...string) error {
+		calls = append(calls, args)
+		return nil
+	}
+	return &calls
+}
+
+// Only a store missing the CA is written, under the nickname the lookup reads
+// back, so the import and BrowserStoresMissingCA agree on what installed means.
+func TestInstallBrowserTrustImportsIntoStoresMissingTheCA(t *testing.T) {
+	caDir, certPEM := browserTrustFixture(t)
+	calls := stubCertutil(t)
+	nssDBDirs = func() []string { return []string{"/home/u/.pki/nssdb", "/home/u/.mozilla/firefox/p"} }
+	nssCertPEM = func(dir, nickname string) []byte {
+		if dir == "/home/u/.pki/nssdb" {
+			return certPEM
+		}
+		return nil
+	}
+
+	if errs := InstallBrowserTrust(); len(errs) != 0 {
+		t.Fatalf("InstallBrowserTrust() = %v", errs)
+	}
+	nickname := caNSSNickname(firstCertDER(certPEM))
+	want := []string{"-A", "-d", "sql:/home/u/.mozilla/firefox/p", "-t", "C,,", "-n", nickname, "-i", filepath.Join(caDir, "rootCA.pem")}
+	if len(*calls) != 1 || !slices.Equal((*calls)[0], want) {
+		t.Fatalf("certutil calls = %v, want one %v", *calls, want)
+	}
+}
+
+func TestRemoveBrowserTrustDeletesOnlyWhereItIs(t *testing.T) {
+	_, certPEM := browserTrustFixture(t)
+	calls := stubCertutil(t)
+	nssDBDirs = func() []string { return []string{"/home/u/.pki/nssdb", "/home/u/.mozilla/firefox/p"} }
+	nssCertPEM = func(dir, nickname string) []byte {
+		if dir == "/home/u/.pki/nssdb" {
+			return certPEM
+		}
+		return nil
+	}
+
+	RemoveBrowserTrust()
+	nickname := caNSSNickname(firstCertDER(certPEM))
+	want := []string{"-D", "-d", "sql:/home/u/.pki/nssdb", "-n", nickname}
+	if len(*calls) != 1 || !slices.Equal((*calls)[0], want) {
+		t.Fatalf("certutil calls = %v, want one %v", *calls, want)
 	}
 }

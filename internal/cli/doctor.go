@@ -154,10 +154,9 @@ func runDoctorInto(w io.Writer, useColor bool) (DoctorReport, error) {
 			ok("systemd user session")
 		}
 
-		// mkcert can only trust .test in the browser when certutil (nss-tools) is
-		// present. Without it lerd's mkcert step installs the CA to the system
-		// store only, so curl and PHP trust it but Firefox and Chrome warn, and
-		// the mkcert warning is swallowed. Only relevant when DNS/HTTPS is managed.
+		// The browser stores need certutil (nss-tools); without it the CA only
+		// reaches the system store, so curl and PHP trust .test but Firefox and
+		// Chrome warn. Only relevant when DNS/HTTPS is managed.
 		if cfg, cfgErr := config.LoadGlobal(); cfgErr == nil && cfg.DNSManaged() {
 			// certutil being installed says nothing about the store it writes
 			// into, so the CA itself has to be found there.

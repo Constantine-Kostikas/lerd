@@ -89,19 +89,19 @@ func NewBootstrapCmd() *cobra.Command {
 			case trustCA:
 				return runBootstrapTrustCA(bootstrapTargetUser(user), caRoot)
 			case untrustCA:
-				return runBootstrapUntrustCA()
+				return runBootstrapUntrustCA(caRoot)
 			default:
 				return runBootstrapSystem(bootstrapTargetUser(user), skipSudoers)
 			}
 		},
 	}
 	cmd.Flags().BoolVar(&system, "system", false, "Apply root-level setup: unprivileged ports, linger, DNS sudoers")
-	cmd.Flags().BoolVar(&trustCA, "trust-ca", false, "Trust the user's mkcert CA in the system store (run after install)")
-	cmd.Flags().BoolVar(&untrustCA, "untrust-ca", false, "Remove lerd's mkcert CA from the system store (run on uninstall)")
+	cmd.Flags().BoolVar(&trustCA, "trust-ca", false, "Trust the user's lerd CA in the system store (run after install)")
+	cmd.Flags().BoolVar(&untrustCA, "untrust-ca", false, "Remove lerd's CA from the system store (run on uninstall)")
 	cmd.Flags().BoolVar(&skipSudoers, "skip-sudoers", false,
 		"With --system, leave out the passwordless DNS grant (for installs that manage no DNS)")
 	cmd.Flags().StringVar(&user, "user", "", "Target user for per-user settings (defaults to SUDO_USER)")
 	cmd.Flags().StringVar(&caRoot, "ca-root", "",
-		"mkcert CAROOT holding the CA to trust (defaults to the target user's ~/.local/share/mkcert)")
+		"CAROOT holding the CA to trust or untrust (defaults to the target user's ~/.local/share/mkcert)")
 	return cmd
 }

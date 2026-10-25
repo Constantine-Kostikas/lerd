@@ -2,9 +2,11 @@ package certs
 
 import (
 	"crypto/x509"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // certutilLookup reports whether certutil is resolvable on PATH. Seam for tests.
@@ -13,21 +15,16 @@ var certutilLookup = func() bool {
 	return err == nil
 }
 
-// BrowserTrustAvailable reports whether mkcert can install the root CA into the
-// browser NSS trust stores. That needs certutil, shipped in nss-tools. Without
-// it mkcert still writes the CA to the system trust store, so curl, PHP and
-// openssl trust .test, but Firefox and Chrome are skipped and warn on HTTPS.
+// BrowserTrustAvailable reports whether certutil (nss-tools) is there to put the
+// root CA into the browser NSS stores. Without it only the system store trusts
+// .test, so curl and PHP are fine but Firefox and Chrome warn.
 func BrowserTrustAvailable() bool {
 	return certutilLookup()
 }
 
-// nssDBDirs returns the NSS databases on this machine, and only the ones the
-// pinned mkcert installs the root CA into: the store the Chromium family shares
-// plus the native and snap Firefox profiles. A store mkcert never writes (a
-// Flatpak Firefox profile, say) would report as permanently missing the CA with
-// no repair able to fix it. Only directories that actually hold a database are
-// returned, so a machine with no browser reports none rather than reporting
-// browser trust broken. Overridable in tests.
+// nssDBDirs returns the existing NSS databases lerd writes the CA into: the
+// Chromium store and the native and snap Firefox profiles, as mkcert did. A
+// sandboxed (Flatpak) store is left out, since no repair could ever reach it.
 var nssDBDirs = func() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -45,6 +42,7 @@ var nssDBDirs = func() []string {
 	}
 	for _, pattern := range []string{
 		filepath.Join(home, ".mozilla", "firefox", "*"),
+		filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles", "*"),
 		filepath.Join(home, "snap", "firefox", "common", ".mozilla", "firefox", "*"),
 	} {
 		matches, _ := filepath.Glob(pattern)
@@ -116,4 +114,50 @@ func BrowserStoresMissingCA() []string {
 		}
 	}
 	return missing
+}
+
+// runCertutil runs certutil against one NSS database. Overridable in tests.
+var runCertutil = func(args ...string) error {
+	out, err := exec.Command("certutil", args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// InstallBrowserTrust imports the root CA into every NSS database missing it,
+// under mkcert's nickname so BrowserStoresMissingCA finds it, and returns the
+// stores that refused (a read-only system database, most often).
+func InstallBrowserTrust() []error {
+	root, err := CARoot()
+	if err != nil {
+		return []error{err}
+	}
+	nickname := caNSSNickname(rootCADER())
+	if nickname == "" {
+		return nil
+	}
+	var errs []error
+	for _, dir := range BrowserStoresMissingCA() {
+		if err := runCertutil("-A", "-d", "sql:"+dir, "-t", "C,,", "-n", nickname, "-i", filepath.Join(root, caCertName)); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+		}
+	}
+	return errs
+}
+
+// RemoveBrowserTrust deletes the root CA from every NSS database holding it.
+func RemoveBrowserTrust() {
+	if !BrowserTrustAvailable() {
+		return
+	}
+	nickname := caNSSNickname(rootCADER())
+	if nickname == "" {
+		return
+	}
+	for _, dir := range nssDBDirs() {
+		if nssCertPEM(dir, nickname) != nil {
+			runCertutil("-D", "-d", "sql:"+dir, "-n", nickname) //nolint:errcheck
+		}
+	}
 }
