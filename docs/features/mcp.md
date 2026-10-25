@@ -155,6 +155,19 @@ A client you launch from a desktop icon rather than a terminal may not inherit y
 
 Either form leaves stdout to the server: anything lerd needs to say while starting a container or a service goes to stderr, so it never lands in the middle of the JSON-RPC stream.
 
+### PHP code intelligence
+
+`lerd lsp` runs the PHP language server that powers tinker's autocomplete, on stdio, in the current folder. An assistant that can talk to a language server gets exact answers to "where is this defined" and "who calls this" instead of guessing from grep, and because the server reads the project's `vendor/`, Laravel's facades, Eloquent statics, local scopes and relations resolve to real code. Macros registered at runtime, such as `Route::inertia`, are the gap.
+
+In Claude Code, the `lerd-php` plugin from the [lerd-env/claude-plugins](https://github.com/lerd-env/claude-plugins) marketplace wires it up. `lerd mcp:enable-global` installs it alongside the MCP registration and `lerd mcp:disable-global` removes it again; to add it by hand instead:
+
+```
+/plugin marketplace add lerd-env/claude-plugins
+/plugin install lerd-php@lerd
+```
+
+Restart Claude Code afterwards so the LSP tool appears. Other assistants need nothing from lerd here: OpenCode bundles its own PHP language server, editor-based ones such as Cursor or Copilot use the editor's PHP extension, and Codex and Gemini CLI have no way to attach one. The first `lerd lsp` on a machine downloads the server if `lerd install` has not already, reporting progress on stderr.
+
 ---
 
 ## Available MCP tools

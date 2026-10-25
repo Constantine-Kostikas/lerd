@@ -33,6 +33,7 @@ var upgradeSkipCommands = map[string]bool{
 	"watch":         true,
 	"tray":          true,
 	"mcp":           true,
+	"lsp":           true,
 	"dns-forwarder": true,
 
 	// Shims written by addShellShims.

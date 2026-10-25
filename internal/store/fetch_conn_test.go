@@ -9,20 +9,21 @@ import (
 	"testing"
 )
 
-// A catalogue refresh fetches in parallel, so the idle pool has to be big enough
-// to hold the whole wave. Go's default keeps two idle connections per host and
-// closes the rest, which makes every wave after the first pay a fresh TCP and
-// TLS handshake for each definition it pulls.
-//
-// What is measured is the second wave rather than the total, because the total
-// cannot be pinned down: asked for a connection the transport races a fresh dial
-// against waiting for an idle one and keeps whichever answers first, so the
-// first wave opens seven or eight and either is fine. The second wave is the
-// one that tells the story. Pooled it opens next to nothing; with Go's default
-// of two idle it opens around six of its eight again.
+// A refresh fetches in parallel, and Go keeps only two idle connections per host,
+// so a second wave would handshake again. The first wave is held until every
+// request has arrived, so it opens one connection each and fills the pool.
 func TestFetch_ReusesTheConnectionsAcrossParallelWaves(t *testing.T) {
-	var conns atomic.Int64
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var conns, arrived atomic.Int64
+	release := make(chan struct{})
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if arrived.Add(1) == FetchConcurrency {
+			close(release)
+		}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
 		_, _ = w.Write([]byte("ok"))
 	}))
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
