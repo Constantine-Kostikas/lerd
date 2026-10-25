@@ -16,9 +16,14 @@ import (
 )
 
 // downloadBinaries fetches the host tools lerd drives that are not on disk yet:
-// composer, the Node version manager, mkcert and phpantom_lsp.
+// composer, the Node version manager and phpantom_lsp.
 func downloadBinaries(w io.Writer) error {
 	var pins pinnedTools
+
+	// lerd issues certificates itself now, so the mkcert an older install
+	// downloaded is only an unmaintained binary left on disk.
+	os.Remove(filepath.Join(config.BinDir(), "mkcert"))         //nolint:errcheck
+	os.Remove(filepath.Join(config.BinDir(), "mkcert.version")) //nolint:errcheck
 
 	// composer
 	composerPharPath := composer.PharPath()
@@ -44,11 +49,6 @@ func downloadBinaries(w io.Writer) error {
 		}
 		removeFnmBinary()
 	}
-
-	// lerd issues certificates itself now, so the mkcert an older install
-	// downloaded is only an unmaintained binary left on disk.
-	os.Remove(filepath.Join(config.BinDir(), "mkcert"))         //nolint:errcheck
-	os.Remove(filepath.Join(config.BinDir(), "mkcert.version")) //nolint:errcheck
 
 	// phpantom_lsp powers tinker autocomplete in the web UI. Best-effort:
 	// the UI also fetches it lazily on first tinker connect, so a failure
