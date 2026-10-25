@@ -130,18 +130,6 @@ func homeDir() string {
 	return h
 }
 
-// resolvePath follows symlinks where it can, and otherwise hands back what it
-// was given: a path that is gone still has to compare as itself.
-func resolvePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	if resolved, err := filepath.EvalSymlinks(p); err == nil {
-		return resolved
-	}
-	return filepath.Clean(p)
-}
-
 // pathWithin reports whether child sits under parent.
 func pathWithin(child, parent string) bool {
 	if parent == "" || child == "" {

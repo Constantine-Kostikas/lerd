@@ -44,9 +44,3 @@ func SyncSiteURL(projectPath, domain string, secured bool) error {
 	file, key := URLTargetFor(projectPath)
 	return envfile.SyncPrimaryDomain(projectPath, file, key, domain, secured)
 }
-
-// SetSiteURL writes scheme://domain to the project's declared URL key.
-func SetSiteURL(projectPath, scheme, domain string) error {
-	file, key := URLTargetFor(projectPath)
-	return envfile.UpdateAppURL(projectPath, file, key, scheme, domain)
-}

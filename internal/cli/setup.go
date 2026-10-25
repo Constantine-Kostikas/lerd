@@ -723,33 +723,6 @@ func detectBuildScript(pkgJSONPath string) string {
 	return ""
 }
 
-// siteUsesRedisQueue returns true if the site at cwd has QUEUE_CONNECTION=redis.
-// Checks .env first, falls back to .env.example (for projects not yet configured).
-func siteUsesRedisQueue(cwd string) bool {
-	for _, name := range []string{".env", ".env.example"} {
-		v := envfile.ReadKey(filepath.Join(cwd, name), "QUEUE_CONNECTION")
-		if v != "" {
-			return v == "redis"
-		}
-	}
-	return false
-}
-
-// siteNeedsStorageLink returns true when storage:link has not been run yet and
-// the site uses the local filesystem disk (the default).
-func siteNeedsStorageLink(cwd string) bool {
-	if _, err := os.Lstat(filepath.Join(cwd, "public", "storage")); err == nil {
-		return false // symlink already exists
-	}
-	for _, name := range []string{".env", ".env.example"} {
-		v := envfile.ReadKey(filepath.Join(cwd, name), "FILESYSTEM_DISK")
-		if v != "" {
-			return v == "local"
-		}
-	}
-	return true // FILESYSTEM_DISK unset → defaults to local
-}
-
 // siteHasStripeSecret returns true if a Stripe secret is present for the
 // project. The live .env is resolved through config.StripeSecretSet so a pinned
 // secret_env_key is honoured (matching what StripeStartForSite will read);

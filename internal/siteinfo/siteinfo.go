@@ -1031,16 +1031,6 @@ func LaravelAppName(frameworkName, sitePath string) string {
 	return name
 }
 
-// FrameworkLabel returns the display label for a framework name.
-// Exported for use by callers that need the label without full enrichment.
-func FrameworkLabel(name, path string) string {
-	if name == "" {
-		return ""
-	}
-	fw, hasFw := config.GetFrameworkForDir(name, path)
-	return frameworkLabel(name, path, fw, hasFw)
-}
-
 func hasLogFiles(hasFw bool, fw *config.Framework, projectPath string) bool {
 	if !hasFw || len(fw.Logs) == 0 {
 		return false

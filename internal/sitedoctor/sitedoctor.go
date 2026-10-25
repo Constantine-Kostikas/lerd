@@ -133,13 +133,6 @@ func RunForPath(ctx context.Context, path, fwName string) Response {
 	return runForPath(ctx, path, fwName, Options{})
 }
 
-// RunQuickForPath is RunForPath without the checks that shell into the site
-// container or read the timing snapshot, so `lerd doctor` can sweep every linked
-// site without turning into a minute-long command.
-func RunQuickForPath(ctx context.Context, path, fwName string) Response {
-	return runForPath(ctx, path, fwName, Options{Quick: true})
-}
-
 // RunForPathWith is RunForPath honouring opts.
 func RunForPathWith(ctx context.Context, path, fwName string, opts Options) Response {
 	return runForPath(ctx, path, fwName, opts)

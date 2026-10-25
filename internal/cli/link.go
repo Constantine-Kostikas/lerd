@@ -12,7 +12,6 @@ import (
 	"github.com/geodro/lerd/internal/linker"
 	"github.com/geodro/lerd/internal/serviceops"
 	"github.com/geodro/lerd/internal/siteops"
-	"github.com/geodro/lerd/internal/store"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -589,11 +588,6 @@ func startWorkersForSite(site *config.Site, workers []string, phpVersion string)
 	}
 }
 
-// hasRunningWorkers returns true if any workers are currently active for the site.
-func hasRunningWorkers(site *config.Site) bool {
-	return len(collectRunningWorkers(site)) > 0
-}
-
 // isInteractive returns true if stdin is a terminal.
 func isInteractive() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
@@ -623,32 +617,4 @@ func resolveFramework(dir string) (string, bool) {
 // as standalone sites.
 func findOwningWorktree(cwd string) (*config.Site, string, bool) {
 	return linker.OwningWorktree(cwd)
-}
-
-// fetchFrameworkFromStore attempts to install a framework definition from the
-// store. Returns true if successful.
-func fetchFrameworkFromStore(name, dir string) bool {
-	client := store.NewClient()
-	version := ""
-	if idx, err := client.FetchIndex(); err == nil {
-		for _, entry := range idx.Frameworks {
-			if entry.Name == name {
-				version = store.ResolveVersion(dir, entry.Detect, entry.Versions, "")
-				break
-			}
-		}
-	}
-	fw, err := client.FetchFramework(name, version)
-	if err != nil {
-		return false
-	}
-	if err := config.SaveStoreFramework(fw); err != nil {
-		return false
-	}
-	v := fw.Version
-	if v == "" {
-		v = "latest"
-	}
-	fmt.Printf("  Installed %s@%s from store\n", name, v)
-	return true
 }
