@@ -383,6 +383,36 @@ func TestRing_SetKeepDropsRequestsNoLongerKept(t *testing.T) {
 	}
 }
 
+func TestRing_SetKeepNeverRewritesEvents(t *testing.T) {
+	r := NewRing(1)
+	r.Append(ridEvent("a", "r1"))
+	r.Append(ridEvent("b", "r2"))
+	if _, err := r.db.Exec(`CREATE TEMP TABLE rewrites(n);
+		CREATE TEMP TRIGGER count_rewrites AFTER UPDATE ON events BEGIN INSERT INTO rewrites VALUES(1); END`); err != nil {
+		t.Fatal(err)
+	}
+	r.SetKeep(map[string]bool{"r1": true})
+	r.SetKeep(map[string]bool{"r2": true})
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM rewrites`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("marking kept requests rewrote %d events", n)
+	}
+}
+
+func TestRing_SetKeepHoldsARowStillReachedByAKeptRequest(t *testing.T) {
+	r := NewRing(1)
+	r.SetKeep(map[string]bool{"page": true, "r1": true})
+	r.Append(Event{V: 1, ID: "a", Kind: KindBrowser, Ctx: Context{RID: "page"}, Data: []byte(`{"type":"fetch","rid":"r1"}`)})
+	r.Append(mkEvent("b"))
+	r.SetKeep(map[string]bool{"page": true})
+	if got := ids(r.Filter(FilterOpts{RID: "page"})); fmt.Sprint(got) != "[a]" {
+		t.Fatalf("filter page = %v", got)
+	}
+}
+
 func TestRing_RemoveAndClearReachPinnedEvents(t *testing.T) {
 	r := NewRing(1)
 	r.SetKeep(map[string]bool{"r1": true, "r2": true})

@@ -226,3 +226,34 @@ func TestAnalyticsRecentPagesAndSaysWhenThereIsMore(t *testing.T) {
 		t.Fatalf("second page = %d rows, more %v", len(got.Recent), got.RecentMore)
 	}
 }
+
+func TestSlowestKeeperFollowsNewRequests(t *testing.T) {
+	registerSite(t, "acme", "acme.test")
+	now := time.Now()
+	first := analyticsRecord("acme", "GET /a", "/a", now.Add(-2*time.Minute))
+	first.RID = "r1"
+	seedAnalytics(t, []reqstats.Record{first})
+
+	srv, err := dumps.Listen(context.Background(), "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	srv.Resize(1)
+	srv.Push(dumps.Event{V: dumps.ProtocolVersion, ID: "e1", Kind: dumps.KindQuery, Ctx: dumps.Context{RID: "r1"}})
+	srv.Push(dumps.Event{V: dumps.ProtocolVersion, ID: "e2", Kind: dumps.KindQuery, Ctx: dumps.Context{RID: "r2"}})
+	srv.Push(dumps.Event{V: dumps.ProtocolVersion, ID: "e3", Kind: dumps.KindQuery})
+
+	k := &slowestKeeper{srv: srv}
+	k.refresh(true)
+	if got := srv.RequestIDs(); !got["r1"] || got["r2"] {
+		t.Fatalf("after the first read = %v, want only r1 kept", got)
+	}
+	slower := analyticsRecord("acme", "GET /a", "/a", now.Add(-time.Minute))
+	slower.RID, slower.Millis = "r2", 900
+	seedAnalytics(t, []reqstats.Record{slower})
+	k.refresh(false)
+	if got := srv.RequestIDs(); got["r1"] || !got["r2"] {
+		t.Fatalf("after a slower request = %v, want r2 kept in r1's place", got)
+	}
+}

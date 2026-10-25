@@ -29,21 +29,37 @@ func newChangeFeed(start func(ctx context.Context, onChange func()) error) *chan
 func (f *changeFeed) subscribe() chan struct{} {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.cancel == nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		if err := f.start(ctx, f.notify); err != nil {
-			cancel()
-		} else {
-			f.cancel = cancel
-		}
-	}
+	f.startLocked()
 	ch := make(chan struct{}, 1)
 	f.subs[ch] = struct{}{}
 	return ch
 }
 
-// unsubscribe stops the source with the last page, so lerd-ui watches nothing
-// while no request list is open.
+// restartIfDown retries a source whose start failed, for a subscriber that
+// never leaves, and reports whether it was down: nudges went missing meanwhile.
+func (f *changeFeed) restartIfDown() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cancel != nil {
+		return false
+	}
+	f.startLocked()
+	return true
+}
+
+func (f *changeFeed) startLocked() {
+	if f.cancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := f.start(ctx, f.notify); err != nil {
+		cancel()
+		return
+	}
+	f.cancel = cancel
+}
+
+// unsubscribe stops the source with the last subscriber.
 func (f *changeFeed) unsubscribe(ch chan struct{}) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -72,7 +88,8 @@ func (f *changeFeed) notify() {
 }
 
 // requestsFeed fires when the watcher writes requests to the durable store. One
-// inotify watch on the database and its WAL serves every dashboard socket.
+// inotify watch on the database and its WAL serves every dashboard socket and
+// the slowest-request keeper.
 var requestsFeed = newChangeFeed(func(ctx context.Context, onChange func()) error {
 	db := config.RequestStatsDB()
 	names := []string{filepath.Base(db), filepath.Base(db) + "-wal"}

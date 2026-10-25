@@ -127,6 +127,23 @@ func TestChangeFeedRetriesAFailedStartAndStopsWhenIdle(t *testing.T) {
 	}
 }
 
+func TestChangeFeedRestartIfDownRetriesForAStandingSubscriber(t *testing.T) {
+	starts := 0
+	f := newChangeFeed(func(context.Context, func()) error {
+		if starts++; starts == 1 {
+			return errors.New("inotify watch limit reached")
+		}
+		return nil
+	})
+	f.subscribe()
+	if !f.restartIfDown() || starts != 2 {
+		t.Fatalf("restartIfDown after a failed start: starts = %d, want a retry reported as down", starts)
+	}
+	if f.restartIfDown() || starts != 2 {
+		t.Fatalf("restartIfDown on a running feed: starts = %d, want nothing done", starts)
+	}
+}
+
 func TestChangeFeedNudgeNeverBlocks(t *testing.T) {
 	f := newChangeFeed(func(context.Context, func()) error { return nil })
 	ch := f.subscribe()
