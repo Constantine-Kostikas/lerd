@@ -79,6 +79,13 @@ export async function countList([url, key]) {
   }
 }
 
+// builtin is the default stack the binary ships, which the services store
+// leaves out; it is only added to a store that answered.
+export async function liveCounts(builtin) {
+  const [frameworks, services, plugins] = await Promise.all([countList(COUNTS.frameworks), countList(COUNTS.services), countList(COUNTS.plugins)])
+  return { frameworks, services: services ? services + builtin : 0, plugins }
+}
+
 export const INSTALL = 'curl -fsSL https://lerd.sh/install.sh | bash'
 // releases/latest/download always resolves to the newest desktop release's asset.
 export const WINDOWS_INSTALLER = 'https://github.com/lerd-env/lerd-desktop/releases/latest/download/Install-Lerd.exe'
@@ -232,5 +239,5 @@ export const FAQ = [
   { q: 'Do I have to change my project?', a: 'No. Lerd detects the framework from the repository and serves it as it is. An optional .lerd.yaml pins PHP and Node versions, services and workers.' },
   { q: 'Can it run next to a MySQL or PostgreSQL I already have?', a: 'Yes. When a database installed on the host already holds the default port, Lerd publishes its container on the next free port and writes that into the site .env.' },
   { q: 'Can I extend it?', a: 'Yes, with plugins that add commands, dashboard pages, AI tools and services. Each one is reviewed at the exact commit Lerd installs.', href: 'https://plugins.lerd.sh/', link: 'Browse plugins' },
-  { q: 'How do I remove it?', a: 'Run lerd uninstall. It stops the containers, removes the units, the binary and the network, and takes the trusted certificate and the DNS rule back out.', href: '/getting-started/installation#uninstall', link: 'What uninstall removes' },
+  { q: 'How do I remove it?', a: 'Run lerd uninstall. It stops the containers and removes the units, the binary and the network, then asks whether to remove your data and the trusted certificate as well.', href: '/getting-started/installation#uninstall', link: 'What uninstall removes' },
 ]

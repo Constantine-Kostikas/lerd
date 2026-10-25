@@ -1,7 +1,7 @@
 import { defineLoader } from 'vitepress'
 import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { COUNTS, countList } from './landing-data.js'
+import { liveCounts } from './landing-data.js'
 
 // The hero's counts at build time; the page refreshes them in the browser.
 // A build with no network answers 0 and the page drops that stat rather than show a wrong one.
@@ -24,8 +24,7 @@ function builtinServices(): number {
 
 export default defineLoader({
   async load(): Promise<Data> {
-    const [frameworks, store, plugins] = await Promise.all([countList(COUNTS.frameworks), countList(COUNTS.services), countList(COUNTS.plugins)])
     const builtin = builtinServices()
-    return { frameworks, services: store ? store + builtin : 0, plugins, builtin }
+    return { ...(await liveCounts(builtin)), builtin }
   },
 })

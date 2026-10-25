@@ -17,12 +17,9 @@ const starLabel = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') 
 
 const PLUGINS = 'https://plugins.lerd.sh/'
 const counts = ref({ frameworks: storeData.frameworks, services: storeData.services, plugins: storeData.plugins })
-onMounted(() => {
-  for (const key of Object.keys(counts.value)) {
-    D.countList(D.COUNTS[key]).then((n) => {
-      if (n) counts.value[key] = key === 'services' ? n + storeData.builtin : n
-    })
-  }
+onMounted(async () => {
+  const live = await D.liveCounts(storeData.builtin)
+  for (const key of Object.keys(live)) if (live[key]) counts.value[key] = live[key]
 })
 
 const copied = ref(false)
