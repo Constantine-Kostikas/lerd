@@ -202,7 +202,7 @@ A distro without systemd-resolved, such as Debian's WSL image, gets it installed
 Windows resolves `.test` through the lerd agent described above. To trust HTTPS by hand instead of through `lerd wsl:setup`, copy the CA out of WSL and import it:
 
 ```bash
-cp ~/.local/share/mkcert/rootCA.pem /mnt/c/Users/$USER/Desktop/lerd-rootCA.crt
+cp "${CAROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/mkcert}/rootCA.pem" /mnt/c/Users/$USER/Desktop/lerd-rootCA.crt
 ```
 
 Double-click `lerd-rootCA.crt`, pick **Place all certificates in the following store**, choose **Trusted Root Certification Authorities**, finish, and restart the browser.

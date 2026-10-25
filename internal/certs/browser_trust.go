@@ -125,10 +125,13 @@ var runCertutil = func(args ...string) error {
 	return nil
 }
 
-// InstallBrowserTrust imports the root CA into every NSS database missing it,
-// under mkcert's nickname so BrowserStoresMissingCA finds it, and returns the
-// stores that refused (a read-only system database, most often).
+// InstallBrowserTrust imports the root CA, under mkcert's nickname, into every
+// NSS database that does not trust it as an SSL CA, which also restores trust
+// flags cleared on a stored copy. Returns the stores that refused.
 func InstallBrowserTrust() []error {
+	if !BrowserTrustAvailable() {
+		return nil
+	}
 	root, err := CARoot()
 	if err != nil {
 		return []error{err}
@@ -138,7 +141,11 @@ func InstallBrowserTrust() []error {
 		return nil
 	}
 	var errs []error
-	for _, dir := range BrowserStoresMissingCA() {
+	for _, dir := range nssDBDirs() {
+		// The check mkcert -install ran: verify the CA for SSL CA use.
+		if runCertutil("-V", "-d", "sql:"+dir, "-u", "L", "-n", nickname) == nil {
+			continue
+		}
 		if err := runCertutil("-A", "-d", "sql:"+dir, "-t", "C,,", "-n", nickname, "-i", filepath.Join(root, caCertName)); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
 		}

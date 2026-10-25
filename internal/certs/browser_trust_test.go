@@ -1,9 +1,11 @@
 package certs
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -163,38 +165,61 @@ func TestNSSDBDirsOnlyReportsStoresMkcertWritesTo(t *testing.T) {
 	}
 }
 
-func stubCertutil(t *testing.T) *[][]string {
+// stubCertutil records every certutil call; verify answers true only for the
+// stores in trusted, the way certutil -V does for a CA trusted as an SSL CA.
+func stubCertutil(t *testing.T, trusted ...string) *[][]string {
 	t.Helper()
 	orig := runCertutil
 	t.Cleanup(func() { runCertutil = orig })
 	var calls [][]string
 	runCertutil = func(args ...string) error {
 		calls = append(calls, args)
+		if args[0] == "-V" && !slices.Contains(trusted, strings.TrimPrefix(args[2], "sql:")) {
+			return errors.New("certificate not trusted")
+		}
 		return nil
 	}
 	return &calls
 }
 
-// Only a store missing the CA is written, under the nickname the lookup reads
-// back, so the import and BrowserStoresMissingCA agree on what installed means.
-func TestInstallBrowserTrustImportsIntoStoresMissingTheCA(t *testing.T) {
-	caDir, certPEM := browserTrustFixture(t)
-	calls := stubCertutil(t)
-	nssDBDirs = func() []string { return []string{"/home/u/.pki/nssdb", "/home/u/.mozilla/firefox/p"} }
-	nssCertPEM = func(dir, nickname string) []byte {
-		if dir == "/home/u/.pki/nssdb" {
-			return certPEM
+func imports(calls [][]string) [][]string {
+	var out [][]string
+	for _, c := range calls {
+		if c[0] == "-A" {
+			out = append(out, c)
 		}
-		return nil
 	}
+	return out
+}
+
+// A store already trusting the CA is left alone; the other gets the import,
+// under the nickname BrowserStoresMissingCA reads back.
+func TestInstallBrowserTrustImportsWhereTheCAIsNotTrusted(t *testing.T) {
+	caDir, certPEM := browserTrustFixture(t)
+	calls := stubCertutil(t, "/home/u/.pki/nssdb")
+	nssDBDirs = func() []string { return []string{"/home/u/.pki/nssdb", "/home/u/.mozilla/firefox/p"} }
 
 	if errs := InstallBrowserTrust(); len(errs) != 0 {
 		t.Fatalf("InstallBrowserTrust() = %v", errs)
 	}
 	nickname := caNSSNickname(firstCertDER(certPEM))
 	want := []string{"-A", "-d", "sql:/home/u/.mozilla/firefox/p", "-t", "C,,", "-n", nickname, "-i", filepath.Join(caDir, "rootCA.pem")}
-	if len(*calls) != 1 || !slices.Equal((*calls)[0], want) {
-		t.Fatalf("certutil calls = %v, want one %v", *calls, want)
+	if got := imports(*calls); len(got) != 1 || !slices.Equal(got[0], want) {
+		t.Fatalf("imports = %v, want one %v", got, want)
+	}
+}
+
+// A store that still holds the CA but whose trust flags were cleared is what
+// comparing certificate bytes cannot see, so it must be imported again.
+func TestInstallBrowserTrustRestoresClearedTrust(t *testing.T) {
+	_, certPEM := browserTrustFixture(t)
+	calls := stubCertutil(t)
+	nssDBDirs = func() []string { return []string{"/home/u/.pki/nssdb"} }
+	nssCertPEM = func(dir, nickname string) []byte { return certPEM }
+
+	InstallBrowserTrust()
+	if got := imports(*calls); len(got) != 1 {
+		t.Fatalf("imports = %v, want the store with cleared trust re-imported", got)
 	}
 }
 
