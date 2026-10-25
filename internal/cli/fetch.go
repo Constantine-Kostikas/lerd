@@ -52,14 +52,8 @@ func InstallPHPVersion(version string, w io.Writer) error {
 	// image is already built and the build step produces no output.
 	fmt.Fprintf(w, "Installing PHP %s...\n", version)
 	if !lifecycle.FPMContainersWanted() {
-		if err := nativeInstallFn(version, w); err != nil {
+		if err := bringUpNativePHP(version, w); err != nil {
 			return err
-		}
-		if err := ensureXdebugIni(version); err != nil {
-			return fmt.Errorf("writing the xdebug ini for php %s: %w", version, err)
-		}
-		if err := nativeStartFn(version); err != nil {
-			return fmt.Errorf("starting native php-fpm %s: %w", version, err)
 		}
 		fmt.Fprintf(w, "PHP %s installed and started.\n", version)
 		return nil

@@ -406,20 +406,16 @@ func unsupportedSitesMessage(sites []config.Site) string {
 }
 
 // startNativeRuntime brings up the host PHP-FPM listeners a native install is
-// served by, and does nothing at all in container mode. Called from the start
-// path, where the FPM containers are absent by design.
+// served by, fetching any wanted version that is missing, the way container
+// mode builds the default's image. Does nothing at all in container mode.
 func startNativeRuntime() {
 	cfg, err := config.LoadGlobal()
 	if err != nil || cfg.PHPRuntimeMode() != config.PHPRuntimeNative {
 		return
 	}
-	for _, v := range versionsInUse(nativephp.ListInstalled()) {
-		if err := nativephp.Ensure(v); err != nil {
-			feedback.Warn("starting native php-fpm %s: %v", v, err)
-			continue
-		}
-		if _, err := nativephp.EnsureShim(v, nativephp.BinaryPath(v)); err != nil {
-			feedback.Warn("linking the native php %s: %v", v, err)
+	for _, v := range nativeVersionsWanted() {
+		if err := bringUpNativePHP(v, os.Stdout); err != nil {
+			feedback.Warn("php %s: %v", v, err)
 		}
 	}
 }

@@ -265,6 +265,10 @@ func ensureDefaultPHPInstalled() {
 	if err != nil || cfg == nil || cfg.PHP.DefaultVersion == "" {
 		return
 	}
+	// Under native there is no image to build; startNativeRuntime fetches the default.
+	if !lifecycle.FPMContainersWanted() {
+		return
+	}
 	defaultVer := cfg.PHP.DefaultVersion
 	installed, _ := phpPkg.ListInstalled()
 	for _, v := range installed {
