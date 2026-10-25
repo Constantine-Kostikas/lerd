@@ -516,11 +516,21 @@ func installClaudeLSPPlugin(log func(string)) {
 	log("installed the lerd-php language server plugin in Claude Code")
 }
 
+// removeClaudeLSPPlugin stays quiet when there is nothing to remove: the CLI says
+// "not found" for a plugin or marketplace already gone, and for a missing claude.
 func removeClaudeLSPPlugin(log func(string)) {
-	if _, err := claudePlugin("uninstall", "--scope", "user", lerdClaudeLSPPlugin); err == nil {
+	out, err := claudePlugin("uninstall", "--scope", "user", lerdClaudeLSPPlugin)
+	switch {
+	case err == nil:
 		log("  removed the lerd-php plugin from Claude Code")
+	case !strings.Contains(string(out)+err.Error(), "not found"):
+		feedback.Warn("could not remove the lerd-php plugin from Claude Code (%v): %s", err, strings.TrimSpace(string(out)))
+		feedback.Note("run manually: claude plugin uninstall --scope user " + lerdClaudeLSPPlugin)
 	}
-	_, _ = claudePlugin("marketplace", "remove", lerdClaudeMarketplace)
+	out, err = claudePlugin("marketplace", "remove", lerdClaudeMarketplace)
+	if err != nil && !strings.Contains(string(out)+err.Error(), "not found") {
+		feedback.Warn("could not remove the lerd marketplace from Claude Code (%v): %s", err, strings.TrimSpace(string(out)))
+	}
 }
 
 // IsMCPGloballyRegistered reports whether lerd is registered with Claude Code.

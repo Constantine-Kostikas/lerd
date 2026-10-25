@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/geodro/lerd/internal/feedback"
 )
 
 func recordClaudePlugin(t *testing.T, fail string) *[]string {
@@ -56,5 +59,30 @@ func TestRemoveGlobalAISkillsTakesTheLSPPluginBackOut(t *testing.T) {
 	want := []string{"uninstall --scope user lerd-php@lerd", "marketplace remove lerd"}
 	if !reflect.DeepEqual(*calls, want) {
 		t.Fatalf("claude plugin calls = %q, want %q", *calls, want)
+	}
+}
+
+// A plugin that is already gone, or a machine without claude, is the normal case
+// on disable and stays quiet; any other failure leaves the plugin behind, so the
+// user has to hear about it.
+func TestRemoveClaudeLSPPluginWarnsOnlyWhenSomethingWasLeftBehind(t *testing.T) {
+	for _, tc := range []struct {
+		out  string
+		warn bool
+	}{
+		{`Plugin "lerd-php@lerd" not found in installed plugins`, false},
+		{`exec: "claude": executable file not found in $PATH`, false},
+		{"permission denied writing settings.json", true},
+	} {
+		prev := claudePlugin
+		claudePlugin = func(args ...string) ([]byte, error) { return []byte(tc.out), errors.New("exit status 1") }
+		var buf bytes.Buffer
+		restore := feedback.SetTestWriter(&buf)
+		removeClaudeLSPPlugin(func(string) {})
+		restore()
+		claudePlugin = prev
+		if got := strings.Contains(buf.String(), "lerd-php"); got != tc.warn {
+			t.Errorf("output %q: warned = %v, want %v (got %q)", tc.out, got, tc.warn, buf.String())
+		}
 	}
 }
