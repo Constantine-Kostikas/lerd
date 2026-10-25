@@ -23,6 +23,7 @@ import (
 func TestMain(m *testing.M) {
 	claudeAvailable = func() bool { return false }
 	claudeMCP = func(args ...string) ([]byte, error) { return nil, nil }
+	claudePlugin = func(args ...string) ([]byte, error) { return nil, nil }
 	hostbin.ExtraDirs = func() []string { return nil }
 	// A developer running Claude Code under another profile would otherwise
 	// have the global skill tests write into that real profile.
