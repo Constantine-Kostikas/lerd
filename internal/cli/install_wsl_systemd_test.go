@@ -9,10 +9,11 @@ import (
 // withWSLSystemdSeams fakes the distro and records each step enableWSLSystemd takes.
 func withWSLSystemdSeams(t *testing.T, isWSL, booted bool, setupErr, shutdownErr error) *[]string {
 	t.Helper()
-	origWSL, origBooted, origEnable, origShutdown := installIsWSL, installSystemdBooted, enableSystemd, shutdownWSL
+	origWSL, origBooted, origEnable, origShutdown, origInstalled := installIsWSL, installSystemdBooted, enableSystemd, shutdownWSL, systemdInstalled
 	t.Cleanup(func() {
-		installIsWSL, installSystemdBooted, enableSystemd, shutdownWSL = origWSL, origBooted, origEnable, origShutdown
+		installIsWSL, installSystemdBooted, enableSystemd, shutdownWSL, systemdInstalled = origWSL, origBooted, origEnable, origShutdown, origInstalled
 	})
+	systemdInstalled = func() bool { return true }
 	var steps []string
 	installIsWSL = func() bool { return isWSL }
 	installSystemdBooted = func() bool { return booted }
@@ -67,5 +68,17 @@ func TestEnableWSLSystemd_noInteropAsksForTheRestart(t *testing.T) {
 	}
 	if strings.Join(*steps, ",") != "setup,shutdown" {
 		t.Errorf("steps = %v", *steps)
+	}
+}
+
+func TestEnableWSLSystemd_missingSystemdDoesNotRestart(t *testing.T) {
+	steps := withWSLSystemdSeams(t, true, false, nil, nil)
+	systemdInstalled = func() bool { return false }
+	err := enableWSLSystemd(false)
+	if err == nil || !strings.Contains(err.Error(), "install the systemd package") {
+		t.Errorf("err = %v, want it to ask for systemd", err)
+	}
+	if len(*steps) > 0 {
+		t.Errorf("steps = %v, want nothing run", *steps)
 	}
 }

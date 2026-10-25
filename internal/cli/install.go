@@ -139,7 +139,15 @@ var (
 	installIsWSL         = wsl.IsWSL
 	installSystemdBooted = wsl.SystemdBooted
 	enableSystemd        = func() error { _, err := enableWSLConfSystemd(io.Discard); return err }
-	shutdownWSL          = func() error { return exec.Command(wsl.WindowsTool("wsl.exe"), "--shutdown").Run() }
+	systemdInstalled     = func() bool {
+		for _, p := range []string{"/usr/lib/systemd/systemd", "/lib/systemd/systemd"} {
+			if _, err := os.Stat(p); err == nil {
+				return true
+			}
+		}
+		return false
+	}
+	shutdownWSL = func() error { return exec.Command(wsl.WindowsTool("wsl.exe"), "--shutdown").Run() }
 )
 
 // enableWSLSystemd turns systemd on in a WSL distro that runs without it, which
@@ -151,6 +159,11 @@ func enableWSLSystemd(unattended bool) error {
 	}
 	if unattended {
 		return errors.New("systemd is not running in this WSL distro, and lerd runs as systemd user services: set [boot] systemd=true in /etc/wsl.conf, run `wsl --shutdown` from Windows, then install again")
+	}
+	// WSL boots its own init when systemd=true has no systemd to start, so
+	// turning it on and restarting would loop.
+	if !systemdInstalled() {
+		return errors.New("systemd is not installed in this WSL distro, and lerd runs as systemd user services: install the systemd package, then run `lerd install` again")
 	}
 	feedback.Sudo("Turning on systemd in /etc/wsl.conf, which lerd's user services need")
 	if err := enableSystemd(); err != nil {
