@@ -265,15 +265,21 @@
                   <span title={f.path}>{row.label}</span>
                 </button>
                 {#if uncommitted}
-                  <button
-                    type="button"
-                    onclick={() => toggleStage(g.key, f.path)}
-                    class="shrink-0 mr-2 p-0.5 rounded-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    use:tooltip={staging}
-                    aria-label="{staging} {f.path}"
-                  >
-                    <Icon name={g.key === 'staged' ? 'minus' : 'plus'} class="w-3.5 h-3.5" />
-                  </button>
+                  <!-- Pinned to the pane's visible edge while a long path scrolls; the opaque
+                       base hides text under it and the inner layer repeats the row's tint. -->
+                  <span class="sticky right-0 shrink-0 self-stretch flex bg-white dark:bg-lerd-card">
+                    <span class="flex items-center pl-1 pr-2 {active ? 'bg-gray-100 dark:bg-white/10' : 'group-hover:bg-gray-50 dark:group-hover:bg-white/5'}">
+                      <button
+                        type="button"
+                        onclick={() => toggleStage(g.key, f.path)}
+                        class="p-0.5 rounded-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        use:tooltip={staging}
+                        aria-label="{staging} {f.path}"
+                      >
+                        <Icon name={g.key === 'staged' ? 'minus' : 'plus'} class="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  </span>
                 {/if}
               </div>
               {/if}
