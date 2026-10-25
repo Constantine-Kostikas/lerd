@@ -2618,7 +2618,7 @@ func mcpDBService(env *mcpDBEnv) string {
 			return s
 		}
 		switch strings.ToLower(env.connection) {
-		case "pgsql", "postgres":
+		case "pgsql", "postgres", "postgresql":
 			return "postgres"
 		}
 	}
@@ -4249,12 +4249,7 @@ func mcpSnapshotTarget(args map[string]any) (serviceops.SnapshotTarget, error) {
 	if err != nil || env == nil {
 		return serviceops.SnapshotTarget{}, fmt.Errorf("no .lerd.yaml db block or .env found in %s — pass a service argument", projectPath)
 	}
-	service := "mysql"
-	switch strings.ToLower(env.connection) {
-	case "pgsql", "postgres", "postgresql":
-		service = "postgres"
-	}
-	return build(service, env.database), nil
+	return build(mcpDBService(env), env.database), nil
 }
 
 func execDBSnapshot(args map[string]any) (any, *rpcError) {
