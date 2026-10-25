@@ -4,10 +4,6 @@ Lerd runs on Windows through WSL2. There is no native Windows build, the archite
 
 On a Windows machine with nothing set up, `Install-Lerd.exe` does all of it for you, and `install.ps1` does the same from a PowerShell window. If you already run WSL, `lerd wsl:setup` wires an existing install into Windows. The rest of this page documents each piece by hand, as the reference for what those two do and as the fallback.
 
-::: warning Beta
-Windows support via WSL2 is **beta**. The standard Linux build runs unchanged inside a systemd WSL2 session and is fine for daily development, but this path gets less testing than native Linux or macOS. Please report anything that misbehaves on the [issue tracker](https://github.com/lerd-env/lerd/issues).
-:::
-
 ::: warning Supported distros
 Ubuntu 22.04 or newer, or Debian 12 or newer, running on WSL 0.67.6 or newer (the release that brought official systemd support). Older WSL versions need workarounds like `genie` or `subsystemctl`, which are not tested here.
 :::
