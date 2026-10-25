@@ -161,3 +161,20 @@ func TestSnapshotMetaFor_recordsSiteAndBranch(t *testing.T) {
 		t.Errorf("meta without a path = %+v, want empty", got)
 	}
 }
+
+func TestMCPSnapshotTarget_followsDBHostToCustomService(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	env := "DB_CONNECTION=pgsql\nDB_HOST=lerd-postgres-18\nDB_DATABASE=shop_db\n"
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(env), 0o644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+
+	target, err := mcpSnapshotTarget(map[string]any{"path": dir})
+	if err != nil {
+		t.Fatalf("mcpSnapshotTarget: %v", err)
+	}
+	if target.Service != "postgres-18" || target.Database != "shop_db" {
+		t.Errorf("target = %s/%s, want postgres-18/shop_db", target.Service, target.Database)
+	}
+}
