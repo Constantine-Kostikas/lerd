@@ -396,6 +396,14 @@ jobs:
           for ph in ('{{.CustomExtensions}}', '{{.CustomExtensionsRuntime}}',
                      '{{.CustomPackages}}', '{{.MkcertCA}}'):
               content = content.replace(ph, '')
+          # Recipes before #2333 never upgrade what upstream php ships, so a
+          # republish would keep its vulnerable packages. The tag stays the old
+          # hash: it only names which recipe a release pulls, not its bytes.
+          if 'apk upgrade' not in content:
+              stage = content.index('# ── Runtime stage')
+              old = 'RUN apk update && apk add --no-cache'
+              at = content.index(old, stage)
+              content = content[:at] + 'RUN apk update && apk upgrade --no-cache && apk add --no-cache' + content[at + len(old):]
           with open('/tmp/Containerfile', 'w') as f:
               f.write(content)
           EOF
@@ -419,6 +427,9 @@ jobs:
           file: /tmp/Containerfile
           push: true
           pull: true
+          # Every historic build is a forced one, so a cached apk layer would
+          # republish the packages it is there to replace.
+          no-cache: true
           platforms: linux/${{ matrix.arch.name }}
           tags: ghcr.io/lerd-env/lerd-php${{ steps.prep.outputs.php_short }}-fpm-base:${{ matrix.entry.hash }}-${{ matrix.arch.name }}
           cache-from: type=gha,scope=php-${{ matrix.php }}-${{ matrix.arch.name }}-${{ matrix.entry.hash }}
