@@ -67,4 +67,6 @@ Every PR runs the following checks automatically. All must pass before merging.
 | Comment blocks | `.githooks/pre-commit origin/main` (or the `release/` branch the pull request targets), the pre-commit hook run over the whole pull request |
 | UI screenshots | PR description has an image when UI files change |
 
+The same checks also run daily on `main`, so a Go advisory published between pushes still turns CI red. A separate daily scan audits the web UI's npm dependencies, the published PHP base images and the pinned host tools.
+
 The Linux jobs restore the tray's `libayatana-appindicator3-dev` headers from an apt cache. That cache can hold a failed install as an empty one, so when the headers are still missing after it the job refreshes the package index and installs them itself. A failure on that step means apt is failing on the runner, not your change, and a rerun later usually clears it.

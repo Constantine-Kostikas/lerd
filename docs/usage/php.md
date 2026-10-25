@@ -403,6 +403,8 @@ You see it in three places. **System → PHP** marks the version card with an up
 
 The check is cached for six hours and never runs on the dashboard's critical path, so an offline machine stays quiet rather than reporting a false update. A version whose image was built locally (`--local`) has no recorded base and is never flagged: there is no published image behind it to compare against.
 
+A security fix Alpine ships before upstream refreshes its image triggers the same republish. A daily scan checks the published bases for high or critical vulnerabilities with a fix out, and the rebuild runs `apk upgrade`, so the patched packages land under the same tag and the version shows as having an update. PHP 7.4 and 8.0 are left out, since their Alpine branches no longer get fixes.
+
 On the publishing side, an upstream refresh rebuilds the hash tag main computes plus the ones the last two stable releases resolve to, each from its own git checkout. Staying a release or two behind still gets you the patched base without updating lerd first.
 
 ---

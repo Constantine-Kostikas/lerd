@@ -184,7 +184,9 @@ FROM docker.io/library/php:{{.Version}}-fpm-alpine
 # Runtime libraries only (no -dev headers, no toolchain). PHP's compiled
 # extensions dlopen these. gcompat + libstdc++ are the musl/glibc shim a vendor
 # ODBC driver (HANA, Oracle, MSSQL) needs before unixODBC can load it at all.
-RUN apk update && apk add --no-cache \
+# The upgrade pulls Alpine security fixes into packages upstream php ships,
+# which apk add alone never touches (#2333).
+RUN apk update && apk upgrade --no-cache && apk add --no-cache \
         ghostscript \
         imagemagick \
         libgomp \

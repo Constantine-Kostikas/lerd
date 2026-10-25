@@ -115,6 +115,9 @@ jobs:
           file: /tmp/Containerfile
           push: true
           pull: ${{ steps.check.outputs.forced == 'true' }}
+          # A forced run is how Alpine fixes get in (#2333); a cached apk layer
+          # would republish the very packages it was forced to replace.
+          no-cache: ${{ steps.check.outputs.forced == 'true' }}
           platforms: linux/${{ matrix.arch.name }}
           tags: ghcr.io/lerd-env/lerd-php${{ steps.tag.outputs.php_short }}-fpm-base:${{ steps.tag.outputs.tag }}-${{ matrix.arch.name }}
           cache-from: type=gha,scope=php-${{ matrix.php }}-${{ matrix.arch.name }}
