@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Brak innej gałęzi.",
   "pullPlan_comparing": "Pobieranie i porównywanie…",
   "pullPlan_conflicts": "Pull nadpisałby niezatwierdzone zmiany w tych plikach. Najpierw zrób commit lub stash:",
+  "pullPlan_stash": "Najpierw odłóż moje zmiany do stash",
+  "pullPlan_stashReason": "Twoje zmiany w {files} pokrywają się z nadchodzącymi zmianami",
   "pullPlan_then": "Po pull",
   "pullPlan_missingMigrations": "Przychodzące zmiany usuwają migracje, które baza danych już wykonała ({count}), więc schemat wyprzedzi kod.",
   "pullPlan_failedWithSnapshot": "Baza danych została zapisana jako {name} przed pull. Przywróć ją, aby cofnąć to, co zmienił nieudany krok.",

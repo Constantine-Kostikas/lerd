@@ -4,6 +4,7 @@
   import DetailButton from '$components/DetailButton.svelte';
   import PlanReview from '$components/PlanReview.svelte';
   import PlanProgress from '$components/PlanProgress.svelte';
+  import StashRow from '$components/StashRow.svelte';
   import GitCommitList from '$components/GitCommitList.svelte';
   import GitDiffModal from './GitDiffModal.svelte';
   import type { GitCommit } from '$lib/gitDiff';
@@ -27,6 +28,7 @@
   let plan = $state<BranchPlan | null>(null);
   let planning = $state(true);
   let on = $state<Record<RowKey, boolean>>({ snapshot: false, isolate: false, restore: false, composer: false, js: false, migrate: false });
+  let stash = $state(false);
   let pulling = $state(false);
   let finished = $state(false);
   let error = $state('');
@@ -63,7 +65,7 @@
     logs = [];
     let done: { ok?: boolean; error?: string; snapshot?: string } = { ok: false };
     try {
-      await streamPull(domain, branch, { branch: plan?.branch, head: plan?.head, target: plan?.target }, { composer: on.composer, js: on.js, migrate: on.migrate, snapshot: on.snapshot, isolate: on.isolate }, (ev) => {
+      await streamPull(domain, branch, { branch: plan?.branch, head: plan?.head, target: plan?.target }, { composer: on.composer, js: on.js, migrate: on.migrate, snapshot: on.snapshot, isolate: on.isolate, stash: stash && conflicts.length > 0 }, (ev) => {
         if (ev.done) done = ev;
         else if (ev.line) logs = [...logs, ev.line];
       });
@@ -115,7 +117,9 @@
           thenText={m.pullPlan_then()}
           missingText={m.pullPlan_missingMigrations({ count: plan.migrations_missing })}
           onfiles={plan.target ? () => (viewingFiles = true) : undefined}
-        />
+        >
+          {#snippet conflictsRow(files: string[])}<StashRow {files} bind:on={stash} />{/snippet}
+        </PlanReview>
         <!-- Read after the plan's fetch, so it lists what the pull will bring. -->
         <GitCommitList {domain} {path} direction="incoming" onopen={(c) => (viewing = c)} />
         {#if diverged}
@@ -148,7 +152,7 @@
       <DetailButton tone="primary" onclick={closeModal}>{m.common_ok()}</DetailButton>
     {:else}
       <DetailButton onclick={closeModal}>{m.common_cancel()}</DetailButton>
-      <DetailButton tone="primary" onclick={doPull} disabled={planning || !plan || conflicts.length > 0 || diverged}
+      <DetailButton tone="primary" onclick={doPull} disabled={planning || !plan || (conflicts.length > 0 && !stash) || diverged}
         >{m.gitSync_pull()}</DetailButton
       >
     {/if}

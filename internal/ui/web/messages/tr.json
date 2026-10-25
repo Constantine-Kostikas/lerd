@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Geçilecek başka dal yok.",
   "pullPlan_comparing": "Alınıyor ve karşılaştırılıyor…",
   "pullPlan_conflicts": "Bu dosyalardaki commit edilmemiş değişiklikler pull ile üzerine yazılır. Önce commit edin veya stash'leyin:",
+  "pullPlan_stash": "Önce değişikliklerimi stash et",
+  "pullPlan_stashReason": "{files} üzerindeki düzenlemelerin gelen değişikliklerle çakışıyor",
   "pullPlan_then": "Pull sonrası",
   "pullPlan_missingMigrations": "Gelen değişiklikler veritabanınızın zaten çalıştırdığı migration'ları ({count}) kaldırıyor, bu yüzden şema koddan ileride olacak.",
   "pullPlan_failedWithSnapshot": "Veritabanı pull öncesinde {name} olarak kaydedildi. Başarısız adımın değiştirdiklerini geri almak için geri yükleyin.",

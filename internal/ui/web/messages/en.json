@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "No other branch to switch to.",
   "pullPlan_comparing": "Fetching and comparing…",
   "pullPlan_conflicts": "Uncommitted changes to these files would be overwritten by the pull. Commit or stash them first:",
+  "pullPlan_stash": "Stash my changes first",
+  "pullPlan_stashReason": "Your edits to {files} overlap with the incoming changes",
   "pullPlan_then": "After pulling",
   "pullPlan_missingMigrations": "The incoming changes remove migrations your database already ran ({count}), so the schema will be ahead of the code.",
   "pullPlan_failedWithSnapshot": "The database was saved as {name} before pulling. Restore it to undo what the failed step changed.",

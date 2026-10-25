@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Geen andere branch om naar te wisselen.",
   "pullPlan_comparing": "Ophalen en vergelijken…",
   "pullPlan_conflicts": "Niet-gecommitte wijzigingen in deze bestanden zouden door de pull worden overschreven. Commit of stash ze eerst:",
+  "pullPlan_stash": "Eerst mijn wijzigingen stashen",
+  "pullPlan_stashReason": "Je wijzigingen in {files} overlappen met de binnenkomende wijzigingen",
   "pullPlan_then": "Na de pull",
   "pullPlan_missingMigrations": "De binnenkomende wijzigingen verwijderen migraties die je database al heeft uitgevoerd ({count}), dus het schema loopt voor op de code.",
   "pullPlan_failedWithSnapshot": "De database is vóór de pull opgeslagen als {name}. Zet hem terug om ongedaan te maken wat de mislukte stap veranderde.",

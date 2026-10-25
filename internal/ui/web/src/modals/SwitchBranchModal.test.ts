@@ -68,7 +68,7 @@ describe('SwitchBranchModal', () => {
     expect(streamBranchSwitch).toHaveBeenCalledWith(
       'acme.test',
       'dev',
-      { composer: true, js: false, migrate: false, snapshot: false, isolate: false, restore: '', create: false, base: '' },
+      { composer: true, js: false, migrate: false, snapshot: false, isolate: false, stash: false, restore: '', create: false, base: '' },
       expect.any(Function)
     );
     await waitFor(() => expect(closeModal).toHaveBeenCalled());
@@ -99,8 +99,17 @@ describe('SwitchBranchModal', () => {
   it('names the files a switch would overwrite and holds the switch back', async () => {
     branchPlan.mockResolvedValue({ ...plan, conflicts: ['composer.lock', 'app/Models/User.php'] });
     render(SwitchBranchModal, { props: { site } });
-    expect(await screen.findByRole('alert')).toHaveTextContent('app/Models/User.php');
+    expect(await screen.findByText(/Your edits to composer\.lock, app\/Models\/User\.php/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch' })).toBeDisabled();
+  });
+
+  it('switches over uncommitted work once it may be stashed', async () => {
+    finishWith({ ok: true });
+    branchPlan.mockResolvedValue({ ...plan, conflicts: ['composer.lock'] });
+    render(SwitchBranchModal, { props: { site } });
+    await fireEvent.click(await screen.findByRole('switch', { name: 'Stash my changes first' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    expect(streamBranchSwitch.mock.calls[0][2]).toMatchObject({ stash: true });
   });
 
   describe('with a database that takes snapshots', () => {

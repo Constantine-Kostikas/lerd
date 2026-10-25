@@ -154,6 +154,8 @@ export interface BranchSteps {
   snapshot: boolean;
   // Give the worktrees sharing the database their own copy before anything moves.
   isolate?: boolean;
+  // Set uncommitted work aside for a pull and put it back after.
+  stash?: boolean;
   // A snapshot to load once the branch is checked out, or '' for none.
   restore: string;
   // Create makes the branch new, starting at base ('' for the current commit).
@@ -210,7 +212,7 @@ export async function streamPull(
 
 function stepsQuery(domain: string, branch: string, steps: Omit<BranchSteps, 'restore'>): URLSearchParams {
   const qs = new URLSearchParams({ domain, branch });
-  for (const k of ['composer', 'js', 'migrate', 'snapshot', 'isolate'] as const) if (steps[k]) qs.set(k, '1');
+  for (const k of ['composer', 'js', 'migrate', 'snapshot', 'isolate', 'stash'] as const) if (steps[k]) qs.set(k, '1');
   return qs;
 }
 

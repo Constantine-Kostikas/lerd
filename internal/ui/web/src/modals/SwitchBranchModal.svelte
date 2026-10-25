@@ -4,6 +4,7 @@
   import Dropdown from '$components/Dropdown.svelte';
   import DetailButton from '$components/DetailButton.svelte';
   import PlanReview from '$components/PlanReview.svelte';
+  import StashRow from '$components/StashRow.svelte';
   import PlanProgress from '$components/PlanProgress.svelte';
   import { closeModal } from '$stores/modals';
   import { loadSites, type Site } from '$stores/sites';
@@ -53,6 +54,7 @@
   const target = $derived(creating ? newName.trim() : branch);
   const nameTaken = $derived(creating && local.includes(newName.trim()));
   const conflicts = $derived(plan?.conflicts ?? []);
+  let stash = $state(false);
 
   const rows = $derived.by<PlanRow[]>(() => {
     if (!plan) return [];
@@ -133,6 +135,7 @@
       migrate: on.migrate,
       snapshot: on.snapshot,
       isolate: on.isolate,
+      stash: stash && conflicts.length > 0,
       restore: on.restore && !creating ? plan?.db?.restore?.name ?? '' : '',
       create: creating,
       base: creating ? base : ''
@@ -220,7 +223,9 @@
             conflictsText={m.branchSwitch_conflicts({ branch: creating ? base || site.branch || 'HEAD' : branch })}
             thenText={m.branchSwitch_then()}
             missingText={m.branchSwitch_missingMigrations({ count: plan.migrations_missing })}
-          />
+          >
+            {#snippet conflictsRow(files: string[])}<StashRow {files} bind:on={stash} />{/snippet}
+          </PlanReview>
         {/if}
         <p class="text-xs text-gray-500 dark:text-gray-400">{m.branchSwitch_hint()}</p>
       {/if}
@@ -249,7 +254,7 @@
       <DetailButton
         tone="primary"
         onclick={doSwitch}
-        disabled={loading || planning || !plan || conflicts.length > 0 || !target || nameTaken}
+        disabled={loading || planning || !plan || (conflicts.length > 0 && !stash) || !target || nameTaken}
         >{creating ? m.branchSwitch_create() : m.branchSwitch_switch()}</DetailButton
       >
     {/if}

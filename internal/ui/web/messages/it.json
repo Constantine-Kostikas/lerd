@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Nessun altro branch disponibile.",
   "pullPlan_comparing": "Recupero e confronto…",
   "pullPlan_conflicts": "Il pull sovrascriverebbe le modifiche non committate a questi file. Fai commit o stash prima:",
+  "pullPlan_stash": "Metti prima da parte le mie modifiche",
+  "pullPlan_stashReason": "Le tue modifiche a {files} si sovrappongono alle modifiche in arrivo",
   "pullPlan_then": "Dopo il pull",
   "pullPlan_missingMigrations": "Le modifiche in arrivo rimuovono migrazioni che il database ha già eseguito ({count}), quindi lo schema sarà avanti rispetto al codice.",
   "pullPlan_failedWithSnapshot": "Il database è stato salvato come {name} prima del pull. Ripristinalo per annullare ciò che il passaggio fallito ha cambiato.",

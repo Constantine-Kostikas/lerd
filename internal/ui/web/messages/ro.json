@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Nu există alt branch.",
   "pullPlan_comparing": "Se aduc și se compară…",
   "pullPlan_conflicts": "Modificările necomise din aceste fișiere ar fi suprascrise de pull. Fă commit sau stash înainte:",
+  "pullPlan_stash": "Pune modificările deoparte întâi",
+  "pullPlan_stashReason": "Modificările tale din {files} se suprapun cu cele care vin",
   "pullPlan_then": "După pull",
   "pullPlan_missingMigrations": "Modificările care vin elimină migrări pe care baza de date le-a rulat deja ({count}), așa că schema va fi înaintea codului.",
   "pullPlan_failedWithSnapshot": "Baza de date a fost salvată ca {name} înainte de pull. Restaureaz-o ca să anulezi ce a schimbat pasul eșuat.",

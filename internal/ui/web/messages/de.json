@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Kein anderer Branch zum Wechseln.",
   "pullPlan_comparing": "Abrufen und vergleichen…",
   "pullPlan_conflicts": "Nicht committete Änderungen an diesen Dateien würden durch den Pull überschrieben. Committe oder stashe sie zuerst:",
+  "pullPlan_stash": "Meine Änderungen zuerst stashen",
+  "pullPlan_stashReason": "Deine Änderungen an {files} überschneiden sich mit den eingehenden Änderungen",
   "pullPlan_then": "Nach dem Pull",
   "pullPlan_missingMigrations": "Die eingehenden Änderungen entfernen Migrationen, die deine Datenbank bereits ausgeführt hat ({count}), daher ist das Schema dem Code voraus.",
   "pullPlan_failedWithSnapshot": "Die Datenbank wurde vor dem Pull als {name} gesichert. Stelle sie wieder her, um rückgängig zu machen, was der fehlgeschlagene Schritt geändert hat.",

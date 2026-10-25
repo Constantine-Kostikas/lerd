@@ -64,7 +64,9 @@ type BranchDB struct {
 // of the database before anything moves.
 type BranchSteps struct {
 	Composer, JS, Migrate, Snapshot, Create, Isolate bool
-	Restore, Base                                    string
+	// Stash sets uncommitted work aside while the code moves and puts it back after.
+	Stash         bool
+	Restore, Base string
 }
 
 // branchDB snapshots and restores the site's database and isolates the
@@ -351,6 +353,10 @@ func runAround(fwAfter func() *config.Framework, path string, move func() (strin
 		if err := db.isolate(out); err != nil {
 			return snap, fmt.Errorf("isolating worktrees: %w", err)
 		}
+	}
+	if steps.Stash {
+		inner := move
+		move = func() (string, error) { return gitpkg.WithStash(path, "lerd: local changes set aside", inner) }
 	}
 	msg, err := move()
 	if err != nil {

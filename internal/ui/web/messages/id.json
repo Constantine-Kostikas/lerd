@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "Tidak ada branch lain.",
   "pullPlan_comparing": "Mengambil dan membandingkan…",
   "pullPlan_conflicts": "Perubahan yang belum di-commit pada file ini akan ditimpa oleh pull. Commit atau stash dulu:",
+  "pullPlan_stash": "Stash perubahan saya dulu",
+  "pullPlan_stashReason": "Suntinganmu di {files} tumpang tindih dengan perubahan yang masuk",
   "pullPlan_then": "Setelah pull",
   "pullPlan_missingMigrations": "Perubahan yang masuk menghapus migrasi yang sudah dijalankan database Anda ({count}), sehingga skema akan mendahului kode.",
   "pullPlan_failedWithSnapshot": "Database disimpan sebagai {name} sebelum pull. Pulihkan untuk membatalkan perubahan dari langkah yang gagal.",

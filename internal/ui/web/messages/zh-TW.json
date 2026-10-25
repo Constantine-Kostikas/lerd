@@ -1725,6 +1725,8 @@
   "branchSwitch_noBranches": "沒有可切換的其他分支。",
   "pullPlan_comparing": "正在取得並比較…",
   "pullPlan_conflicts": "這些檔案中未提交的變更會被拉取覆寫。請先提交或暫存：",
+  "pullPlan_stash": "先暫存（stash）我的變更",
+  "pullPlan_stashReason": "你對 {files} 的修改與傳入的變更重疊",
   "pullPlan_then": "拉取之後",
   "pullPlan_missingMigrations": "傳入的變更會刪除資料庫已執行過的遷移（{count}），因此資料庫結構將領先於程式碼。",
   "pullPlan_failedWithSnapshot": "拉取之前資料庫已保存為 {name}。還原它即可復原失敗步驟所做的變更。",

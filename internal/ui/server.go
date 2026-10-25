@@ -7020,6 +7020,7 @@ func branchStepsFrom(q url.Values) cli.BranchSteps {
 		Migrate:  q.Get("migrate") == "1",
 		Snapshot: q.Get("snapshot") == "1",
 		Isolate:  q.Get("isolate") == "1",
+		Stash:    q.Get("stash") == "1",
 	}
 }
 

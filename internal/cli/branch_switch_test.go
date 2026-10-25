@@ -378,3 +378,31 @@ func TestCheckoutLock_sameFolderThroughASymlink(t *testing.T) {
 		t.Fatal("a symlinked path took a second lock on the same checkout")
 	}
 }
+
+// With the work set aside, a switch git would refuse goes through and the work
+// lands on top of the other branch.
+func TestSwitchBranch_stashCarriesTheWorkAcross(t *testing.T) {
+	dir := switchFixture(t, func(string) {})
+	putFile(t, filepath.Join(dir, "notes"), "1\n2\n3\n4\n5\n")
+	gitT(t, dir, "add", "notes")
+	gitT(t, dir, "commit", "-q", "-m", "notes")
+	gitT(t, dir, "checkout", "-q", "other")
+	gitT(t, dir, "merge", "-q", "main")
+	putFile(t, filepath.Join(dir, "notes"), "1\n2\n3\n4\ntheirs\n")
+	gitT(t, dir, "commit", "-q", "-am", "theirs")
+	gitT(t, dir, "checkout", "-q", "main")
+	putFile(t, filepath.Join(dir, "notes"), "ours\n2\n3\n4\n5\n")
+
+	if _, err := switchBranch(fixed(migratingFW), dir, "other", BranchSteps{}, nil, io.Discard); err == nil {
+		t.Fatal("want git to refuse the switch without the stash")
+	}
+	if _, err := switchBranch(fixed(migratingFW), dir, "other", BranchSteps{Stash: true}, nil, io.Discard); err != nil {
+		t.Fatalf("switch with stash: %v", err)
+	}
+	if got := strings.TrimSpace(gitOut(t, dir, "branch", "--show-current")); got != "other" {
+		t.Fatalf("on %s", got)
+	}
+	if got := readFile(t, filepath.Join(dir, "notes")); got != "ours\n2\n3\n4\ntheirs\n" {
+		t.Errorf("local work not carried across: %q", got)
+	}
+}
