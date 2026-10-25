@@ -384,21 +384,18 @@ jobs:
         with:
           ref: ${{ matrix.entry.tag }}
 
+      # The script that renders it comes from this run's own ref, since an old
+      # tree predates it.
+      - uses: actions/checkout@v4
+        with:
+          path: current
+          sparse-checkout: .github/scripts
+
       - name: Preprocess the historic Containerfile
         id: prep
         run: |
-          python3 - "${{ matrix.php }}" <<'EOF'
-          import sys
-          version = sys.argv[1]
-          with open('internal/podman/quadlets/lerd-php-fpm.Containerfile') as f:
-              content = f.read()
-          content = content.replace('{{.Version}}', version)
-          for ph in ('{{.CustomExtensions}}', '{{.CustomExtensionsRuntime}}',
-                     '{{.CustomPackages}}', '{{.MkcertCA}}'):
-              content = content.replace(ph, '')
-          with open('/tmp/Containerfile', 'w') as f:
-              f.write(content)
-          EOF
+          python3 current/.github/scripts/historic_recipe.py "${{ matrix.php }}" \
+            internal/podman/quadlets/lerd-php-fpm.Containerfile /tmp/Containerfile
           PHP_SHORT=$(echo "${{ matrix.php }}" | tr -d '.')
           echo "php_short=${PHP_SHORT}" >> "$GITHUB_OUTPUT"
 
@@ -419,6 +416,9 @@ jobs:
           file: /tmp/Containerfile
           push: true
           pull: true
+          # Every historic build is a forced one, so a cached apk layer would
+          # republish the packages it is there to replace.
+          no-cache: true
           platforms: linux/${{ matrix.arch.name }}
           tags: ghcr.io/lerd-env/lerd-php${{ steps.prep.outputs.php_short }}-fpm-base:${{ matrix.entry.hash }}-${{ matrix.arch.name }}
           cache-from: type=gha,scope=php-${{ matrix.php }}-${{ matrix.arch.name }}-${{ matrix.entry.hash }}
