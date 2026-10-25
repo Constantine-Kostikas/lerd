@@ -25,6 +25,7 @@
     type GitVersions,
     type Hunk
   } from '$lib/gitDiff';
+  import { fileTreeRows } from '$lib/fileTree';
   import { m } from '../paraglide/messages.js';
 
   interface Props {
@@ -50,6 +51,8 @@
   // Outlives the commit box, which goes once the last change is committed.
   let notice = $state('');
   let filesHidden = $state(false);
+  // Keyed by group and folder, so a folder collapsed under Staged stays open under Unstaged.
+  let collapsed = $state<Record<string, boolean>>({});
 
   // Full screen and the view are remembered, so the next diff opens the way this one was left.
   const PREFS_KEY = 'lerd:gitDiff';
@@ -220,7 +223,9 @@
         class="shrink-0 overflow-hidden md:flex md:transition-[width] md:duration-200 md:ease-out {filesHidden ? 'hidden md:w-0' : 'md:w-72'}"
       >
       <div class="md:w-72 shrink-0 flex flex-col md:h-full border-b md:border-b-0 md:border-r border-gray-100 dark:border-lerd-border">
-      <nav class="max-h-48 md:max-h-none md:flex-1 min-h-0 overflow-y-auto py-2">
+      <!-- Rows keep their full width and the list scrolls sideways, so deep paths stay readable. -->
+      <nav class="max-h-48 md:max-h-none md:flex-1 min-h-0 overflow-auto py-2">
+        <div class="w-max min-w-full">
         {#each groups ?? [] as g (g.key)}
           {#if g.files.length > 0}
             {#if g.label}
@@ -228,7 +233,22 @@
                 {g.label} · {g.files.length}
               </h4>
             {/if}
-            {#each g.files as f (f.path)}
+            {#each fileTreeRows(g.files, (dir) => !!collapsed[`${g.key}:${dir}`]) as row (row.kind + row.path)}
+              {@const indent = `padding-left: ${1 + row.depth * 0.75}rem`}
+              {#if row.kind === 'dir'}
+                {@const key = `${g.key}:${row.path}`}
+                <button
+                  type="button"
+                  onclick={() => (collapsed[key] = !collapsed[key])}
+                  aria-expanded={!collapsed[key]}
+                  style={indent}
+                  class="w-full flex items-center gap-1 pr-4 py-1 text-left font-mono text-xs whitespace-nowrap text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                >
+                  <Icon name="chevron" class="w-3 h-3 shrink-0 transition-transform {collapsed[key] ? '-rotate-90' : ''}" />
+                  {row.label}
+                </button>
+              {:else}
+              {@const f = row.file}
               {@const active = selected?.group === g.key && selected.file === f.path}
               {@const staging = g.key === 'staged' ? m.gitDiff_unstage() : m.gitDiff_stage()}
               <div class="group flex items-center {active
@@ -238,10 +258,11 @@
                   type="button"
                   onclick={() => select(g.key, f.path)}
                   aria-current={active ? 'true' : undefined}
-                  class="flex-1 min-w-0 flex items-center gap-2 pl-4 pr-1 py-1 text-left font-mono text-xs"
+                  style={indent}
+                  class="flex-1 flex items-center gap-2 pr-1 py-1 text-left font-mono text-xs whitespace-nowrap"
                 >
                   <span class="w-3 shrink-0 font-semibold {statusClass[f.status] ?? 'text-amber-600 dark:text-amber-400'}">{f.status}</span>
-                  <span class="truncate" title={f.path}>{f.path}</span>
+                  <span title={f.path}>{row.label}</span>
                 </button>
                 {#if uncommitted}
                   <button
@@ -255,9 +276,11 @@
                   </button>
                 {/if}
               </div>
+              {/if}
             {/each}
           {/if}
         {/each}
+        </div>
       </nav>
       {#if uncommitted}
         <GitCommitBox
