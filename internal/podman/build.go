@@ -19,11 +19,6 @@ import (
 	"github.com/geodro/lerd/internal/origin"
 )
 
-// WriteContainerUnitFn writes a container unit file for the given name and content.
-// Defaults to writing a systemd quadlet (.container) file.
-// Override this on macOS to write a launchd plist instead.
-var WriteContainerUnitFn func(name, content string) error = WriteQuadlet
-
 // DaemonReloadFn reloads the service manager after a unit file change.
 // Defaults to systemctl --user daemon-reload.
 // Override this on macOS with a no-op.

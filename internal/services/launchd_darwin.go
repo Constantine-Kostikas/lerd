@@ -56,7 +56,6 @@ func init() {
 	mgr := &darwinServiceManager{}
 	Mgr = mgr
 	// Override service-manager hooks to use launchd instead of systemd.
-	podman.WriteContainerUnitFn = mgr.WriteContainerUnit
 	podman.DaemonReloadFn = mgr.DaemonReload
 	podman.SkipQuadletUpToDateCheck = true
 	// Bind the concrete type so UnitLifecycle picks up AllUnitStates, which
