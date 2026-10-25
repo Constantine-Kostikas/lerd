@@ -1,6 +1,6 @@
 ---
 layout: landing
-title: Lerd - Local PHP development for Linux and macOS
+title: Lerd - Local PHP development for Linux, macOS and Windows
 titleTemplate: false
-description: Open-source local PHP development for Linux, macOS and Windows (WSL2). Automatic .test domains, HTTPS, per-project PHP and Node, dev servers for Node, Python and Rails apps, rootless Podman, no Docker daemon.
+description: Free, open-source local PHP development for Linux, macOS and Windows. Automatic .test domains with HTTPS, per-project PHP and Node, rootless Podman, no Docker.
 ---

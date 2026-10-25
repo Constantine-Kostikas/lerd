@@ -185,19 +185,6 @@ func (m *Model) appendDebug(ev lerddumps.Event) {
 	}
 }
 
-// dumpEntries projects the dump-kind events in the buffer to the DumpEntry
-// shape the Dumps lens and the per-site Dumps tab render. Non-dump kinds
-// (queries, jobs, …) are skipped; each lens reads the raw buffer itself.
-func (m *Model) dumpEntries() []DumpEntry {
-	out := make([]DumpEntry, 0, len(m.debug))
-	for _, ev := range m.debug {
-		if ev.Kind == lerddumps.KindDump {
-			out = append(out, toDumpEntry(ev))
-		}
-	}
-	return out
-}
-
 // filteredDumps returns entries that match needle across any of the
 // human-meaningful fields (site, request, label, file, text). Case-
 // insensitive; empty needle returns the input unchanged so callers don't

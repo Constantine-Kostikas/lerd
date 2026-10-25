@@ -50,17 +50,6 @@ func MkcertPath() string {
 	return filepath.Join(config.BinDir(), "mkcert")
 }
 
-// InstallCA installs the mkcert root CA into the system trust store.
-func InstallCA() error {
-	cmd := exec.Command(MkcertPath(), "-install")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("mkcert -install: %w", err)
-	}
-	return nil
-}
-
 // IssueCert issues a TLS certificate covering all the given domains using mkcert.
 // The cert files are named after primaryDomain. Each domain also gets a wildcard entry.
 // An existing cert/key pair is reused without re-running mkcert only while the

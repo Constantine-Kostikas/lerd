@@ -94,7 +94,9 @@ if ($proc) {
 	Say "attach to running setup $($proc.Id)"
 } else {
 	Say "start $Setup $argList"
-	$proc = Start-Process -FilePath $Setup -ArgumentList $argList -PassThru
+	# Start-Process refuses an empty -ArgumentList, which a published build without /local= has.
+	$extra = if ($argList) { @{ ArgumentList = $argList } } else { @{} }
+	$proc = Start-Process -FilePath $Setup -PassThru @extra
 }
 $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
 $filledUser = $false

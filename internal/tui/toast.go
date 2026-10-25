@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -177,15 +176,4 @@ func toastDot(k toastKind) string {
 	default:
 		return runningStyle.Render("●")
 	}
-}
-
-// firstLineTitle abbreviates a summary when it would otherwise overflow
-// the toast width. Currently unused but kept for the wider-summary case
-// (e.g. multi-line CLI output). Truncates at maxToastWidth-8 to leave
-// room for the dot + " · d dismiss" suffix.
-func firstLineTitle(s string) string {
-	if len(s) <= maxToastWidth-8 {
-		return s
-	}
-	return fmt.Sprintf("%s…", s[:maxToastWidth-9])
 }

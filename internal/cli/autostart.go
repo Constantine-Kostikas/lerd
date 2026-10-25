@@ -212,14 +212,3 @@ func listLerdQuadletFiles() []string {
 	entries, _ := filepath.Glob(filepath.Join(config.QuadletDir(), "lerd-*.container"))
 	return entries
 }
-
-// listLerdQuadlets returns the generated unit names (lerd-<name>) for
-// every quadlet currently installed.
-func listLerdQuadlets() []string {
-	files := listLerdQuadletFiles()
-	out := make([]string, 0, len(files))
-	for _, f := range files {
-		out = append(out, strings.TrimSuffix(filepath.Base(f), ".container"))
-	}
-	return out
-}

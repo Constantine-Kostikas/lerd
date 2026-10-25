@@ -404,14 +404,6 @@ func builtinFamilies() map[string]string {
 	return defaultFamiliesMap
 }
 
-// IsKnownFamily reports whether name is a recognised service family. Computed
-// from every preset YAML's family field (default + add-on), so e.g. mongo and
-// mariadb are recognised even though no default preset declares them.
-func IsKnownFamily(name string) bool {
-	defaultFamiliesOnce.Do(loadFamilyIndex)
-	return knownFamiliesSet[name]
-}
-
 var (
 	defaultFamiliesOnce sync.Once
 	defaultFamiliesMap  map[string]string

@@ -26,11 +26,15 @@ import workersHealth from './fixtures/workers_health.json';
 import databasesFixture from './fixtures/databases.json';
 import autoSnapshot from './fixtures/auto-snapshot.json';
 import docsFixture from './fixtures/docs.json';
+import pluginsFixture from './fixtures/plugins.json';
+import serviceConfig from './fixtures/service-config.json';
+import phpExtensions from './fixtures/php-extensions.json';
 
-// Demo follows the system theme (auto). Reset any stale value a previous demo
-// session may have pinned, so it isn't stuck on a forced light/dark.
+// The landing page passes its own light or dark mode so the demo opens matching
+// it; otherwise the demo follows the system, never a value a previous visit pinned.
 try {
-  localStorage.setItem('lerd-theme', 'auto');
+  const wanted = new URLSearchParams(location.search).get('theme');
+  localStorage.setItem('lerd-theme', wanted === 'light' || wanted === 'dark' ? wanted : 'auto');
 } catch {
   /* private mode */
 }
@@ -68,6 +72,22 @@ const ROUTES: Record<string, unknown> = {
   '/api/stats': stats,
   '/api/disk': disk,
   '/api/workers/health': workersHealth,
+  '/api/plugins': pluginsFixture.plugins,
+  '/api/plugin-manager': pluginsFixture.managed,
+  '/api/plugin-manager/catalog': pluginsFixture.catalog,
+  '/api/plugin-revocations': [],
+  '/api/page-plugins': [],
+  '/api/remote-control': { enabled: false, full_access: false, username: '' },
+  '/api/push/devices': [],
+  '/api/machine/memory': { kills: null },
+  '/api/runs': { runs: [] },
+  '/api/themes': { errors: [], themes: [] },
+  '/api/notifications/target': {
+    target: 'browser',
+    native_supported: false,
+    app_installed: false,
+    kinds: { dump: false, job_failed: true, mail: true, message: true, nplusone: true, op_done: true, plugin_failed: true, plugin_message: true, slow_route: true, snapshot: true, update_available: true, worker_failed: true },
+  },
 };
 
 // ---- Example payloads for the editor / REPL tabs ----
@@ -730,6 +750,20 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
   // php.ini config (per PHP version, or per-site for FrankenPHP) — GET reads only
   if (method === 'GET' && /\/php-versions\/[^/]+\/config$/.test(path))
     return jsonResponse({ path: '~/.config/lerd/php/8.4/php.ini', content: PHP_INI_TEXT, exists: true });
+
+  if (method === 'GET' && /\/php-versions\/[^/]+\/extensions$/.test(path)) return jsonResponse(phpExtensions);
+  if (method === 'GET' && /\/config\/backups$/.test(path)) return jsonResponse([]);
+  // Each engine's user tuning file; MariaDB reads the same file as MySQL.
+  const svcConfig = path.match(/^\/api\/services\/([^/]+)\/config$/);
+  if (svcConfig && method === 'GET') {
+    const engine = svcConfig[1].replace(/-.*/, '').replace('mariadb', 'mysql') as keyof typeof serviceConfig;
+    return jsonResponse(serviceConfig[engine] ?? { supported: false });
+  }
+  if (method === 'GET' && /^\/api\/browser-logs\/sites\/[^/]+$/.test(path))
+    return jsonResponse({ enabled: true, console: ['error', 'warn'], network: [], navigation: true, resources: false, events: [], presets: {} });
+  if (method === 'GET' && /^\/api\/sites\/[^/]+\/env\/propose$/.test(path))
+    return jsonResponse({ file: '.env', current: ENV_TEXT, merged: ENV_TEXT, added: [], addedLines: [], required: [], optional: [], entries: [] });
+  if (method === 'GET' && /^\/api\/plugin-manager\/[^/]+\/logs$/.test(path)) return jsonResponse([]);
 
   // Overview "Actions": command list, doctor report, and running a command.
   const cmdRun = path.match(/^\/api\/sites\/([^/]+)\/commands\/([^/]+)\/run$/);

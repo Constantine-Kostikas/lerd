@@ -31,6 +31,7 @@ import (
 	lerdSystemd "github.com/geodro/lerd/internal/systemd"
 	"github.com/geodro/lerd/internal/tray"
 	"github.com/geodro/lerd/internal/version"
+	"github.com/geodro/lerd/internal/wsl"
 	"github.com/spf13/cobra"
 )
 
@@ -133,6 +134,50 @@ func warnHostMysqldProfiles() {
 	}
 }
 
+// Seams for tests.
+var (
+	installIsWSL         = wsl.IsWSL
+	installSystemdBooted = wsl.SystemdBooted
+	enableSystemd        = func() error { _, err := enableWSLConfSystemd(os.Stderr); return err }
+	systemdInstalled     = func() bool {
+		for _, p := range []string{"/usr/lib/systemd/systemd", "/lib/systemd/systemd"} {
+			if _, err := os.Stat(p); err == nil {
+				return true
+			}
+		}
+		return false
+	}
+	shutdownWSL = func() error { return exec.Command(wsl.WindowsTool("wsl.exe"), "--shutdown").Run() }
+)
+
+// enableWSLSystemd turns systemd on in a WSL distro that runs without it, which
+// lerd's user services need. WSL has to restart for that, taking this install
+// with it, so it always ends the run with what to do next.
+func enableWSLSystemd(unattended bool) error {
+	if !installIsWSL() || installSystemdBooted() {
+		return nil
+	}
+	if unattended {
+		return errors.New("systemd is not running in this WSL distro, and lerd runs as systemd user services: set [boot] systemd=true in /etc/wsl.conf, run `wsl --shutdown` from Windows, then install again")
+	}
+	// WSL boots its own init when systemd=true has no systemd to start, so
+	// turning it on and restarting would loop.
+	if !systemdInstalled() {
+		return errors.New("systemd is not installed in this WSL distro, and lerd runs as systemd user services: install the systemd package, then run `lerd install` again")
+	}
+	feedback.Sudo("Turning on systemd in /etc/wsl.conf, which lerd's user services need")
+	if err := enableSystemd(); err != nil {
+		return fmt.Errorf("turning on systemd in /etc/wsl.conf: %w", err)
+	}
+	feedback.Note("Restarting WSL so systemd starts. Reopen your distro and run `lerd install` again.")
+	// Installing the systemd package without it running clears WSL's interop
+	// registration, and with it wsl.exe, until WSL restarts.
+	if err := shutdownWSL(); err != nil {
+		return errors.New("systemd is turned on, and WSL has to restart for it: run `wsl --shutdown` from Windows, reopen your distro and run `lerd install` again")
+	}
+	return errors.New("WSL is restarting: reopen your distro and run `lerd install` again")
+}
+
 func runInstall(cmd *cobra.Command, _ []string) error {
 	markInstallInProgress()
 	feedback.Header("Installing Lerd")
@@ -160,6 +205,9 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	}
 	if unattended {
 		fromUpdate = true
+	}
+	if err := enableWSLSystemd(unattended); err != nil {
+		return err
 	}
 	if noIPv6 {
 		podman.MarkIPv6Disabled("lerd")

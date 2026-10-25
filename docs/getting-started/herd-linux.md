@@ -95,7 +95,7 @@ Unlike Herd, lerd also ships as real distro packages: install it through an [apt
 
 |  | Lerd | Laravel Herd |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | macOS, Windows |
 | License | Open source (MIT), free for commercial use | Proprietary, freemium with a Herd Pro subscription |
 | Cost | Free, no paid tier | Free tier plus paid Pro subscription |
 | Stack | Nginx, PHP-FPM and services as rootless Podman containers | Native binaries on macOS and Windows |

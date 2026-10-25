@@ -1,7 +1,6 @@
 package nginx
 
 import (
-	"os"
 	"strings"
 	"time"
 
@@ -42,12 +41,6 @@ var nginxWorkerPIDs = func() ([]string, error) {
 // reporting as done.
 func ReloadAndSettle() error {
 	return reloadAndSettle(Reload, nginxWorkerPIDs, settleTimeout, time.Sleep)
-}
-
-// ReloadAndSettleOrWarn is ReloadAndSettle with ReloadOrWarn's error handling:
-// a failed reload prints one warning line rather than failing the command.
-func ReloadAndSettleOrWarn(indent string) {
-	reloadOrWarn(ReloadAndSettle, os.Stdout, indent)
 }
 
 // reloadAndSettle is ReloadAndSettle with its dependencies injected. Running out

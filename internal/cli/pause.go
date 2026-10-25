@@ -503,15 +503,9 @@ func collectRunningWorktreeWorkersByBase(site *config.Site, wtBase string) []str
 	return active
 }
 
-// timerIsActive reports whether a worker's sibling .timer is active, answered
-// from the batched unit snapshot instead of a per-unit DBus round trip.
-//
-// systemd.IsTimerActive fetches the unit's entire property dictionary to read
-// one field. The idle engine calls this for every worker of every site it
-// believes suspended, every tick, which on a box with a dozen suspended sites
-// made that pass the daemon's largest remaining source of idle wakeups.
-// AllUnitStates answers from the one cached systemctl enumeration the dashboard
-// already populates, and it keeps the .timer suffix for exactly this lookup.
+// timerIsActive answers from the cached unit snapshot, not a per-unit DBus call:
+// the idle engine asks for every suspended worker each tick, and per-unit lookups
+// were the daemon's largest source of idle wakeups.
 func timerIsActive(states map[string]string, unit string) bool {
 	return states[unit+".timer"] == "active"
 }
