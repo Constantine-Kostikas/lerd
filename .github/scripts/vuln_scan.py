@@ -42,7 +42,14 @@ def scan(image):
     return json.loads(out)
 
 
-def main(scan_fn=scan):
+def upgrades(image):
+    """The packages apk upgrade would replace in image today."""
+    out = subprocess.run(['docker', 'run', '--rm', image, 'sh', '-c', 'apk update -q >/dev/null && apk upgrade --simulate'],
+                         capture_output=True, text=True, check=True).stdout
+    return [line.strip() for line in out.splitlines() if 'Upgrading' in line]
+
+
+def main(scan_fn=scan, upgrades_fn=upgrades):
     with open(RECIPE) as f:
         tag = recipe_tag(f.read())
     stale, table, failed = [], [], []
@@ -52,12 +59,18 @@ def main(scan_fn=scan):
         # drop the rebuilds the others need.
         try:
             found = severe(scan_fn(image))
+            # A fix the advisory lists but Alpine does not serve yet would make
+            # every rebuild republish the same packages, so only an image that
+            # can upgrade something is rebuilt.
+            rebuild = needs_rebuild(found) and bool(upgrades_fn(image))
         except (subprocess.CalledProcessError, ValueError) as e:
             print(f'::error::PHP {version}: scanning {image} failed: {e}')
             failed.append(version)
             continue
-        if needs_rebuild(found):
+        if rebuild:
             stale.append(version)
+        elif needs_rebuild(found):
+            print(f'::notice::PHP {version}: flagged, but Alpine has nothing newer to install yet')
         table += rows(version, found)
         print(f'PHP {version}: {len(found)} fixable high or critical')
 
