@@ -64,6 +64,7 @@ Keep projects on the Linux side. A folder under `C:\` works through `/mnt/c`, bu
 ## 1. Enable systemd inside WSL2
 
 The whole architecture, Quadlet containers, watcher, UI, FPM, runs as systemd user units. Without systemd as PID 1, nothing starts.
+`lerd install` checks this first and stops with a pointer to `lerd wsl:setup` when systemd is off.
 
 Inside the WSL distro, create or edit `/etc/wsl.conf`:
 
