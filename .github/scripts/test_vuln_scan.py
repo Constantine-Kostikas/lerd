@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import subprocess
 import tempfile
@@ -40,6 +42,11 @@ class Main(unittest.TestCase):
         cwd = os.getcwd()
         os.chdir(root)
         self.addCleanup(os.chdir, cwd)
+        # The script prints workflow commands, which GitHub would raise as
+        # annotations on a passing run.
+        quiet = contextlib.redirect_stdout(io.StringIO())
+        quiet.__enter__()
+        self.addCleanup(quiet.__exit__, None, None, None)
 
     def stale(self):
         with open(self.output) as f:
