@@ -167,3 +167,24 @@ func TestStageHunk_crlf(t *testing.T) {
 		t.Errorf("index %q", got)
 	}
 }
+
+// The mode is read for that file alone, not for whatever its name matches as a pattern.
+func TestStageHunk_modeOfThatFileOnly(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, "aA.sh"), "x\n")
+	write(t, filepath.Join(dir, "a[AB].sh"), "1\n2\n")
+	gitRun(t, dir, "add", ".")
+	gitRun(t, dir, "update-index", "--chmod=+x", "aA.sh")
+	gitRun(t, dir, "commit", "-q", "-m", "two")
+	write(t, filepath.Join(dir, "a[AB].sh"), "one\n2\n")
+	v, err := FileVersions(dir, SectionUnstaged, "a[AB].sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := StageHunk(dir, "a[AB].sh", Hunk{OrigStart: 1, OrigEnd: 1, ModStart: 1, ModEnd: 1, Original: v.Original, Modified: v.Modified}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustOut(t, dir, "ls-files", "-s", "--", ":(literal)a[AB].sh"); !strings.HasPrefix(got, "100644 ") {
+		t.Errorf("mode taken from another file: %q", got)
+	}
+}

@@ -6773,9 +6773,9 @@ func handleSiteGitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, versions)
 }
 
-// gitIndexMu runs one staging or commit at a time, so two quick clicks never
-// read the same index and the second write never drops the first one's block.
-var gitIndexMu sync.Mutex
+// gitIndexLocks run one staging or commit at a time per checkout, so two quick
+// clicks never read the same index, while a slow push leaves other sites alone.
+var gitIndexLocks sync.Map
 
 // handleSiteGitCommit stages, unstages and commits in one of a site's
 // checkouts. GET answers the last commit's message, for amending it.
@@ -6810,8 +6810,9 @@ func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, SiteActionResponse{Error: "invalid request body"})
 		return
 	}
-	gitIndexMu.Lock()
-	defer gitIndexMu.Unlock()
+	mu, _ := gitIndexLocks.LoadOrStore(dir, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
 	release := cli.CheckoutLock(dir)
 	if release == nil {
 		writeJSON(w, SiteActionResponse{Error: "a branch switch or pull is running on this checkout"})

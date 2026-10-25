@@ -90,7 +90,7 @@ func splice(lines []string, start, end int, with []string) []string {
 // writeIndex stores content as path's staged version, keeping its mode; converted
 // applies the path's line-ending conversion, as staging from the working tree does.
 func writeIndex(dir, path, content string, converted bool) error {
-	entry, err := Output(dir, "ls-files", "-s", "--", path)
+	entry, err := Output(dir, "--literal-pathspecs", "ls-files", "-s", "--", path)
 	mode, _, _ := strings.Cut(entry, " ")
 	if err != nil || mode == "" {
 		return fmt.Errorf("%s is not in the index", path)
