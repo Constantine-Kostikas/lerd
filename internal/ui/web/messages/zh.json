@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "仅回环",
   "system_lan_loopbackDescription": "Lerd 仅绑定到回环（双栈主机上为 {loop4} 和 {loop6}），对网络上其他设备不可见。适用于不受信任的 wifi（咖啡馆、会议网络）。暴露后可在受信任的 LAN 上与另一台机器共享站点。",
   "system_lan_macosWarning": "macOS：此开关控制 DNS 解析（{pattern} → 127.0.0.1 或 LAN IP）。由于 gvproxy 的限制，LAN 始终可以访问端口 80 和 443。除非通过下方的单独控件明确启用，否则托管服务端口仍将受到限制。",
-  "system_lan_postExpose_dnsmasq": "dnsmasq 现以 {ip} 应答 {pattern} 查询。",
+  "system_lan_postExpose_dnsmasq": "lerd-dns 现以 {ip} 应答 {pattern} 查询。",
   "system_lan_postExpose_firewall": "请确保你的防火墙允许你想授予访问权限的设备访问端口 5300。",
   "system_lan_postExpose_resolver": "DNS 解析器已通过 {unit} 在 {addr} 上暴露（UDP+TCP）。",
   "system_lan_progress_doneExposed": "Lerd 现已在 LAN 上通过 {ip} 暴露。",

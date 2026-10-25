@@ -139,7 +139,7 @@ Ensuring lerd is exposed on the LAN...
   • Rewriting container quadlets
   • Restarting lerd-nginx
   • Detecting primary LAN IP
-  • Updating dnsmasq config (.test to 192.168.1.42)
+  • Updating lerd-dns config (.test to 192.168.1.42)
   • Restarting lerd-dns
   • Installing lerd-dns-forwarder.service
   • Starting lerd-dns-forwarder
@@ -217,7 +217,7 @@ The lerd dashboard is now also reachable at `http://<server-lan-ip>:7073` from t
 
 ### `.test` resolves but the browser hits localhost
 
-You skipped step 4 (`lerd lan:expose`) on the server, so the dnsmasq config is still answering `127.0.0.1`. Re-run `lerd lan:expose`, then re-run `lerd remote-setup` and the curl one-liner.
+You skipped step 4 (`lerd lan:expose`) on the server, so lerd-dns is still answering `127.0.0.1`. Re-run `lerd lan:expose`, then re-run `lerd remote-setup` and the curl one-liner.
 
 ### `.test` stopped resolving after the server moved networks
 

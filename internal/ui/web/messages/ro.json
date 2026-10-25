@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "doar loopback",
   "system_lan_loopbackDescription": "Lerd este legat doar la loopback ({loop4} și {loop6} pe host-uri dual-stack), invizibil pentru alte dispozitive din rețea. Sigur pentru wifi neverificat (cafenele, rețele de conferințe). Expune pentru a-ți partaja site-urile cu altă mașină dintr-un LAN de încredere.",
   "system_lan_macosWarning": "macOS: Acest comutator controlează rezoluția DNS ({pattern} → 127.0.0.1 sau IP-ul din LAN). Porturile 80 și 443 sunt întotdeauna accesibile din LAN din cauza unei limitări gvproxy. Porturile serviciilor gestionate rămân restricționate dacă nu sunt activate explicit cu ajutorul controlului separat de mai jos.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq răspunde acum la interogările {pattern} cu {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns răspunde acum la interogările {pattern} cu {ip}.",
   "system_lan_postExpose_firewall": "Asigură-te că firewall-ul tău permite portul 5300 de la dispozitivele cărora vrei să le acorzi acces.",
   "system_lan_postExpose_resolver": "Resolverul DNS este expus pe {addr} (UDP+TCP) prin {unit}.",
   "system_lan_progress_doneExposed": "Lerd este acum expus pe LAN la {ip}.",

@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "loopback only",
   "system_lan_loopbackDescription": "Lerd is bound to loopback only ({loop4} and {loop6} on dual-stack hosts), invisible to other devices on the network. Safe for untrusted wifi (cafés, conference networks). Expose to share your sites with another machine on a trusted LAN.",
   "system_lan_macosWarning": "macOS: This toggle controls DNS resolution ({pattern} → 127.0.0.1 or LAN IP). Ports 80 and 443 are always reachable from the LAN due to a gvproxy limitation. Managed service ports remain restricted unless explicitly enabled with the separate control below.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq now answers {pattern} queries with {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns now answers {pattern} queries with {ip}.",
   "system_lan_postExpose_firewall": "Make sure your firewall allows port 5300 from the devices you want to grant access.",
   "system_lan_postExpose_resolver": "DNS resolver exposed on {addr} (UDP+TCP) via {unit}.",
   "system_lan_progress_doneExposed": "Lerd is now exposed on the LAN at {ip}.",

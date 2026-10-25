@@ -108,7 +108,7 @@ Otherwise, the fastest way to find the broken rung is `lerd doctor`. The DNS sec
 [DNS]
   DNS TLD (.test)                     OK
     lerd-dns                          running
-    dnsmasq config                    address=/.test/127.0.0.1, port=5300
+    lerd-dns config                   address=/.test/127.0.0.1, port=5300
     port 5300 listening               127.0.0.1:5300
     dig @127.0.0.1 -p 5300            127.0.0.1
     resolver hookup                   NetworkManager dispatcher: /etc/NetworkManager/dispatcher.d/99-lerd-dns
@@ -121,7 +121,7 @@ The chain in order:
 | Rung | What it checks | If it fails |
 |---|---|---|
 | `lerd-dns` | The lerd-dns service is running. | `lerd start` (or `journalctl --user -u lerd-dns` on Linux, `~/Library/Logs/lerd/lerd-dns.log` on macOS, to see why it stopped). |
-| `dnsmasq config` | `~/.local/share/lerd/dnsmasq/lerd.conf` exists with `port=5300` and `address=/.<tld>/`. | `lerd start` regenerates the config from your registered TLD. |
+| `lerd-dns config` | `~/.local/share/lerd/dnsmasq/lerd.conf` exists with `port=5300` and `address=/.<tld>/`. | `lerd start` regenerates the config from your registered TLD. |
 | `port 5300 listening` | TCP/UDP 5300 is reachable on 127.0.0.1. | Another process owns the port. Find it with `ss -tlnp sport = :5300` on Linux, or `lsof -nP -iTCP:5300 -sTCP:LISTEN` on macOS. |
 | `dig @127.0.0.1 -p 5300` | A direct query at port 5300 returns 127.0.0.1 for `lerd-probe.<tld>`, or the host's LAN IP when [`lan:expose`](usage/lan-sharing.md) is on. | lerd-dns is up but its config drifted. `lerd dns:repair`. |
 | `resolver hookup` | The NetworkManager dispatcher script or systemd-resolved drop-in is installed. | Rerun `lerd install`. |
@@ -420,7 +420,7 @@ podman unshare rm -rf ~/.local/share/lerd
 
 If podman is no longer installed either, `sudo rm -rf ~/.local/share/lerd` is the last resort.
 
-An uninstall also takes `~/.cache/lerd`, the `lerd-tray` binary alongside `lerd`, both PATH entries lerd ever wrote into your shell rc, and the images it built itself (`lerd-php*-fpm`, `lerd-custom-*`, `lerd-dnsmasq`) when you accept the purge. Images it only pulled, your databases and your project files are never touched.
+An uninstall also takes `~/.cache/lerd`, the `lerd-tray` binary alongside `lerd`, both PATH entries lerd ever wrote into your shell rc, and the images it built itself (`lerd-php*-fpm`, `lerd-custom-*`, and `lerd-dnsmasq` if an install before 1.37 left it) when you accept the purge. Images it only pulled, your databases and your project files are never touched.
 :::
 
 ::: details macOS keeps asking for access to Documents, Desktop or Downloads

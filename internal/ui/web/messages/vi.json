@@ -1229,7 +1229,7 @@
   "system_lan_loopback": "chỉ loopback",
   "system_lan_loopbackDescription": "Lerd chỉ gắn vào loopback ({loop4} và {loop6} trên host dual-stack), không hiển thị với các thiết bị khác trên mạng. An toàn cho wifi không tin cậy (quán cà phê, mạng hội nghị). Mở ra để chia sẻ sites của bạn với một máy khác trên một LAN tin cậy.",
   "system_lan_macosWarning": "macOS: Nút chuyển này kiểm soát việc phân giải DNS ({pattern} → 127.0.0.1 hoặc IP LAN). Các cổng 80 và 443 luôn có thể được truy cập từ LAN do một hạn chế của gvproxy. Các cổng dịch vụ được quản lý vẫn bị hạn chế trừ khi được bật rõ ràng bằng tùy chọn riêng bên dưới.",
-  "system_lan_postExpose_dnsmasq": "dnsmasq hiện trả lời các truy vấn {pattern} bằng {ip}.",
+  "system_lan_postExpose_dnsmasq": "lerd-dns hiện trả lời các truy vấn {pattern} bằng {ip}.",
   "system_lan_postExpose_firewall": "Đảm bảo tường lửa của bạn cho phép cổng 5300 từ các thiết bị bạn muốn cấp quyền truy cập.",
   "system_lan_postExpose_resolver": "Bộ phân giải DNS đã mở trên {addr} (UDP+TCP) qua {unit}.",
   "system_lan_progress_doneExposed": "Lerd hiện đã được mở trên LAN tại {ip}.",

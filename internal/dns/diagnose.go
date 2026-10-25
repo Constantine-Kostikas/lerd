@@ -187,10 +187,10 @@ func diagnose(tld string, p probeFns) Diagnostic {
 
 	// Rung 2 — dnsmasq config.
 	if ok, detail := p.dnsmasqConfigOK(tld); ok {
-		d.Steps = append(d.Steps, Step{Name: "dnsmasq config", Status: StepOK, Detail: detail})
+		d.Steps = append(d.Steps, Step{Name: "lerd-dns config", Status: StepOK, Detail: detail})
 	} else {
 		d.Steps = append(d.Steps, Step{
-			Name:   "dnsmasq config",
+			Name:   "lerd-dns config",
 			Status: StepFail,
 			Detail: detail,
 			Hint:   "lerd start regenerates the config from your registered TLD",

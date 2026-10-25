@@ -538,7 +538,7 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 			ensureResolverSudoers()
 		}
 	} else {
-		feedback.Line("DNS disabled, skipping the local CA, dnsmasq and sudoers")
+		feedback.Line("DNS disabled, skipping the local CA, lerd-dns and sudoers")
 	}
 
 	// 6. Nginx

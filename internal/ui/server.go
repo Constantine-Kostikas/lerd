@@ -5778,7 +5778,7 @@ func handleSettingsDNSUpstream(w http.ResponseWriter, r *http.Request) {
 	}
 	if cfg.DNSManaged() {
 		if err := dns.WriteDnsmasqConfig(config.DnsmasqDir()); err != nil {
-			writeJSON(w, map[string]any{"ok": false, "error": "saved, but rewriting dnsmasq config failed: " + err.Error()})
+			writeJSON(w, map[string]any{"ok": false, "error": "saved, but rewriting the lerd-dns config failed: " + err.Error()})
 			return
 		}
 		if err := podman.RestartUnit("lerd-dns"); err != nil {
