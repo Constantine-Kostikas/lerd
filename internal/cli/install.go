@@ -138,7 +138,7 @@ func warnHostMysqldProfiles() {
 var (
 	installIsWSL         = wsl.IsWSL
 	installSystemdBooted = wsl.SystemdBooted
-	enableSystemd        = func() error { _, err := enableWSLConfSystemd(io.Discard); return err }
+	enableSystemd        = func() error { _, err := enableWSLConfSystemd(os.Stderr); return err }
 	systemdInstalled     = func() bool {
 		for _, p := range []string{"/usr/lib/systemd/systemd", "/lib/systemd/systemd"} {
 			if _, err := os.Stat(p); err == nil {
