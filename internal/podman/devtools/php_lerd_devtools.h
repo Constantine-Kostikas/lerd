@@ -34,6 +34,8 @@ ZEND_BEGIN_MODULE_GLOBALS(lerd_devtools)
 	zend_bool bind_buf_init;  /* whether bind_buf is initialised this request    */
 	zend_bool collector_loaded; /* agnostic PHP collector included this request   */
 	zend_bool is_test;          /* PHPUnit/Pest run detected (sticky per request) */
+	int fd;                     /* this request's socket to lerd-ui, -1 if none   */
+	pid_t fd_pid;               /* process that opened fd                         */
 ZEND_END_MODULE_GLOBALS(lerd_devtools)
 
 #if defined(ZTS) && defined(COMPILE_DL_LERD_DEVTOOLS)

@@ -1,8 +1,8 @@
 package podman
 
 import (
+	"bufio"
 	"encoding/json"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -46,6 +46,15 @@ func runCollectorPHPViaAssetsIni(t *testing.T, dir string, body string) []string
 
 func runCollectorPHPSeams(t *testing.T, dir string, body string, viaAssetsIni bool) []string {
 	t.Helper()
+	lines, _ := runCollectorPHPCapture(t, dir, body, viaAssetsIni, false)
+	return lines
+}
+
+// runCollectorPHPCapture is runCollectorPHPSeams that also reports how many
+// connections the script opened. With dropEach the socket closes every
+// connection after its first line, the way lerd-ui ends an idle one.
+func runCollectorPHPCapture(t *testing.T, dir string, body string, viaAssetsIni, dropEach bool) ([]string, int) {
+	t.Helper()
 	php, err := exec.LookPath("php")
 	if err != nil {
 		t.Skip("php not installed")
@@ -72,30 +81,8 @@ func runCollectorPHPSeams(t *testing.T, dir string, body string, viaAssetsIni bo
 		t.Skip("php cannot read host files (containerised/sandboxed wrapper); native php needed")
 	}
 
-	sock := shortSocketPath(t)
-	ln, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer ln.Close()
-
-	var mu sync.Mutex
-	var lines []string
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			b, _ := io.ReadAll(conn)
-			conn.Close()
-			if s := strings.TrimSpace(string(b)); s != "" {
-				mu.Lock()
-				lines = append(lines, s)
-				mu.Unlock()
-			}
-		}
-	}()
+	sink := listenCapture(t, dropEach)
+	sock := sink.sock
 
 	script := strings.ReplaceAll(body, "COLLECTOR", phpQuote(collectorPath))
 	scriptPath := filepath.Join(dir, "probe.php")
@@ -115,11 +102,69 @@ func runCollectorPHPSeams(t *testing.T, dir string, body string, viaAssetsIni bo
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("php run failed: %v\n%s", err, out)
 	}
-	time.Sleep(200 * time.Millisecond) // let the accept loop drain
+	return sink.result()
+}
 
-	mu.Lock()
-	defer mu.Unlock()
-	return append([]string(nil), lines...)
+type capture struct {
+	sock  string
+	mu    sync.Mutex
+	lines []string
+	conns int
+	ended int // connections the bridge has closed
+}
+
+// listenCapture listens on a fresh unix socket and records every line and
+// connection the bridge sends to it until the test ends.
+func listenCapture(t *testing.T, dropEach bool) *capture {
+	t.Helper()
+	c := &capture{sock: shortSocketPath(t)}
+	ln, err := net.Listen("unix", c.sock)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.mu.Lock()
+			c.conns++
+			c.mu.Unlock()
+			go c.read(conn, dropEach)
+		}
+	}()
+	return c
+}
+
+func (c *capture) read(conn net.Conn, dropEach bool) {
+	defer conn.Close()
+	defer func() {
+		c.mu.Lock()
+		c.ended++
+		c.mu.Unlock()
+	}()
+	sc := bufio.NewScanner(conn)
+	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	for sc.Scan() {
+		if s := strings.TrimSpace(sc.Text()); s != "" {
+			c.mu.Lock()
+			c.lines = append(c.lines, s)
+			c.mu.Unlock()
+		}
+		if dropEach {
+			return
+		}
+	}
+}
+
+// result waits for the reads to drain, then returns what arrived.
+func (c *capture) result() ([]string, int) {
+	time.Sleep(200 * time.Millisecond)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.lines...), c.conns
 }
 
 // TestCollectorPHP_FiltersAndExtracts runs the real devtools-collector.php under
@@ -1139,5 +1184,38 @@ unset($_SERVER['LERD_NGINX_SENT']);
 	}
 	if _, ok := reqs[1].Data["queue_ms"]; ok {
 		t.Errorf("queue_ms reported without LERD_NGINX_SENT: %v", reqs[1].Data)
+	}
+}
+
+func TestCollectorPHP_OneConnectionPerRequest(t *testing.T) {
+	lines, conns := runCollectorPHPCapture(t, t.TempDir(), `<?php
+require COLLECTOR;
+for ($i = 0; $i < 5; $i++) {
+    \Lerd\Collector\send_text("event $i");
+}
+`, false, false)
+	if len(lines) != 5 {
+		t.Fatalf("lines = %d, want 5: %v", len(lines), lines)
+	}
+	if conns != 1 {
+		t.Errorf("connections = %d, want 1 for the whole request", conns)
+	}
+}
+
+// lerd-ui ends a connection that sits idle, as one does between a worker's
+// jobs, and the next event has to reopen it rather than be lost.
+func TestCollectorPHP_ReopensAClosedConnection(t *testing.T) {
+	lines, conns := runCollectorPHPCapture(t, t.TempDir(), `<?php
+require COLLECTOR;
+for ($i = 0; $i < 3; $i++) {
+    \Lerd\Collector\send_text("event $i");
+    usleep(100000);
+}
+`, false, true)
+	if len(lines) != 3 {
+		t.Fatalf("lines = %d, want all 3 despite the socket closing after each: %v", len(lines), lines)
+	}
+	if conns != 3 {
+		t.Errorf("connections = %d, want 3", conns)
 	}
 }

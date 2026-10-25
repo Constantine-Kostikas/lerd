@@ -43,8 +43,12 @@ function host(): string
     return '';
 }
 
+// send ships one event on this request's connection, opened on first use. One
+// lerd-ui closed for idling is reopened, and a short write closes it, or the
+// next event would land mid-line.
 function send(array $payload): void
 {
+    static $sock = null, $pid = 0;
     $t = host();
     if ($t === '') {
         return;
@@ -52,16 +56,35 @@ function send(array $payload): void
     if (strpos($t, '://') === false) {
         $t = 'tcp://' . $t;
     }
-    $sock = @\stream_socket_client($t, $errno, $errstr, 0.05, \STREAM_CLIENT_CONNECT);
-    if (!$sock) {
+    $line = \json_encode($payload, \JSON_UNESCAPED_SLASHES | \JSON_PARTIAL_OUTPUT_ON_ERROR);
+    if ($line === false) {
         return;
     }
-    @\stream_set_blocking($sock, false);
-    $line = \json_encode($payload, \JSON_UNESCAPED_SLASHES | \JSON_PARTIAL_OUTPUT_ON_ERROR);
-    if ($line !== false) {
-        @\fwrite($sock, $line . "\n");
+    $line .= "\n";
+    // A forked child would interleave its lines with the parent's.
+    if ($sock !== null && ($pid !== \getmypid() || @\feof($sock))) {
+        @\fclose($sock);
+        $sock = null;
     }
-    @\fclose($sock);
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $fresh = $sock === null;
+        if ($fresh) {
+            $sock = @\stream_socket_client($t, $errno, $errstr, 0.05, \STREAM_CLIENT_CONNECT) ?: null;
+            if ($sock === null) {
+                return;
+            }
+            @\stream_set_timeout($sock, 0, 50000);
+            $pid = \getmypid();
+        }
+        if (@\fwrite($sock, $line) === \strlen($line)) {
+            return;
+        }
+        @\fclose($sock);
+        $sock = null;
+        if ($fresh) {
+            return;
+        }
+    }
 }
 
 function lerd_var(string $key): string
