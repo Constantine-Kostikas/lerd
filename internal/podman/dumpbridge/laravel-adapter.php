@@ -52,10 +52,9 @@ function target(): string
     return (is_string($h) && $h !== '') ? $h : '';
 }
 
-// send ships one event on this request's connection, opening it on first use,
-// so a request costs one connection instead of one per event. lerd-ui closes
-// an idle one, as between a worker's jobs, so a dead one gets reopened once.
-// A short write closes it too, or the next event would land mid-line.
+// send ships one event on this request's connection, opened on first use. One
+// lerd-ui closed for idling is reopened, and a short write closes it, or the
+// next event would land mid-line.
 function send(array $payload): void
 {
     static $sock = null, $pid = 0;

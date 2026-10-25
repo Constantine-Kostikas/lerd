@@ -264,3 +264,18 @@ func TestServer_CloseDoesNotWaitForOpenConnections(t *testing.T) {
 		t.Fatal("Close blocked on a connection the client still holds")
 	}
 }
+
+// A line cut off by a broken write gets resent whole, so the cut copy must
+// not count even when it happens to be complete JSON.
+func TestServer_DropsLineWithoutNewline(t *testing.T) {
+	s := startServer(t)
+	dialAndSend(t, s.Addr(), `{"v":1,"id":"cut","kind":"dump"}`)
+	dialAndSend(t, s.Addr(), `{"v":1,"id":"whole","kind":"dump"}`+"\n")
+	if !waitFor(func() bool { return s.Len() == 1 }, time.Second) {
+		t.Fatalf("len = %d, want 1", s.Len())
+	}
+	time.Sleep(100 * time.Millisecond)
+	if got := s.Snapshot(); len(got) != 1 || got[0].ID != "whole" {
+		t.Errorf("ring = %+v, want only the newline-terminated event", got)
+	}
+}

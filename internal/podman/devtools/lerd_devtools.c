@@ -60,9 +60,23 @@ static const char *lerd_asset(char *buf, size_t len, const char *name)
 
 /* ── transport ──────────────────────────────────────────────────────────── */
 
-/* lerd_connect opens a non-blocking socket to the configured host, or
- * returns -1. Errors are swallowed so a down lerd-ui never disturbs the
- * request. */
+/* macOS has no MSG_NOSIGNAL; the native build sets SO_NOSIGPIPE instead. */
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
+static void lerd_nosigpipe(int fd)
+{
+#ifdef SO_NOSIGPIPE
+	int on = 1;
+	setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on));
+#else
+	(void)fd;
+#endif
+}
+
+/* lerd_connect opens a non-blocking socket to host, or returns -1, so a
+ * down lerd-ui never disturbs the request. */
 static int lerd_connect(const char *host)
 {
 	int fd = -1;
@@ -80,6 +94,7 @@ static int lerd_connect(const char *host)
 		sa.sun_family = AF_UNIX;
 		strncpy(sa.sun_path, path, sizeof(sa.sun_path) - 1);
 		fcntl(fd, F_SETFL, O_NONBLOCK);
+		lerd_nosigpipe(fd);
 		if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0 && errno != EINPROGRESS) {
 			close(fd);
 			return -1;
@@ -113,6 +128,7 @@ static int lerd_connect(const char *host)
 	fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (fd >= 0) {
 		fcntl(fd, F_SETFL, O_NONBLOCK);
+		lerd_nosigpipe(fd);
 		if (connect(fd, res->ai_addr, res->ai_addrlen) != 0 && errno != EINPROGRESS) {
 			close(fd);
 			fd = -1;
@@ -122,9 +138,8 @@ static int lerd_connect(const char *host)
 	return fd;
 }
 
-/* lerd_write_line sends line plus its newline on fd within 50ms, and reports
- * whether all of it went. MSG_NOSIGNAL because the fd now outlives one event:
- * writing to a socket lerd-ui has closed must fail, not SIGPIPE the worker. */
+/* lerd_write_line sends line and its newline within 50ms and reports whether
+ * all of it went. A socket lerd-ui closed must fail here, not SIGPIPE PHP. */
 static int lerd_write_line(int fd, const char *line, size_t len)
 {
 	struct pollfd pfd;
@@ -162,10 +177,9 @@ static void lerd_disconnect(void)
 	}
 }
 
-/* lerd_send writes one NDJSON line on the request's connection, opening it
- * on first use, so a request costs one connection rather than one per event.
- * A failed or partial write closes it, since the next line would otherwise
- * land mid-line, and the event gets one retry on a fresh connection. */
+/* lerd_send writes one NDJSON line on the request's connection, opened on
+ * first use. A broken write closes it, or the next line would land mid-line,
+ * and the event is retried once on a fresh connection. */
 static void lerd_send(const char *line, size_t len)
 {
 	const char *host = LERD_G(host);

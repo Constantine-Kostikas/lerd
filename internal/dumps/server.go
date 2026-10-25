@@ -2,6 +2,7 @@ package dumps
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -301,6 +302,7 @@ func (s *Server) handle(conn net.Conn) {
 	_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, initialLineBuf), MaxLineBytes)
+	scanner.Split(scanTerminatedLines)
 	for scanner.Scan() {
 		_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
 		line := scanner.Bytes()
@@ -316,6 +318,19 @@ func (s *Server) handle(conn net.Conn) {
 	// scanner.Err() is intentionally swallowed: the bridge is fire-and-forget
 	// and connection-level failures (timeout, oversized line) must not affect
 	// the user's request. Logging them would just spam.
+}
+
+// scanTerminatedLines is bufio.ScanLines without the final unterminated line.
+// A bridge whose write broke resends the event on a new connection, so the
+// copy cut off at the old one's end must not be recorded too.
+func scanTerminatedLines(data []byte, atEOF bool) (int, []byte, error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		return i + 1, bytes.TrimSuffix(data[:i], []byte{'\r'}), nil
+	}
+	if atEOF {
+		return len(data), nil, nil
+	}
+	return 0, nil, nil
 }
 
 // Close stops accepting connections, closes in-flight reads, and waits for
