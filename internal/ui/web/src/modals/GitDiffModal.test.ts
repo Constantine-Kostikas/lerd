@@ -188,6 +188,19 @@ describe('GitDiffModal', () => {
     expect(closeModal).not.toHaveBeenCalled();
   });
 
+  it('lists files under their folders and collapses a folder on click', async () => {
+    loadCommitFiles.mockResolvedValue([{ path: 'app/Models/User.php', status: 'M' }, { path: 'README.md', status: 'M' }]);
+    loadCommitVersions.mockImplementation(async (_d: string, _p: string, _h: string, file: string) => text('', file));
+    render(GitDiffModal, { props: { ...props, commit: { hash: 'abc1234def', subject: 'feat: x' } } });
+
+    const folder = await screen.findByRole('button', { name: 'app/Models' });
+    expect(screen.getByText('User.php')).toBeInTheDocument();
+    await fireEvent.click(folder);
+    expect(folder).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('User.php')).toBeNull();
+    expect(screen.getByText('README.md')).toBeInTheDocument();
+  });
+
   it('says so when a commit changes no files', async () => {
     loadCommitFiles.mockResolvedValue([]);
     render(GitDiffModal, { props: { ...props, commit: { hash: 'abc1234def', subject: 'merge' } } });
