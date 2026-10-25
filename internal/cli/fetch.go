@@ -40,10 +40,9 @@ func IsLegacyPHPVersion(v string) bool {
 	return false
 }
 
-// InstallPHPVersion builds the FPM image for the given version, registers its
-// quadlet and starts the service, streaming build output to w. Under the native
-// runtime it fetches the published host build and starts its pool instead. It is the
-// programmatic entry point behind the UI's "add PHP version" flow.
+// InstallPHPVersion builds and starts the FPM image for a version, or under the
+// native runtime fetches the published build and starts its pool, streaming
+// output to w. It backs the dashboard's "add PHP version" flow.
 func InstallPHPVersion(version string, w io.Writer) error {
 	version, err := config.NormalizePHPVersion(version)
 	if err != nil {
