@@ -45,6 +45,13 @@ report() {
 
 # wait_result: the driver's last word, RESULT ..., within half an hour.
 wait_result() {
+	# A driver that died at launch logs its start line and nothing after; say so in
+	# a minute and a half, not thirty.
+	for _ in $(seq 9); do
+		win "type $LANE\\drive.log" | grep -qv ' start ' && break
+		sleep 10
+	done
+	win "type $LANE\\drive.log" | grep -qv ' start ' || { echo "FAIL the driver went quiet after launch: $(win "type $LANE\\drive.log" | tail -1)"; return 1; }
 	for _ in $(seq 180); do
 		win "type $LANE\\drive.log" | grep -q '^.* RESULT' && break
 		sleep 10
