@@ -72,6 +72,54 @@ export function loadUptoVersions(domain: string, path: string, hash: string, fil
   return apiJson<GitVersions>(`/api/sites/git-diff?${query(domain, path)}&upto=${hash}&file=${encodeURIComponent(file)}`);
 }
 
+export interface GitResult {
+  ok?: boolean;
+  error?: string;
+  // Done, but with something to say: a commit whose push then failed.
+  warning?: string;
+  message?: string;
+}
+
+function gitCommitApi(domain: string, path: string, body: object): Promise<GitResult> {
+  return apiJson<GitResult>(`/api/sites/git-commit?${query(domain, path)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+
+export function stageFile(domain: string, path: string, file: string): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'stage', file });
+}
+
+export function unstageFile(domain: string, path: string, file: string): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'unstage', file });
+}
+
+// One change block, numbered the way LineChange numbers it, with both texts
+// the editor showed so the server can refuse a file that changed since.
+export interface Hunk {
+  orig_start: number;
+  orig_end: number;
+  mod_start: number;
+  mod_end: number;
+  original: string;
+  modified: string;
+}
+
+export function stageHunk(domain: string, path: string, file: string, hunk: Hunk, unstage: boolean): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: unstage ? 'unstage-hunk' : 'stage-hunk', file, hunk });
+}
+
+// Commits what is staged, or rewrites the last commit with it, and pushes after when asked.
+export function commitChanges(domain: string, path: string, message: string, amend: boolean, push: boolean): Promise<GitResult> {
+  return gitCommitApi(domain, path, { op: 'commit', message, amend, push });
+}
+
+export async function loadLastMessage(domain: string, path: string): Promise<string> {
+  return (await apiJson<{ message: string }>(`/api/sites/git-commit?${query(domain, path)}`)).message;
+}
+
 // One change as the diff editor reports it; an end of 0 means no lines on that side.
 export interface LineChange {
   originalStartLineNumber: number;

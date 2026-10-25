@@ -444,3 +444,77 @@ func TestHandleSiteGitDiff(t *testing.T) {
 		t.Errorf("unknown site: got %d", rec.Code)
 	}
 }
+
+// Stage, then commit, through the same checkout gate the diff uses.
+func TestHandleSiteGitCommit(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	for k, v := range map[string]string{"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"} {
+		t.Setenv(k, v)
+	}
+	sitePath := t.TempDir()
+	gitIn(t, sitePath, "init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(sitePath, "a.php"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, sitePath, "add", "a.php")
+	gitIn(t, sitePath, "commit", "-q", "-m", "init")
+	if err := os.WriteFile(filepath.Join(sitePath, "a.php"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.AddSite(config.Site{Name: "acme", Path: sitePath, Domains: []string{"acme.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	main := strings.TrimSpace(strings.TrimPrefix(strings.Split(runGitOutput(sitePath, "worktree", "list", "--porcelain"), "\n")[0], "worktree "))
+
+	post := func(path, body string) string {
+		rec := httptest.NewRecorder()
+		handleSiteGitCommit(rec, httptest.NewRequest(http.MethodPost, "/api/sites/git-commit?domain=acme.test&path="+url.QueryEscape(path), strings.NewReader(body)))
+		return rec.Body.String()
+	}
+
+	hunk := `{"op":"stage-hunk","file":"a.php","hunk":{"orig_start":1,"orig_end":1,"mod_start":1,"mod_end":1,"original":"a\n","modified":"changed\n"}}`
+	if got := post(main, hunk); !strings.Contains(got, `"ok":true`) {
+		t.Fatalf("stage-hunk: %s", got)
+	}
+	if got := runGitOutput(sitePath, "show", ":a.php"); got != "changed\n" {
+		t.Fatalf("index after stage-hunk %q", got)
+	}
+	gitIn(t, sitePath, "reset", "-q")
+	if got := post(main, `{"op":"stage","file":"a.php"}`); !strings.Contains(got, `"ok":true`) {
+		t.Fatalf("stage: %s", got)
+	}
+	if got := post(main, `{"op":"commit","message":"fix: a"}`); !strings.Contains(got, `"ok":true`) {
+		t.Fatalf("commit: %s", got)
+	}
+	if got := strings.TrimSpace(runGitOutput(sitePath, "log", "-1", "--format=%s")); got != "fix: a" {
+		t.Errorf("last commit %q", got)
+	}
+	rec := httptest.NewRecorder()
+	handleSiteGitCommit(rec, httptest.NewRequest(http.MethodGet, "/api/sites/git-commit?domain=acme.test&path="+url.QueryEscape(main), nil))
+	if !strings.Contains(rec.Body.String(), `"message":"fix: a"`) {
+		t.Errorf("last message: %s", rec.Body.String())
+	}
+	// No remote to push to: the commit is made and the push failure comes back as a warning.
+	if err := os.WriteFile(filepath.Join(sitePath, "a.php"), []byte("again\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	post(main, `{"op":"stage","file":"a.php"}`)
+	if got := post(main, `{"op":"commit","message":"fix: again","push":true}`); !strings.Contains(got, `"ok":true`) || !strings.Contains(got, "push failed") {
+		t.Fatalf("commit and push: %s", got)
+	}
+	if got := strings.TrimSpace(runGitOutput(sitePath, "log", "-1", "--format=%s")); got != "fix: again" {
+		t.Errorf("last commit %q", got)
+	}
+	release := cli.CheckoutLock(main)
+	if got := post(main, `{"op":"stage","file":"a.php"}`); !strings.Contains(got, "switch or pull is running") {
+		t.Errorf("during a switch: %s", got)
+	}
+	release()
+	if got := post(main, `{"op":"rebase"}`); !strings.Contains(got, "unknown git operation rebase") {
+		t.Errorf("unknown op: %s", got)
+	}
+	if got := post(t.TempDir(), `{"op":"stage","file":"a.php"}`); !strings.Contains(got, "not a checkout of this site") {
+		t.Errorf("foreign path: %s", got)
+	}
+}

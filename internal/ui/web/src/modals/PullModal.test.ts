@@ -106,7 +106,7 @@ describe('PullModal', () => {
     await fireEvent.click(await screen.findByRole('switch', { name: 'composer install' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
 
-    expect(streamPull).toHaveBeenCalledWith('acme.test', 'feature', { branch: 'feature', head: 'f00d', target: 'abc123' }, { composer: false, js: false, migrate: true, snapshot: true, isolate: false }, expect.any(Function));
+    expect(streamPull).toHaveBeenCalledWith('acme.test', 'feature', { branch: 'feature', head: 'f00d', target: 'abc123' }, { composer: false, js: false, migrate: true, snapshot: true, isolate: false, stash: false }, expect.any(Function));
     await waitFor(() => expect(closeModal).toHaveBeenCalled());
     expect(onDone).toHaveBeenCalled();
   });
@@ -114,8 +114,17 @@ describe('PullModal', () => {
   it('holds the pull back when it would overwrite uncommitted work', async () => {
     pullPlan.mockResolvedValue({ ...plan, conflicts: ['composer.lock'] });
     render(PullModal, { props });
-    expect(await screen.findByText(/would be overwritten by the pull/)).toBeInTheDocument();
+    expect(await screen.findByText(/Your edits to composer\.lock/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pull' })).toBeDisabled();
+  });
+
+  it('pulls over uncommitted work once it may be stashed', async () => {
+    finishWith({ ok: true });
+    pullPlan.mockResolvedValue({ ...plan, conflicts: ['composer.lock'] });
+    render(PullModal, { props });
+    await fireEvent.click(await screen.findByRole('switch', { name: 'Stash my changes first' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+    expect(streamPull.mock.calls[0][3]).toMatchObject({ stash: true });
   });
 
   // The fetch can reveal local commits as well as incoming ones; git would refuse.

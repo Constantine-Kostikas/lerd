@@ -248,3 +248,22 @@ func TestPullSite_isolateOnlyFromTheMainCheckout(t *testing.T) {
 		t.Fatalf("want a refusal for a worktree, got %v", err)
 	}
 }
+
+// Local work that conflicts on the way back out of the stash stops the pull
+// before migrations run against a tree full of conflict markers.
+func TestPullBranch_stashConflictStopsBeforeTheSteps(t *testing.T) {
+	dir := pullSiteFixture(t, func(dir string) {
+		putFile(t, filepath.Join(dir, "composer.lock"), "v2")
+		writeMigrations(t, filepath.Join(dir, "db"), "b")
+	})
+	reviewed := reviewedTarget(t, dir)
+	putFile(t, filepath.Join(dir, "composer.lock"), "local")
+
+	_, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{Stash: true, Migrate: true}, nil, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "composer.lock") {
+		t.Fatalf("want the conflict named, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "migrated")); err == nil {
+		t.Error("migrate ran on a conflicted tree")
+	}
+}

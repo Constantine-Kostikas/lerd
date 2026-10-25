@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import Icon from '$components/Icon.svelte';
   import Toggle from '$components/Toggle.svelte';
   import type { BranchPlan } from '$stores/worktree';
@@ -16,13 +17,17 @@
     missingText: string;
     // Makes the files card open the full list of changed files.
     onfiles?: () => void;
+    // Shown in place of the conflicts warning when the dialog offers a way past them.
+    conflictsRow?: Snippet<[string[]]>;
   }
-  let { plan, rows, on = $bindable(), conflictsText, thenText, missingText, onfiles }: Props = $props();
+  let { plan, rows, on = $bindable(), conflictsText, thenText, missingText, onfiles, conflictsRow }: Props = $props();
 
   const conflicts = $derived(plan.conflicts ?? []);
 </script>
 
-{#if conflicts.length > 0}
+{#if conflicts.length > 0 && conflictsRow}
+  {@render conflictsRow(conflicts)}
+{:else if conflicts.length > 0}
   <div class="flex items-start gap-2.5 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2.5 text-xs leading-relaxed text-red-700 dark:text-red-300" role="alert">
     <Icon name="alert" class="w-4 h-4 shrink-0 mt-px" />
     <div class="min-w-0">

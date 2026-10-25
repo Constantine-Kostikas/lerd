@@ -1,14 +1,31 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { loadGitChanges, loadGitVersions, loadCommitFiles, loadCommitVersions, closeModal } = vi.hoisted(() => ({
-  loadGitChanges: vi.fn(),
-  loadGitVersions: vi.fn(),
-  loadCommitFiles: vi.fn(),
-  loadCommitVersions: vi.fn(),
-  closeModal: vi.fn()
+const { loadGitChanges, loadGitVersions, loadCommitFiles, loadCommitVersions, stageFile, unstageFile, stageHunk, commitChanges, loadLastMessage, closeModal } =
+  vi.hoisted(() => ({
+    stageHunk: vi.fn(),
+    loadGitChanges: vi.fn(),
+    loadGitVersions: vi.fn(),
+    loadCommitFiles: vi.fn(),
+    loadCommitVersions: vi.fn(),
+    stageFile: vi.fn(),
+    unstageFile: vi.fn(),
+    commitChanges: vi.fn(),
+    loadLastMessage: vi.fn(),
+    closeModal: vi.fn()
+  }));
+vi.mock('$lib/gitDiff', async (orig) => ({
+  ...(await orig<object>()),
+  loadGitChanges,
+  loadGitVersions,
+  loadCommitFiles,
+  loadCommitVersions,
+  stageFile,
+  unstageFile,
+  stageHunk,
+  commitChanges,
+  loadLastMessage
 }));
-vi.mock('$lib/gitDiff', async (orig) => ({ ...(await orig<object>()), loadGitChanges, loadGitVersions, loadCommitFiles, loadCommitVersions }));
 vi.mock('$stores/modals', () => ({ closeModal }));
 // Monaco does not run under jsdom; the stub shows what the modal hands it.
 vi.mock('$components/MonacoDiffEditor.svelte', async () => ({ default: (await import('./MonacoDiffEditor.stub.svelte')).default }));
@@ -21,8 +38,10 @@ const text = (original: string, modified: string) => ({ original, modified, bina
 describe('GitDiffModal', () => {
   beforeEach(() => {
     closeModal.mockReset();
+    localStorage.clear();
     loadGitChanges.mockReset();
     loadGitVersions.mockReset();
+    for (const f of [stageFile, unstageFile, stageHunk, commitChanges, loadLastMessage]) f.mockReset();
   });
 
   it('opens the first changed file and loads another on click', async () => {
@@ -54,20 +73,38 @@ describe('GitDiffModal', () => {
     expect(screen.getByTestId('diff').dataset.ignoreSpace).toBe('true');
   });
 
-  it('fills the window, and Escape leaves full screen before it closes the modal', async () => {
+  it('closes from full screen and opens full screen next time', async () => {
     loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
     loadGitVersions.mockResolvedValue(text('a', 'b'));
-    render(GitDiffModal, { props });
+    const first = render(GitDiffModal, { props });
     await screen.findByTestId('diff');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Enter full screen' }));
     expect(screen.getByRole('dialog').className).toContain('h-dvh');
     await fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.getByRole('dialog').className).toContain('h-[85vh]');
-    expect(closeModal).not.toHaveBeenCalled();
-
-    await fireEvent.keyDown(window, { key: 'Escape' });
     expect(closeModal).toHaveBeenCalledOnce();
+    first.unmount();
+
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    expect(screen.getByRole('dialog').className).toContain('h-dvh');
+    await fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
+    expect(screen.getByRole('dialog').className).toContain('h-[85vh]');
+  });
+
+  it('switches between side by side and unified, and keeps the choice', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    const first = render(GitDiffModal, { props });
+    expect((await screen.findByTestId('diff')).dataset.sideBySide).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Unified view' }));
+    expect(screen.getByTestId('diff').dataset.sideBySide).toBe('false');
+    first.unmount();
+
+    render(GitDiffModal, { props });
+    expect((await screen.findByTestId('diff')).dataset.sideBySide).toBe('false');
+    expect(screen.getByRole('button', { name: 'Side by side view' })).toBeTruthy();
   });
 
   it('hides the file list and brings it back', async () => {
@@ -77,7 +114,7 @@ describe('GitDiffModal', () => {
     await screen.findByTestId('diff');
 
     // The list slides shut rather than unmounting, so it keeps its scroll; inert keeps it out of reach.
-    const list = screen.getByText('a.php', { selector: 'nav *' }).closest('nav')!.parentElement!;
+    const list = screen.getByTestId('file-list');
     await fireEvent.click(screen.getByRole('button', { name: 'Hide file list' }));
     expect(list.inert).toBe(true);
     expect(list.className).toContain('md:w-0');
@@ -155,5 +192,142 @@ describe('GitDiffModal', () => {
     loadCommitFiles.mockResolvedValue([]);
     render(GitDiffModal, { props: { ...props, commit: { hash: 'abc1234def', subject: 'merge' } } });
     expect(await screen.findByText('This commit changes no files.')).toBeInTheDocument();
+  });
+
+  it('stages and unstages a file, then lists it in its new section', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] })
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] })
+      .mockResolvedValueOnce({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    stageFile.mockResolvedValue({ ok: true });
+    unstageFile.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Stage a.php' }));
+    expect(stageFile).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php');
+    expect(await screen.findByText(/Staged · 1/)).toBeInTheDocument();
+    await waitFor(() => expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'staged', 'a.php'));
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Unstage a.php' }));
+    expect(unstageFile).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php');
+    expect(await screen.findByText(/Unstaged · 1/)).toBeInTheDocument();
+  });
+
+  it('commits what is staged, then shows what is left', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [{ path: 'b.php', status: 'M' }], untracked: [] })
+      .mockResolvedValueOnce({ staged: [], unstaged: [{ path: 'b.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    commitChanges.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+
+    const commit = screen.getByRole('button', { name: 'Commit' });
+    expect(commit).toBeDisabled();
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'fix: a' } });
+    await fireEvent.click(commit);
+    expect(commitChanges).toHaveBeenCalledWith('acme.test', '/srv/acme', 'fix: a', false, false);
+    await waitFor(() => expect(screen.queryByText(/Staged · /)).toBeNull());
+    expect((screen.getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('');
+  });
+
+  it('cannot commit with nothing staged, and pushes when asked', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'b.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    loadLastMessage.mockResolvedValue('feat: earlier');
+    commitChanges.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'x' } });
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeDisabled();
+
+    // Amending rewrites the last commit, so its message comes in to edit.
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: '' } });
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Amend last commit' }));
+    await waitFor(() => expect((screen.getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('feat: earlier'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Commit and push' }));
+    expect(commitChanges).toHaveBeenCalledWith('acme.test', '/srv/acme', 'feat: earlier', true, true);
+  });
+
+  it('keeps a commit whose push failed, and says so', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] })
+      .mockResolvedValueOnce({ staged: [], unstaged: [], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    commitChanges.mockResolvedValue({ ok: true, warning: 'Committed, but the push failed: no remote' });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'fix: a' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Commit and push' }));
+    expect(await screen.findByText('Committed, but the push failed: no remote')).toBeInTheDocument();
+    expect(screen.getByText('No uncommitted changes.')).toBeInTheDocument();
+  });
+
+  // The last message arrives after a round trip; text typed meanwhile wins.
+  it('does not overwrite a message typed while amend loads', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    let answer: (m: string) => void = () => {};
+    loadLastMessage.mockReturnValue(new Promise((r) => (answer = r)));
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Amend last commit' }));
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'typed' } });
+    answer('feat: earlier');
+    await new Promise((r) => setTimeout(r, 0));
+    expect((screen.getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('typed');
+  });
+
+  it('shows why a commit failed and keeps the message', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    commitChanges.mockResolvedValue({ error: 'pre-commit hook failed' });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.input(screen.getByPlaceholderText('Commit message'), { target: { value: 'fix: a' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(await screen.findByText('pre-commit hook failed')).toBeInTheDocument();
+    expect((screen.getByPlaceholderText('Commit message') as HTMLTextAreaElement).value).toBe('fix: a');
+  });
+
+  it('offers no commit box for a commit already made', async () => {
+    loadCommitFiles.mockResolvedValue([{ path: 'a.php', status: 'M' }]);
+    loadCommitVersions.mockResolvedValue(text('a', 'b'));
+    render(GitDiffModal, { props: { ...props, commit: { hash: 'abc1234def', subject: 'feat: x', time: 0 } } });
+    await screen.findByTestId('diff');
+    expect(screen.queryByPlaceholderText('Commit message')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Stage a.php' })).toBeNull();
+  });
+
+  it('stages one change block and stays on the part left unstaged', async () => {
+    loadGitChanges
+      .mockResolvedValueOnce({ staged: [], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [{ path: 'n.md', status: '?' }] })
+      .mockResolvedValueOnce({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [{ path: 'a.php', status: 'M' }], untracked: [] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    stageHunk.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Stage this change' }));
+    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.objectContaining({ modified: 'b' }), false);
+    await waitFor(() => expect(screen.getByText(/Staged · 1/)).toBeInTheDocument());
+    expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'unstaged', 'a.php');
+  });
+
+  it('unstages a block from the staged side, and offers none for a new file', async () => {
+    loadGitChanges.mockResolvedValue({ staged: [{ path: 'a.php', status: 'M' }], unstaged: [], untracked: [{ path: 'n.md', status: '?' }] });
+    loadGitVersions.mockResolvedValue(text('a', 'b'));
+    stageHunk.mockResolvedValue({ ok: true });
+    render(GitDiffModal, { props });
+    await screen.findByTestId('diff');
+    await fireEvent.click(screen.getByRole('button', { name: 'Unstage this change' }));
+    expect(stageHunk).toHaveBeenCalledWith('acme.test', '/srv/acme', 'a.php', expect.any(Object), true);
+    await waitFor(() => expect(loadGitVersions).toHaveBeenCalledTimes(2));
+
+    await fireEvent.click(screen.getByText('n.md'));
+    await waitFor(() => expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'untracked', 'n.md'));
+    expect(screen.queryByRole('button', { name: /this change/ })).toBeNull();
   });
 });

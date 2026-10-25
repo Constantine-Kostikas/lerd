@@ -309,6 +309,7 @@ func Start(currentVersion string) error {
 	mux.HandleFunc("/api/sites/worktree-options", withCORS(handleSiteWorktreeOptions))
 	mux.HandleFunc("/api/sites/git-status", withCORS(handleSiteGitStatus))
 	mux.HandleFunc("/api/sites/git-diff", withCORS(handleSiteGitDiff))
+	mux.HandleFunc("/api/sites/git-commit", withCORS(publishAfter(handleSiteGitCommit, eventbus.KindSites)))
 	mux.HandleFunc("/api/sites/worktree-add", withCORS(publishAfter(handleSiteWorktreeAdd, eventbus.KindSites)))
 	mux.HandleFunc("/api/sites/branch-plan", withCORS(handleSiteBranchPlan))
 	mux.HandleFunc("/api/sites/branch-switch", withCORS(publishAfter(handleSiteBranchSwitch, eventbus.KindSites)))
@@ -6772,6 +6773,80 @@ func handleSiteGitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, versions)
 }
 
+// gitIndexLocks run one staging or commit at a time per checkout, so two quick
+// clicks never read the same index, while a slow push leaves other sites alone.
+var gitIndexLocks sync.Map
+
+// handleSiteGitCommit stages, unstages and commits in one of a site's
+// checkouts. GET answers the last commit's message, for amending it.
+func handleSiteGitCommit(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	site, err := config.FindSiteByDomain(q.Get("domain"))
+	if err != nil {
+		writeJSON(w, SiteActionResponse{Error: "site not found"})
+		return
+	}
+	dir := q.Get("path")
+	if !isSiteCheckout(site.Path, dir) {
+		writeJSON(w, SiteActionResponse{Error: "not a checkout of this site"})
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		msg, _ := gitpkg.LastMessage(dir)
+		writeJSON(w, map[string]string{"message": msg})
+		return
+	case http.MethodPost:
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	var req struct {
+		Op, File, Message string
+		Amend, Push       bool
+		Hunk              gitpkg.Hunk
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, SiteActionResponse{Error: "invalid request body"})
+		return
+	}
+	mu, _ := gitIndexLocks.LoadOrStore(dir, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
+	release := cli.CheckoutLock(dir)
+	if release == nil {
+		writeJSON(w, SiteActionResponse{Error: "a branch switch or pull is running on this checkout"})
+		return
+	}
+	defer release()
+	var out string
+	switch req.Op {
+	case "stage":
+		err = gitpkg.Stage(dir, req.File)
+	case "unstage":
+		err = gitpkg.Unstage(dir, req.File)
+	case "stage-hunk", "unstage-hunk":
+		err = gitpkg.StageHunk(dir, req.File, req.Hunk, req.Op == "unstage-hunk")
+	case "commit":
+		out, err = gitpkg.CommitStaged(dir, req.Message, req.Amend)
+		if err == nil && req.Push {
+			// The commit stands either way; a failed push is said apart, to retry on its own.
+			if _, pushErr := gitpkg.Push(dir); pushErr != nil {
+				writeJSON(w, SiteActionResponse{OK: true, Warning: "Committed, but the push failed: " + pushErr.Error()})
+				return
+			}
+		}
+	default:
+		err = fmt.Errorf("unknown git operation %s", req.Op)
+	}
+	if err != nil {
+		writeJSON(w, SiteActionResponse{Error: err.Error()})
+		return
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	writeJSON(w, SiteActionResponse{OK: true, Message: lines[len(lines)-1]})
+}
+
 // isSiteCheckout reports whether dir is the site's main checkout or one of its
 // worktrees, as `git worktree list` spells them.
 func isSiteCheckout(sitePath, dir string) bool {
@@ -6965,6 +7040,7 @@ func branchStepsFrom(q url.Values) cli.BranchSteps {
 		Migrate:  q.Get("migrate") == "1",
 		Snapshot: q.Get("snapshot") == "1",
 		Isolate:  q.Get("isolate") == "1",
+		Stash:    q.Get("stash") == "1",
 	}
 }
 
