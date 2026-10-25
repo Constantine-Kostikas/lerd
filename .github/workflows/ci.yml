@@ -266,6 +266,10 @@ jobs:
       - name: Run the comment hook's tests
         run: bats tests/hooks/pre-commit.bats
 
+      - name: Run the vulnerability scan script's tests
+        working-directory: .github/scripts
+        run: python3 -m unittest -v test_vuln_scan
+
   # The pre-commit hook only runs where a clone turned it on, so a pull request
   # is held to the same three-line comment blocks here.
   comments:

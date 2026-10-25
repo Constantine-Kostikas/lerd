@@ -7,27 +7,13 @@ on:
   schedule:
     - cron: '0 5 * * *'
   workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/scripts/vuln_scan.py'
-      - '.github/scripts/test_vuln_scan.py'
-      - '.github/workflows/vuln-scan.yml'
 
 env:
   GRYPE: docker.io/anchore/grype:v0.120.1
 
 jobs:
-  script:
-    name: Scan script tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - working-directory: .github/scripts
-        run: python3 -m unittest -v test_vuln_scan
-
   ui:
     name: UI dependencies
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,8 +28,6 @@ jobs:
 
   images:
     name: PHP base images
-    if: github.event_name != 'pull_request'
-    needs: script
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -73,7 +57,6 @@ jobs:
 
   tools:
     name: Host tools
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
