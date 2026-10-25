@@ -2,17 +2,32 @@ package podman
 
 import (
 	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // runDevtoolsExt runs body with the compiled lerd_devtools capturing queries,
-// returning the lines and connections it sent. Skipped unless php can load the
-// extension, which holds in lerd's FPM image and not on a CI runner.
+// returning the lines and connections it sent.
 func runDevtoolsExt(t *testing.T, body string, dropEach bool, exts ...string) ([]string, int) {
+	t.Helper()
+	php, args, dir, sink := devtoolsExtSetup(t, body, dropEach, exts...)
+	if out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput(); err != nil {
+		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	return sink.result()
+}
+
+// devtoolsExtSetup writes body to dir/probe.php and returns the php arguments
+// that load lerd_devtools against a capture socket. Skipped unless php can load
+// the extension, which holds in lerd's FPM image and not on a CI runner.
+func devtoolsExtSetup(t *testing.T, body string, dropEach bool, exts ...string) (string, []string, string, *capture) {
 	t.Helper()
 	php, err := exec.LookPath("php")
 	if err != nil {
@@ -22,13 +37,13 @@ func runDevtoolsExt(t *testing.T, body string, dropEach bool, exts ...string) ([
 	for _, e := range exts {
 		args = append(args, "-d", "extension="+e)
 	}
-	if out, _ := exec.Command(php, append(args, "-m")...).Output(); !strings.Contains(string(out), "lerd_devtools") {
+	// Match the module line: a failed load prints a warning naming it too.
+	if out, _ := exec.Command(php, append(args, "-m")...).Output(); !slices.Contains(strings.Split(string(out), "\n"), "lerd_devtools") {
 		t.Skip("php cannot load lerd_devtools; run inside lerd's FPM image")
 	}
 
 	dir := t.TempDir()
 	flag := filepath.Join(dir, "enabled.flag")
-	script := filepath.Join(dir, "probe.php")
 	if err := os.WriteFile(flag, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +51,7 @@ func runDevtoolsExt(t *testing.T, body string, dropEach bool, exts ...string) ([
 	if out, _ := exec.Command(php, "-n", "-r", "echo file_exists("+phpQuote(flag)+") ? 'Y' : 'N';").Output(); !strings.Contains(string(out), "Y") {
 		t.Skip("php cannot read host files (containerised/sandboxed wrapper); native php needed")
 	}
-	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "probe.php"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	sink := listenCapture(t, dropEach)
@@ -44,12 +59,8 @@ func runDevtoolsExt(t *testing.T, body string, dropEach bool, exts ...string) ([
 		"-d", "lerd.devtools_host=unix://"+sink.sock,
 		"-d", "lerd.devtools_kinds=query",
 		"-d", "lerd.devtools_flag="+flag,
-		"-d", "lerd.assets_dir="+dir,
-		script)
-	if out, err := exec.Command(php, args...).CombinedOutput(); err != nil {
-		t.Fatalf("php run failed: %v\n%s", err, out)
-	}
-	return sink.result()
+		"-d", "lerd.assets_dir="+dir)
+	return php, args, dir, sink
 }
 
 func queryLines(t *testing.T, lines []string) int {
@@ -113,5 +124,48 @@ $db->query('select 3');
 	}
 	if conns != 2 {
 		t.Errorf("connections = %d, want 2, the parent's and the child's", conns)
+	}
+}
+
+// The CLI exits right after its one request, which would close the socket
+// anyway, so this serves requests from a long-lived php -S instead.
+func TestDevtoolsExt_ClosesConnectionAtRequestEnd(t *testing.T) {
+	php, args, dir, sink := devtoolsExtSetup(t, `<?php
+(new PDO('sqlite::memory:'))->query('select 1');
+echo 'ok';
+`, false)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	srv := exec.Command(php, append(args, "-S", addr, "-t", dir)...)
+	if err := srv.Start(); err != nil {
+		t.Fatalf("php -S: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Process.Kill(); _ = srv.Wait() })
+
+	var resp *http.Response
+	for i := 0; i < 50; i++ {
+		if resp, err = http.Get("http://" + addr + "/probe.php"); err == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("GET probe: %v", err)
+	}
+	resp.Body.Close()
+
+	lines, conns := sink.result()
+	sink.mu.Lock()
+	ended := sink.ended
+	sink.mu.Unlock()
+	if queryLines(t, lines) != 1 || conns != 1 {
+		t.Fatalf("got %d lines over %d connections, want 1 over 1: %v", len(lines), conns, lines)
+	}
+	if ended != 1 {
+		t.Errorf("connection still open after the request ended, with php still running")
 	}
 }

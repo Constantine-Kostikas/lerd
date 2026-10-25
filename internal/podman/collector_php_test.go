@@ -110,6 +110,7 @@ type capture struct {
 	mu    sync.Mutex
 	lines []string
 	conns int
+	ended int // connections the bridge has closed
 }
 
 // listenCapture listens on a fresh unix socket and records every line and
@@ -139,6 +140,11 @@ func listenCapture(t *testing.T, dropEach bool) *capture {
 
 func (c *capture) read(conn net.Conn, dropEach bool) {
 	defer conn.Close()
+	defer func() {
+		c.mu.Lock()
+		c.ended++
+		c.mu.Unlock()
+	}()
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	for sc.Scan() {
