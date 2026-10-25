@@ -18,3 +18,15 @@ func ProvidedEnvDir() string {
 	}
 	return filepath.Join(dir, "lerd", "env")
 }
+
+// defaultCARootDir is mkcert's CAROOT under the XDG data directory.
+func defaultCARootDir() (string, error) {
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
+		return filepath.Join(dir, "mkcert"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "share", "mkcert"), nil
+}

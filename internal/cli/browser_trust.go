@@ -32,5 +32,5 @@ func browserTrustGuidance(atomic bool) string {
 // keeps the difference visible between one stale Firefox profile and a machine
 // where the CA never reached a browser at all.
 func browserTrustStoreGuidance(stores []string) string {
-	return fmt.Sprintf("the mkcert root CA is missing from %s, so browsers reading it warn on .test even though curl, PHP and openssl trust it. Run lerd dns:repair to install it there.", strings.Join(stores, ", "))
+	return fmt.Sprintf("the lerd root CA is missing from %s, so browsers reading it warn on .test even though curl, PHP and openssl trust it. Run lerd dns:repair to install it there.", strings.Join(stores, ", "))
 }

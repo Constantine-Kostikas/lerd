@@ -257,10 +257,10 @@ If you can't or don't want to use the `/api/remote-setup` endpoint, every step i
 
 ### Install mkcert and trust the server's CA
 
-On the server:
+On the server (on macOS the default is `~/Library/Application Support/mkcert` instead):
 
 ```bash
-cat $(mkcert -CAROOT)/rootCA.pem | base64
+cat "${CAROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/mkcert}/rootCA.pem" | base64
 # scp the file or paste the base64 into the laptop's terminal
 ```
 

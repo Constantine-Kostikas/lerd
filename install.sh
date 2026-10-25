@@ -125,7 +125,7 @@ distro_family() {
 MISSING_PKGS=()
 
 # DNS mode chosen by the user before prerequisites are checked. "managed" runs
-# lerd's dnsmasq + mkcert so sites resolve at https://<name>.test with trusted
+# lerd's DNS server and local CA so sites resolve at https://<name>.test with trusted
 # certs; "localhost" skips all of that and serves http://<name>.localhost over
 # plain HTTP. The choice is passed straight to `lerd install --dns` so the
 # prompt isn't shown twice, and it lets us skip the HTTPS-only packages
@@ -162,7 +162,7 @@ ask_dns_mode() {
   echo "  lerd can manage local DNS so sites resolve at https://<name>.test with"
   echo "  trusted certificates, or stay out of the way and serve them at"
   echo "  http://<name>.localhost over plain HTTP. The .localhost mode needs no"
-  echo "  dnsmasq, no mkcert, and no extra packages."
+  echo "  DNS server, no local CA, and no extra packages."
   echo ""
   echo -en "  ${BOLD}?${RESET}  Let lerd manage DNS for .test sites with HTTPS? [Y/n] "
   read -r _ans 2>/dev/null </dev/tty || true
@@ -252,7 +252,7 @@ check_nm_dnsmasq() {
 
 check_certutil() {
   if command -v certutil &>/dev/null; then
-    success "certutil found (needed for mkcert CA trust in browsers)"
+    success "certutil found (needed for the lerd CA to be trusted in browsers)"
     return
   fi
   local family; family="$(distro_family)"
@@ -268,12 +268,12 @@ check_certutil() {
     # nss-tools can't be layered inline (rpm-ostree needs a reboot), so don't
     # queue it for the package installer, which would die or fail on ostree.
     # Guide instead, and leave localhost as the no-package alternative.
-    warn "certutil not found — mkcert can't trust HTTPS certs in Chrome/Firefox on this atomic image"
+    warn "certutil not found — lerd can't trust HTTPS certs in Chrome/Firefox on this atomic image"
     info "For browser trust: rpm-ostree install $pkg, reboot, then run 'lerd dns:repair'"
     info "Or re-run and choose localhost DNS to serve plain http with no certificates"
     return
   fi
-  warn "certutil not found — mkcert won't be able to trust HTTPS certs in Chrome/Firefox"
+  warn "certutil not found — lerd won't be able to trust HTTPS certs in Chrome/Firefox"
   MISSING_PKGS+=("$pkg")
 }
 
@@ -297,7 +297,7 @@ check_prerequisites() {
 }
 
 # macOS needs only the podman CLI on PATH; `lerd install` brings the Podman
-# machine up itself, and mkcert/DNS/launchd are all handled inside the binary.
+# machine up itself, and the CA, DNS and launchd are all handled inside the binary.
 # Missing packages are installed via Homebrew (no sudo, unlike the Linux path).
 check_prerequisites_macos() {
   header "Checking prerequisites"

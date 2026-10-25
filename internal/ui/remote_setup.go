@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -168,13 +167,13 @@ func buildRemoteSetupScript(r *http.Request) (string, error) {
 		return "", fmt.Errorf("could not detect server LAN IP: %w", err)
 	}
 
-	caRoot, err := mkcertCAROOT()
+	caRoot, err := certs.CARoot()
 	if err != nil {
-		return "", fmt.Errorf("locating mkcert CA: %w", err)
+		return "", fmt.Errorf("locating the lerd CA: %w", err)
 	}
 	caBytes, err := os.ReadFile(filepath.Join(caRoot, "rootCA.pem"))
 	if err != nil {
-		return "", fmt.Errorf("reading mkcert root CA: %w", err)
+		return "", fmt.Errorf("reading the lerd root CA: %w", err)
 	}
 	caB64 := base64.StdEncoding.EncodeToString(caBytes)
 
@@ -209,19 +208,6 @@ func detectPrimaryLANIP() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no usable IPv4 address found")
-}
-
-// mkcertCAROOT runs `mkcert -CAROOT` to find where the root CA lives.
-func mkcertCAROOT() (string, error) {
-	bin := certs.MkcertPath()
-	if _, err := os.Stat(bin); err != nil {
-		return "", fmt.Errorf("mkcert binary not found at %s — run `lerd install` first", bin)
-	}
-	out, err := exec.Command(bin, "-CAROOT").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 // remoteSetupScriptTemplate is a bash script with three printf placeholders:

@@ -131,7 +131,7 @@ sudo apt install -y \
   curl git unzip libnss3-tools
 ```
 
-`uidmap` and `slirp4netns` are what give you rootless containers. `fuse-overlayfs` is the fallback when the WSL kernel's overlayfs misbehaves. `libnss3-tools` provides the `certutil` mkcert needs.
+`uidmap` and `slirp4netns` are what give you rootless containers. `fuse-overlayfs` is the fallback when the WSL kernel's overlayfs misbehaves. `libnss3-tools` provides the `certutil` lerd needs to reach the browser stores.
 
 ::: danger Set `events_logger = "journald"` for Podman
 Grieco's gist sets `events_logger = "file"` in `~/.config/containers/containers.conf`. Podman defaults to the `journald` log driver on systemd hosts, and refuses `--follow` when the log driver is journald but the events backend is file. Lerd's dashboard log views and `lerd logs` both call `podman logs --follow` under the hood, so every log pane ends up showing `Error: using --follow with the journald --log-driver but without the journald --events-backend (file) is not supported`.
@@ -202,7 +202,7 @@ A distro without systemd-resolved, such as Debian's WSL image, gets it installed
 Windows resolves `.test` through the lerd agent described above. To trust HTTPS by hand instead of through `lerd wsl:setup`, copy the CA out of WSL and import it:
 
 ```bash
-cp "$(~/.local/share/lerd/bin/mkcert -CAROOT)/rootCA.pem" /mnt/c/Users/$USER/Desktop/lerd-rootCA.crt
+cp "${CAROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/mkcert}/rootCA.pem" /mnt/c/Users/$USER/Desktop/lerd-rootCA.crt
 ```
 
 Double-click `lerd-rootCA.crt`, pick **Place all certificates in the following store**, choose **Trusted Root Certification Authorities**, finish, and restart the browser.

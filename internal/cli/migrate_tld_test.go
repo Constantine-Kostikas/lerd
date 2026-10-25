@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"slices"
@@ -214,31 +216,6 @@ func TestMigrateSiteTLD_ReissuesCertForSecuredSiteWithWorktree(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	binDir := filepath.Join(tmp, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	// Fake mkcert that writes its SAN list into the cert/key files so the
-	// test can assert the new TLD's wildcard SAN was passed.
-	fakeMkcert := `#!/bin/sh
-CRT=""
-KEY=""
-SANS=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -cert-file) shift; CRT="$1" ;;
-    -key-file) shift; KEY="$1" ;;
-    *) SANS="$SANS $1" ;;
-  esac
-  shift
-done
-echo "$SANS" > "$CRT"
-echo "FAKE-KEY" > "$KEY"
-`
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(fakeMkcert), 0755); err != nil {
-		t.Fatal(err)
-	}
-
 	if err := os.MkdirAll(config.NginxConfD(), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -303,9 +280,16 @@ echo "FAKE-KEY" > "$KEY"
 		t.Fatalf("expected cert at %s, got %v", newCert, err)
 	}
 	// Cert SANs must include the renamed worktree wildcard.
-	wantSAN := "*.feat-x.alpha.localhost"
-	if !contains(body, wantSAN) {
-		t.Errorf("cert %s missing SAN %q; got %q", newCert, wantSAN, body)
+	block, _ := pem.Decode(body)
+	if block == nil {
+		t.Fatalf("cert %s is not PEM", newCert)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wantSAN := "*.feat-x.alpha.localhost"; !slices.Contains(leaf.DNSNames, wantSAN) {
+		t.Errorf("cert %s missing SAN %q; got %v", newCert, wantSAN, leaf.DNSNames)
 	}
 	// Old cert files must be cleaned up so the certs/sites dir doesn't
 	// accumulate stale entries across migrations.
@@ -327,26 +311,6 @@ func TestMigrateSiteTLD_DNSRoundTripRestoresHTTPS(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	binDir := filepath.Join(tmp, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	fakeMkcert := `#!/bin/sh
-CRT=""
-KEY=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -cert-file) shift; CRT="$1" ;;
-    -key-file) shift; KEY="$1" ;;
-  esac
-  shift
-done
-echo "CERT" > "$CRT"
-echo "KEY" > "$KEY"
-`
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(fakeMkcert), 0755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.MkdirAll(config.NginxConfD(), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -461,14 +425,6 @@ func TestMigrateSiteTLD_DNSRoundTripRestoresHTTPS_NoProjectFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	binDir := filepath.Join(tmp, "lerd", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	fakeMkcert := "#!/bin/sh\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in -cert-file) shift; echo CERT > \"$1\" ;; -key-file) shift; echo KEY > \"$1\" ;; esac; shift; done\n"
-	if err := os.WriteFile(filepath.Join(binDir, "mkcert"), []byte(fakeMkcert), 0755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.MkdirAll(config.NginxConfD(), 0755); err != nil {
 		t.Fatal(err)
 	}

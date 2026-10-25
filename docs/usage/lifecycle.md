@@ -321,7 +321,7 @@ lerd status
 
 Shows a live snapshot: DNS reachability, nginx, PHP-FPM containers, watcher, host tools, services, certificate expiry, and LAN exposure. Run it after every `lerd start` to confirm everything is healthy. See [Troubleshooting](../troubleshooting.md) if anything is reported as down.
 
-The `[Tools]` section lists the host binaries lerd manages (Composer, mise, fnm, mkcert) with their installed versions, and flags any that differ from the versions lerd currently pins. The same information appears in the web UI under System > Tools, where the pending version on a tool's card is a button that updates that one tool. Apply pending updates from the terminal with:
+The `[Tools]` section lists the host binaries lerd manages (Composer, mise, fnm) with their installed versions, and flags any that differ from the versions lerd currently pins. The same information appears in the web UI under System > Tools, where the pending version on a tool's card is a button that updates that one tool. Apply pending updates from the terminal with:
 
 ```bash
 lerd tools:update
@@ -370,7 +370,7 @@ Where a digest is given the download is checked against it and rejected on a mis
 | lerd's VM is holding more host disk than it uses (macOS) | `lerd machine reclaim` |
 | lerd's VM keeps running out of memory (macOS) | `lerd machine memory` |
 | Verify everything's healthy | `lerd status` |
-| Update Composer / mise / fnm / mkcert to their pinned versions | `lerd tools:update` |
+| Update Composer / mise / fnm to their pinned versions | `lerd tools:update` |
 | Uninstall a service entirely (data preserved) | `lerd service remove <name>` |
 | Uninstall and wipe data (snapshots the databases first) | `lerd service remove <name> --purge` |
 | Reinstall a service in place | `lerd service reinstall <name>` |

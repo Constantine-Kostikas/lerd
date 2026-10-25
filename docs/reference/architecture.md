@@ -49,7 +49,7 @@ On Linux, lerd requires systemd. Every container runs as a Podman Quadlet (syste
 | Node | [fnm](https://github.com/Schniz/fnm) binary, version per project |
 | Services | Podman Quadlet containers |
 | DNS | built-in DNS server (`lerd dns-serve`) as a user service + NetworkManager or systemd-resolved integration |
-| TLS | [mkcert](https://github.com/FiloSottile/mkcert), locally trusted CA |
+| TLS | Lerd's own local CA, in [mkcert](https://github.com/FiloSottile/mkcert)'s layout and format |
 | Debug bridge | Always-mounted `auto_prepend_file` PHP file in each FPM container; runtime sentinel toggles capture without a container restart. NDJSON to an in-process receiver inside `lerd-ui`, per-user Unix socket on Linux (`~/.local/share/lerd/run/lerd-dumps.sock`, via the `%h:%h` mount); TCP loopback `127.0.0.1:9913` on macOS (FPM reaches it via gvproxy's `host.containers.internal:9913` because unix sockets don't traverse the podman-machine virtio-fs boundary). See [features/dumps.md](../features/dumps.md). |
 | Notifications | Single in-process notifier inside `lerd-ui` dispatches every kind (mail, worker failures, finished service ops, service updates, dumps) through both WebSocket (open tabs at `/api/ws`) and Web Push (closed PWA / minimised tabs). Per-install VAPID keys at `~/.local/share/lerd/vapid-{private,public}.key`; subscription store at `push-subscriptions.json` with per-category preferences. See [features/notifications.md](../features/notifications.md). |
 

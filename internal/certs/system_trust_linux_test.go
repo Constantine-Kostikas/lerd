@@ -58,6 +58,7 @@ func TestTrustCAInSystemStore(t *testing.T) {
 }
 
 func TestUntrustCAFromSystemStore(t *testing.T) {
+	useTestCA(t)
 	dir := t.TempDir()
 	present := filepath.Join(dir, "anchors")
 	if err := os.MkdirAll(present, 0755); err != nil {
@@ -76,7 +77,7 @@ func TestUntrustCAFromSystemStore(t *testing.T) {
 		t.Fatal("anchor reported absent right after install")
 	}
 
-	if err := UntrustCAFromSystemStore(); err != nil {
+	if err := UntrustCAFromSystemStore(nil); err != nil {
 		t.Fatalf("uninstall: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(present, "lerd-mkcert-rootCA.crt")); !os.IsNotExist(err) {
@@ -90,11 +91,49 @@ func TestUntrustCAFromSystemStore(t *testing.T) {
 	}
 
 	// Idempotent: nothing left to remove means no second bundle refresh.
-	if err := UntrustCAFromSystemStore(); err != nil {
+	if err := UntrustCAFromSystemStore(nil); err != nil {
 		t.Fatalf("second uninstall: %v", err)
 	}
 	if len(*commands) != 2 {
 		t.Errorf("uninstall with no anchor re-ran the trust command (%d runs)", len(*commands))
+	}
+}
+
+// Installs before #1194 let mkcert write the anchor under its own name, which
+// only the certificate inside identifies as lerd's.
+func TestUntrustCAFromSystemStore_removesMkcertNamedAnchor(t *testing.T) {
+	root := useTestCA(t)
+	if err := EnsureCA(); err != nil {
+		t.Fatal(err)
+	}
+	ca := readFileNoErr(filepath.Join(root, "rootCA.pem"))
+	present := t.TempDir()
+	commands := stubTrustStores(t, []systemTrustStore{
+		{present, "lerd-mkcert-rootCA.crt", []string{"update-ca-certificates"}},
+	})
+	legacy := filepath.Join(present, "mkcert_development_CA_1234.crt")
+	other := filepath.Join(present, "someone-else.crt")
+	if err := os.WriteFile(legacy, ca, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, []byte("-----BEGIN CERTIFICATE-----\nb3RoZXI=\n-----END CERTIFICATE-----\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if !SystemTrustAnchorPresent() {
+		t.Fatal("mkcert-named anchor not reported, so uninstall would never escalate to remove it")
+	}
+
+	if err := UntrustCAFromSystemStore(ca); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Error("mkcert-named anchor holding lerd's CA was left trusted")
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("an anchor holding another CA was removed: %v", err)
+	}
+	if len(*commands) != 1 {
+		t.Errorf("bundle refreshes = %d, want 1", len(*commands))
 	}
 }
 
@@ -103,7 +142,7 @@ func TestUntrustCAFromSystemStoreNoStore(t *testing.T) {
 	stubTrustStores(t, []systemTrustStore{
 		{filepath.Join(dir, "missing-a"), "a.pem", []string{"update-ca-trust", "extract"}},
 	})
-	if err := UntrustCAFromSystemStore(); !errors.Is(err, ErrNoSystemTrustStore) {
+	if err := UntrustCAFromSystemStore(nil); !errors.Is(err, ErrNoSystemTrustStore) {
 		t.Fatalf("err = %v, want ErrNoSystemTrustStore", err)
 	}
 }

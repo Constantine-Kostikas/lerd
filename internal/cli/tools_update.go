@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 
-	"github.com/geodro/lerd/internal/certs"
 	"github.com/geodro/lerd/internal/composer"
 	"github.com/geodro/lerd/internal/feedback"
 	"github.com/geodro/lerd/internal/tools"
@@ -71,7 +70,7 @@ func runToolsUpdate(_ *cobra.Command, _ []string) error {
 var updateToolFn = updateTool
 
 // updateTool reinstalls one tool at its pinned version. fnm and mise go through
-// their archive extract; composer and mkcert are plain binary swaps.
+// their archive extract; composer is a plain binary swap.
 func updateTool(pins *pinnedTools, name string) error {
 	switch name {
 	case "fnm":
@@ -82,8 +81,6 @@ func updateTool(pins *pinnedTools, name string) error {
 			return fmt.Errorf("mise update: %w", err)
 		}
 		return installMise(pins, home, io.Discard)
-	case "mkcert":
-		return replaceTool(pins, name, certs.MkcertPath(), io.Discard)
 	default:
 		return replaceTool(pins, name, composer.PharPath(), io.Discard)
 	}

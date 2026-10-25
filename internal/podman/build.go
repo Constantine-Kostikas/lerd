@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -143,20 +142,14 @@ func sortPaths(paths []string) {
 	}
 }
 
-// mkcertPath returns the path to the mkcert binary managed by lerd.
-func mkcertPath() string {
-	return filepath.Join(config.BinDir(), "mkcert")
-}
-
-// mkcertCABlock copies the mkcert rootCA.pem into tmpDir and returns the
-// Containerfile snippet that trusts it, or "" when mkcert or its CA is missing.
+// mkcertCABlock copies the root CA into tmpDir and returns the Containerfile
+// snippet that trusts it, or "" when no CA has been generated.
 func mkcertCABlock(tmpDir string, packages []string) string {
-	out, err := exec.Command(mkcertPath(), "-CAROOT").Output()
+	root, err := config.CARootDir()
 	if err != nil {
 		return ""
 	}
-	rootCA := filepath.Join(strings.TrimSpace(string(out)), "rootCA.pem")
-	src, err := os.ReadFile(rootCA)
+	src, err := os.ReadFile(filepath.Join(root, "rootCA.pem"))
 	if err != nil {
 		return ""
 	}

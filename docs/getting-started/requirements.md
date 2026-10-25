@@ -49,7 +49,7 @@ sudo dnf install crun
 :::
 
 - **`unzip`**: used during install to extract fnm
-- **`certutil` / `nss-tools`**: for mkcert to install the CA into Chrome/Firefox. Only needed when lerd manages DNS for `.test` sites with HTTPS. If you pick the `.localhost` mode at install time the installer skips this package, so immutable hosts like Fedora Silverblue don't need to layer it.
+- **`certutil` / `nss-tools`**: for lerd to install the CA into Chrome/Firefox. Only needed when lerd manages DNS for `.test` sites with HTTPS. If you pick the `.localhost` mode at install time the installer skips this package, so immutable hosts like Fedora Silverblue don't need to layer it.
     - Arch: `nss`
     - Debian/Ubuntu: `libnss3-tools`
     - Fedora: `nss-tools`
@@ -69,7 +69,7 @@ The released binary is fully static with no runtime dependencies. You do not nee
 - **Podman Machine**: `lerd install` boots and configures it on first run
 - **Xcode Command Line Tools**: required by Homebrew (`xcode-select --install` if missing)
 
-DNS, the local CA (mkcert), and nginx are all set up by `lerd install`. No system-level resolver configuration is needed; macOS picks up `.test` lookups from `/etc/resolver/test` which lerd writes for you.
+DNS, the local CA, and nginx are all set up by `lerd install`. No system-level resolver configuration is needed; macOS picks up `.test` lookups from `/etc/resolver/test` which lerd writes for you.
 
 ### Podman Machine memory
 

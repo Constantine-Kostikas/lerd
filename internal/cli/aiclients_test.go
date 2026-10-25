@@ -31,7 +31,16 @@ func TestMain(m *testing.M) {
 	platform.Current.TrayHost = true
 	// Inside WSL the enable-global path would otherwise write the real Windows profile.
 	platform.Current.WindowsSide = false
-	os.Exit(m.Run())
+	// Securing a site generates a CA when none is there, and on macOS the
+	// default CAROOT ignores the XDG vars the tests redirect.
+	caroot, err := os.MkdirTemp("", "lerd-test-caroot-*")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("CAROOT", caroot)
+	code := m.Run()
+	os.RemoveAll(caroot)
+	os.Exit(code)
 }
 
 // TestCopilotUsesServersKey verifies the VS Code config quirk: the top-level key
