@@ -1,0 +1,38 @@
+package cli
+
+import (
+	"io"
+	"testing"
+
+	"github.com/geodro/lerd/internal/config"
+)
+
+// The dashboard's Install goes through InstallPHPVersion. Under the native
+// runtime it has to fetch the published build and bring its pool up, the way
+// `lerd use` plus `lerd start` would, rather than build an image nothing serves.
+func TestInstallPHPVersionFetchesTheNativeBuild(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	cfg, err := config.LoadGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.PHP.Runtime = config.PHPRuntimeNative
+	if err := config.SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	var fetched, started string
+	origInstall, origStart := nativeInstallFn, nativeStartFn
+	nativeInstallFn = func(version string, _ io.Writer) error { fetched = version; return nil }
+	nativeStartFn = func(version string) error { started = version; return nil }
+	defer func() { nativeInstallFn, nativeStartFn = origInstall, origStart }()
+
+	if err := InstallPHPVersion("8.4", io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if fetched != "8.4" || started != "8.4" {
+		t.Errorf("fetched %q, started %q, want both 8.4", fetched, started)
+	}
+}

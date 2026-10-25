@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/geodro/lerd/internal/config"
@@ -37,5 +38,32 @@ func TestFPMUnitsToStop(t *testing.T) {
 	}
 	if len(fpmUnitsFor(nil)) != 0 {
 		t.Error("no versions should mean no units")
+	}
+}
+
+// A fresh install has no FPM images, so narrowing the versions a switch to
+// native fetches by what the container runtime installed fetched nothing and
+// left every site on a version with no binary behind it.
+func TestNativeVersionsWantedIgnoresContainerImages(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	reg := &config.SiteRegistry{Sites: []config.Site{
+		{Name: "app", Path: t.TempDir(), PHPVersion: "8.4"},
+		{Name: "old", Path: t.TempDir(), PHPVersion: "8.3", Paused: true},
+	}}
+	if err := config.SaveSites(reg); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.PHP.DefaultVersion = "8.5"
+	if err := config.SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if got := nativeVersionsWanted(); !slices.Equal(got, []string{"8.4", "8.5"}) {
+		t.Errorf("wanted = %v, want [8.4 8.5]", got)
 	}
 }

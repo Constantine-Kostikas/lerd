@@ -48,6 +48,8 @@ lerd php:update 8.4          # just this one
 lerd php:list                # what is installed for the active runtime
 ```
 
+Installing a version from the dashboard (**System → PHP → Install**) does the same: it fetches the native build and starts its listener, rather than building an image the native runtime would never use.
+
 Builds are published per PHP patch, so `8.4.24` and `8.4.25` are separate downloads and lerd pins one of them per minor. `lerd php:update` re-reads the pins past their cache, which matters because the passive check only looks once a day and the point of running it by hand is to find out now.
 
 `php:update` follows the runtime, so it is one command either way: on the container runtime it rebuilds the FPM images from the newest base, which is what `lerd php:rebuild` does.

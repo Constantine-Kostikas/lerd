@@ -9,6 +9,7 @@ import (
 
 	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/feedback"
+	"github.com/geodro/lerd/internal/lifecycle"
 	phpPkg "github.com/geodro/lerd/internal/php"
 	"github.com/geodro/lerd/internal/podman"
 	"github.com/spf13/cobra"
@@ -40,7 +41,8 @@ func IsLegacyPHPVersion(v string) bool {
 }
 
 // InstallPHPVersion builds the FPM image for the given version, registers its
-// quadlet and starts the service, streaming build output to w. It is the
+// quadlet and starts the service, streaming build output to w. Under the native
+// runtime it fetches the published host build and starts its pool instead. It is the
 // programmatic entry point behind the UI's "add PHP version" flow.
 func InstallPHPVersion(version string, w io.Writer) error {
 	version, err := config.NormalizePHPVersion(version)
@@ -50,6 +52,16 @@ func InstallPHPVersion(version string, w io.Writer) error {
 	// Always emit a line so a streamed install shows progress even when the
 	// image is already built and the build step produces no output.
 	fmt.Fprintf(w, "Installing PHP %s...\n", version)
+	if !lifecycle.FPMContainersWanted() {
+		if err := nativeInstallFn(version, w); err != nil {
+			return err
+		}
+		if err := nativeStartFn(version); err != nil {
+			return fmt.Errorf("starting native php-fpm %s: %w", version, err)
+		}
+		fmt.Fprintf(w, "PHP %s installed and started.\n", version)
+		return nil
+	}
 	if err := ensureFPMQuadletTo(version, w); err != nil {
 		return err
 	}

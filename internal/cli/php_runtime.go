@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
@@ -143,7 +144,7 @@ func ApplyPHPRuntime(mode string) error {
 			}
 		}
 		pins := &pinnedTools{}
-		for _, v := range versionsInUse(versions) {
+		for _, v := range nativeVersionsWanted() {
 			if err := ensureNativePHPInstalled(pins, v, os.Stdout); err != nil {
 				return err
 			}
@@ -193,7 +194,7 @@ func ApplyPHPRuntime(mode string) error {
 		if err := podman.EnsureDumpAssets(); err != nil {
 			feedback.Warn("refreshing the debug bridge assets: %v (dump()/dd() may not capture)", err)
 		}
-		for _, v := range versionsInUse(versions) {
+		for _, v := range nativeVersionsWanted() {
 			if err := nativephp.Ensure(v); err != nil {
 				return fmt.Errorf("starting native php-fpm %s: %w", v, err)
 			}
@@ -257,6 +258,29 @@ func ApplyPHPRuntime(mode string) error {
 		}
 	}
 	return nil
+}
+
+// nativeVersionsWanted lists the default PHP version plus the ones the sites
+// the native runtime serves run on. Not narrowed by the container images: a
+// switch on a machine that never built one has to fetch these, not skip them.
+func nativeVersionsWanted() []string {
+	var out []string
+	// The default backs the php and composer shims even with no site linked.
+	if cfg, err := config.LoadGlobal(); err == nil && nativephp.Supported(cfg.PHP.DefaultVersion) {
+		out = append(out, cfg.PHP.DefaultVersion)
+	}
+	sites, err := config.LoadSites()
+	if err != nil {
+		return out
+	}
+	for i := range sites.Sites {
+		s := &sites.Sites[i]
+		if switchableToNative(s) && s.PHPVersion != "" && !slices.Contains(out, s.PHPVersion) {
+			out = append(out, s.PHPVersion)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // versionsInUse narrows the installed PHP versions to those a site the shared
@@ -373,8 +397,7 @@ func startNativeRuntime() {
 	if err != nil || cfg.PHPRuntimeMode() != config.PHPRuntimeNative {
 		return
 	}
-	versions, _ := phpDet.ListInstalled()
-	for _, v := range versionsInUse(versions) {
+	for _, v := range versionsInUse(nativephp.ListInstalled()) {
 		if err := nativephp.Ensure(v); err != nil {
 			feedback.Warn("starting native php-fpm %s: %v", v, err)
 			continue
