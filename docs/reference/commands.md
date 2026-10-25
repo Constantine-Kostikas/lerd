@@ -367,11 +367,12 @@ Activity-driven worker suspension: lerd gracefully stops each site's suspendable
 
 | Command | Description |
 |---|---|
-| `lerd mcp:enable-global` | Register lerd MCP at user scope across every supported assistant (Claude Code, Cursor, Junie, Codex, Gemini, Copilot, Antigravity, Windsurf), available in every session regardless of directory |
-| `lerd mcp:disable-global` | Unregister the user-scope lerd MCP server and remove the user-scope skill files (inverse of `mcp:enable-global`) |
+| `lerd mcp:enable-global` | Register lerd MCP at user scope across every supported assistant (Claude Code, Cursor, Junie, Codex, Gemini, Copilot, Antigravity, Windsurf), available in every session regardless of directory, and install the `lerd-php` language server plugin in Claude Code |
+| `lerd mcp:disable-global` | Unregister the user-scope lerd MCP server, remove the user-scope skill files and the `lerd-php` plugin (inverse of `mcp:enable-global`) |
 | `lerd mcp:inject` | Inject the lerd MCP config and AI skill files into the current project |
 | `lerd mcp:inject --path <dir>` | Inject into a specific project directory |
 | `lerd mcp:eject` | Remove the lerd MCP config and AI skill files from the current project (inverse of `mcp:inject`); use `--path <dir>` to target another directory |
+| `lerd lsp` | Run the PHP language server on stdio in the current folder, for editors and AI agents (see [PHP code intelligence](../features/mcp.md#php-code-intelligence)) |
 
 ## Plugins
 

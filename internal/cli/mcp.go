@@ -291,7 +291,7 @@ func NewMCPDisableGlobalCmd() *cobra.Command {
 		Use:   "mcp:disable-global",
 		Short: "Unregister the user-scope lerd MCP server for all AI assistants",
 		Long: `Removes the user-scope lerd MCP registration and context docs written
-by mcp:enable-global: the Claude Code user-scope entry, each client's global MCP
+by mcp:enable-global: the Claude Code user-scope entry and lerd-php plugin, each client's global MCP
 config, and the user-scope skill/guidelines files. Other MCP servers and your own
 instructions content are left untouched.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -401,6 +401,10 @@ func writeHomeMCPConfigs(h aiHome, verbose bool) error {
 				feedback.Note("run manually: claude mcp add --scope user lerd -- " + h.command + " mcp")
 			default:
 				log("registered in Claude Code (user scope)")
+				// lerd lsp runs on this machine only, so a Windows profile gets no plugin.
+				if !h.windows {
+					installClaudeLSPPlugin(log)
+				}
 			}
 			continue
 		}
@@ -487,7 +491,37 @@ var (
 	claudeMCP = func(args ...string) ([]byte, error) {
 		return exec.Command("claude", append([]string{"mcp"}, args...)...).CombinedOutput()
 	}
+	claudePlugin = func(args ...string) ([]byte, error) {
+		return exec.Command("claude", append([]string{"plugin"}, args...)...).CombinedOutput()
+	}
 )
+
+// Claude Code takes a language server only from a plugin, so lerd's PHP one ships
+// as lerd-php in its own small marketplace repo, which is all the CLI downloads.
+const (
+	lerdClaudeMarketplaceRepo = "lerd-env/claude-plugins"
+	lerdClaudeMarketplace     = "lerd"
+	lerdClaudeLSPPlugin       = "lerd-php@" + lerdClaudeMarketplace
+)
+
+// installClaudeLSPPlugin ignores the marketplace add, which fails when a previous
+// enable already added it; the install alone decides whether a warning is due.
+func installClaudeLSPPlugin(log func(string)) {
+	_, _ = claudePlugin("marketplace", "add", lerdClaudeMarketplaceRepo)
+	if out, err := claudePlugin("install", "--scope", "user", lerdClaudeLSPPlugin); err != nil {
+		feedback.Warn("could not install the lerd-php plugin in Claude Code (%v): %s", err, strings.TrimSpace(string(out)))
+		feedback.Note("run manually: claude plugin marketplace add " + lerdClaudeMarketplaceRepo + " && claude plugin install " + lerdClaudeLSPPlugin)
+		return
+	}
+	log("installed the lerd-php language server plugin in Claude Code")
+}
+
+func removeClaudeLSPPlugin(log func(string)) {
+	if _, err := claudePlugin("uninstall", "--scope", "user", lerdClaudeLSPPlugin); err == nil {
+		log("  removed the lerd-php plugin from Claude Code")
+	}
+	_, _ = claudePlugin("marketplace", "remove", lerdClaudeMarketplace)
+}
 
 // IsMCPGloballyRegistered reports whether lerd is registered with Claude Code.
 // Uses `claude mcp get lerd` which returns exit 0 when the server is known and
@@ -613,6 +647,9 @@ func removeHomeAI(h aiHome, verbose bool) error {
 		if c.GlobalViaCLI {
 			if _, err := h.claude("remove", "--scope", "user", "lerd"); err == nil {
 				log("  removed Claude Code user-scope MCP registration")
+			}
+			if !h.windows {
+				removeClaudeLSPPlugin(log)
 			}
 		}
 		if full := h.mcpPath(c); full != "" {
