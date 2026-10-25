@@ -98,7 +98,7 @@ Every db command resolves which service to target and which database to use thro
 1. **`--service` flag**: explicit override, e.g. `lerd db:shell --service postgres`
 2. **`.lerd.yaml` `db:` block**: declared in the project root, works even on unlinked sites
 3. **Framework definition**: lerd detects the framework and reads the env file the definition declares, in the format it declares, at the keys it declares: Symfony's `DATABASE_URL` in `.env.local`, WordPress's `DB_NAME` and `DB_HOST` in `wp-config.php`, Magento's dotted keys in `app/etc/env.php`
-4. **`.env` key inference**: reads `DB_CONNECTION`, `DB_TYPE`, `TYPEORM_CONNECTION`, `DATABASE_URL`, or `DB_PORT` from `.env`
+4. **`.env` key inference**: reads `DB_CONNECTION`, `DB_TYPE`, `TYPEORM_CONNECTION`, `DATABASE_URL`, or `DB_PORT` from `.env`. A `DB_HOST` naming a lerd container picks that exact service, so `lerd-postgres-18` targets `postgres-18`; the connection type only falls back to its family's default service when the host is not a lerd container. The MCP `db` tool resolves its snapshots the same way
 5. **Error**: with instructions listing all options above
 
 The `--database` flag overrides the database name at any resolution level.
