@@ -51,6 +51,9 @@
 .lerd-landing .gh .stars{font:500 12px var(--mono);color:var(--muted);border:1px solid var(--line-2);padding:3px 7px}
 .lerd-landing .gh:hover .stars{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 30%,transparent)}
 
+.lerd-landing .discord{display:grid;place-items:center}
+.lerd-landing .discord:hover{color:var(--ink)}
+.lerd-landing .discord svg{width:18px;height:18px}
 .lerd-landing .theme{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line-2);background:none;color:var(--ink-2);cursor:pointer}
 .lerd-landing .theme:hover{color:var(--ink);border-color:var(--faint)}
 .lerd-landing .theme svg{width:16px;height:16px}
@@ -74,7 +77,7 @@
 .lerd-landing .copy{font:500 11px var(--mono);color:var(--muted);border:1px solid var(--line-2);padding:4px 8px;flex-shrink:0;background:none;cursor:pointer}
 .lerd-landing .copy:hover{color:var(--ink)}
 .lerd-landing .meta{display:flex;flex-wrap:wrap;gap:28px;margin-top:56px}
-.lerd-landing .meta div{font:13px var(--mono);color:var(--muted)}
+.lerd-landing .meta > *{font:13px var(--mono);color:var(--muted)}
 .lerd-landing .meta strong{display:block;font:600 28px var(--sans);color:var(--ink);letter-spacing:-.02em;margin-bottom:2px}
 .lerd-landing .hero-art{position:absolute;top:72px;left:56%;width:min(1000px,62vw);pointer-events:none;opacity:var(--art-opacity);
   -webkit-mask-image:linear-gradient(90deg,#000 45%,transparent 95%),linear-gradient(180deg,#000 55%,transparent 92%);-webkit-mask-composite:source-in;
@@ -162,6 +165,8 @@
 .lerd-landing .rt-cmd{font:13px var(--mono);color:var(--accent-2);background:none;padding:0}
 .lerd-landing .rt-p{font-size:14px;color:var(--muted);line-height:1.55}
 .lerd-landing .plat .p{min-height:0}
+.lerd-landing .price .p{min-height:0}
+.lerd-landing .price-tag{font:500 13px var(--mono);color:var(--muted);margin-left:8px;letter-spacing:0}
 .lerd-landing .plat .explore{margin-top:auto;padding-top:6px}
 .lerd-landing .card .names{display:flex;flex-wrap:wrap;font:12px/1.9 var(--mono);color:var(--muted)}
 .lerd-landing .card .names i{color:var(--faint);font-style:normal;padding:0 6px}
@@ -169,6 +174,9 @@
 .lerd-landing .more{margin-top:40px;border-top:1px solid var(--line)}
 .lerd-landing .more-row{display:grid;grid-template-columns:200px 1fr;gap:24px;padding:22px 0;border-bottom:1px solid var(--line)}
 .lerd-landing .more-row p{display:flex;flex-wrap:wrap;font:14px/1.9 var(--mono);color:var(--ink-2)}
+.lerd-landing #plugins .sec-head{margin-bottom:0}
+.lerd-landing .plug-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px}
+.lerd-landing .btn.primary .stars{color:#fff;opacity:.8}
 .lerd-landing .more-row i{color:var(--faint);font-style:normal;padding:0 4px}
 
 /* principles */
@@ -199,6 +207,15 @@
 .lerd-landing .cmp td.no{color:var(--faint)}
 .lerd-landing .cmp td.partial{color:var(--amber)}
 .lerd-landing .cmp-note{margin-top:20px;font-size:14px;color:var(--muted);max-width:80ch}
+.lerd-landing .faq{border-top:1px solid var(--line)}
+.lerd-landing .faq details{border-bottom:1px solid var(--line)}
+.lerd-landing .faq summary{display:flex;justify-content:space-between;gap:24px;padding:22px 0;font-size:19px;font-weight:600;letter-spacing:-.01em;cursor:pointer;list-style:none}
+.lerd-landing .faq summary::-webkit-details-marker{display:none}
+.lerd-landing .faq summary::after{content:'+';font:400 22px/1 var(--mono);color:var(--muted)}
+.lerd-landing .faq details[open] summary::after{content:'–'}
+.lerd-landing .faq summary:hover::after{color:var(--accent)}
+.lerd-landing .faq p{padding:0 0 24px;color:var(--muted);font-size:15px;max-width:72ch}
+.lerd-landing .faq p a{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
 .lerd-landing .cmp-note a{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
 
 /* dev digest banner, above the footer */
@@ -224,6 +241,19 @@
 .lerd-landing .pwa-ctl .max::before{width:9px;height:9px;border:1.5px solid}
 .lerd-landing .pwa-close{width:38px;height:38px;border:0;border-radius:6px;background:none;color:var(--ink-2);font-size:14px;cursor:pointer}
 .lerd-landing .pwa-close:hover{background:#c42b1c;color:#fff}
+.lerd-landing .pwa-head{display:flex;align-items:baseline;gap:10px}
+/* macOS and GNOME centre the title, with the controls at the edges. */
+.lerd-landing .os-mac .pwa-bar,.lerd-landing .os-linux .pwa-bar{position:relative;justify-content:flex-end}
+.lerd-landing .os-mac .pwa-head,.lerd-landing .os-linux .pwa-head{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap}
+.lerd-landing .os-mac .pwa-bar{justify-content:flex-start;padding-left:14px}
+.lerd-landing .mac-lights{display:flex;gap:8px}
+.lerd-landing .mac-lights>*{width:12px;height:12px;border-radius:50%;border:0;padding:0;background:#febc2e}
+.lerd-landing .mac-lights>:last-child{background:#28c840}
+.lerd-landing .mac-close{background:#ff5f57;cursor:pointer;display:grid;place-items:center}
+.lerd-landing .mac-close:hover::before{content:"✕";font-size:8px;line-height:1;color:#4d0000}
+.lerd-landing .os-linux .pwa-bar{height:46px;padding:0 8px}
+.lerd-landing .adw-close{width:24px;height:24px;border:0;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,currentColor 10%,transparent);color:inherit;cursor:pointer}
+.lerd-landing .adw-close:hover{background:color-mix(in srgb,currentColor 15%,transparent)}
 .lerd-landing .pwa iframe{flex:1;width:100%;border:0;background:#111113}
 .lerd-landing .zoom{cursor:zoom-out}
 .lerd-landing .zoom img{max-width:100%;max-height:100%;border:1px solid var(--line-2);box-shadow:0 50px 120px -30px var(--shadow);animation:lerd-rise .25s cubic-bezier(.2,.7,.2,1)}
@@ -241,6 +271,13 @@
 .lerd-landing .cta h2{font-size:clamp(40px,6vw,80px);letter-spacing:-.04em;line-height:.98;font-weight:700;max-width:14ch;margin-top:24px}
 .lerd-landing .cta p{color:var(--ink-2);margin:20px 0 36px;font-size:19px;max-width:52ch}
 .lerd-landing .cta .hero-row{margin-top:0}
+/* The command sets the row's width and the buttons share it between them. */
+.lerd-landing .hero-row{display:grid;grid-template-columns:repeat(3,auto);width:fit-content}
+/* Get started keeps the command and both buttons on one line. */
+.lerd-landing .cta .hero-row{grid-template-columns:auto auto auto}
+.lerd-landing .cta .hero-row .cmd{grid-column:auto}
+.lerd-landing .hero-row .cmd{grid-column:1/-1}
+.lerd-landing .hero-row .btn{justify-content:center}
 .lerd-landing footer{padding:64px 0 48px}
 .lerd-landing .foot{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:32px}
 .lerd-landing .social{display:flex;gap:10px;margin-top:22px}
@@ -252,8 +289,14 @@
 .lerd-landing .foot ul a:hover{color:var(--ink)}
 .lerd-landing .foot .small{font-size:14px;color:var(--muted);margin-top:14px;max-width:32ch}
 .lerd-landing .legal{margin-top:56px;padding-top:24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font:12px var(--mono);color:var(--faint)}
+.lerd-landing .legal a{color:var(--muted)}
+.lerd-landing .legal a:hover{color:var(--ink)}
 
 @media (max-width:960px){
+  /* Three plans never split two and one. */
+  .lerd-landing .grid6.price{grid-template-columns:1fr}
+  .lerd-landing .cta .hero-row{grid-template-columns:1fr 1fr;width:auto}
+  .lerd-landing .cta .hero-row .cmd{grid-column:1/-1}
   .lerd-landing .hdr nav{display:none}
   .lerd-landing .hero p,.lerd-landing .hero .hero-row{max-width:none}
   .lerd-landing .hero-art{display:none}
@@ -269,6 +312,9 @@
   .lerd-landing .foot{grid-template-columns:1fr 1fr}
 }
 @media (max-width:600px){
+  /* The demo button gets a row of its own so no label wraps on a phone. */
+  .lerd-landing .hero .hero-row{grid-template-columns:1fr 1fr;width:auto}
+  .lerd-landing .hero .hero-row .btn.primary{grid-column:1/-1}
   .lerd-landing .wrap{padding:0 16px}
   .lerd-landing .hdr-right a:not(.btn){display:none}
   .lerd-landing .hero{padding:64px 0 48px}

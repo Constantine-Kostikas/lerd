@@ -1,0 +1,20 @@
+{
+  "mysql": {
+    "supported": true,
+    "target": "/etc/mysql/conf.d/zz-lerd-user.cnf",
+    "content": "[mysqld]\n# Lerd user tuning for this service.\n#\n# Lerd created this file once and will never overwrite it, so your edits survive\n# `lerd service reinstall` and `lerd update`. It loads after the bundled\n# config, so any value set here wins. Uncomment, tune, then run\n# `lerd service restart <name>` to apply.\n\n# max_allowed_packet = 1G\n# innodb_buffer_pool_size = 512M\n# innodb_log_file_size = 256M\n# max_connections = 200\n\n# Restoring a large dump with an external client (a GUI, a manual mysql call)?\n# Raise the client ceiling too, lerd's own db:import already does:\n# [client]\n# max_allowed_packet = 1G\n",
+    "exists": true
+  },
+  "postgres": {
+    "supported": true,
+    "target": "/etc/postgresql/conf.d/zz-lerd-user.conf",
+    "content": "# Lerd user tuning for this service.\n#\n# Lerd created this file once and will never overwrite it, so your edits survive\n# `lerd service reinstall` and `lerd update`. Postgres loads it after the\n# cluster defaults, so any value set here wins. Uncomment, tune, then run\n# `lerd service restart postgres` to apply.\n\n# shared_buffers = 256MB\n# effective_cache_size = 768MB\n# work_mem = 16MB\n# maintenance_work_mem = 128MB\n# max_connections = 100\n",
+    "exists": true
+  },
+  "redis": {
+    "supported": true,
+    "target": "/etc/redis/lerd-user.conf",
+    "content": "# Lerd user tuning for this service.\n#\n# Lerd created this file once and will never overwrite it, so your edits survive\n# `lerd service reinstall` and `lerd update`. redis-server loads it on\n# startup. Uncomment, tune, then run `lerd service restart redis` to apply.\n\n# maxmemory 256mb\n# maxmemory-policy allkeys-lru\n# appendonly no\n# save \"\"\n",
+    "exists": true
+  }
+}

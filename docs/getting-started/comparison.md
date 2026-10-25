@@ -6,7 +6,7 @@
 
 |  | Lerd | Laravel Herd |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | macOS, Windows |
 | License | Open source (MIT) | Proprietary, freemium (Herd Pro subscription) |
 | PHP runtime | Rootless Podman containers | Native binaries on macOS and Windows |
 | PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | 7.4 through 8.5 (native) |
@@ -19,7 +19,7 @@
 | Per-project config | `.lerd.yaml` committed to the repo; covers PHP, Node, framework, services, workers, and custom containers; applied by `lerd link` / `lerd init` | [`herd.yml`](https://herd.laravel.com/docs/macos/sites/herd-yaml) committed to the repo; covers name, PHP, TLS, aliases on the free tier; services require Herd Pro; applied by `herd init` |
 | Queue + scheduler workers | `lerd worker start queue` / `schedule` as systemd user services | Not built in; run Horizon or supervisor yourself |
 | Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, and an installable PWA at `lerd.localhost` | Native desktop app |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
+| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Supported |
 | AI / MCP | Built-in MCP server; `lerd mcp:enable-global` registers it for Claude Code, Cursor, Junie, and Windsurf | Built-in MCP server for Claude Code, Cursor, Junie, and Windsurf |
 | Cost | Free | Free tier + paid Pro subscription |
 
@@ -37,7 +37,7 @@ See [Laravel Herd for Linux](/getting-started/herd-linux) for the command-by-com
 
 |  | Lerd | Laragon |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Windows only |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Windows only |
 | License | Open source (MIT), free for commercial use | Proprietary, a licence is required from Laragon 7 onwards |
 | Cost | Free | Free unlicenced tier with a reminder popup and no auto-updates; paid non-commercial and commercial licences |
 | Stack | Nginx, PHP-FPM and services as rootless Podman containers | Apache or Nginx and services as native Windows binaries in a portable folder |
@@ -67,7 +67,7 @@ See [Laragon for Linux](/getting-started/laragon-linux) for the feature-by-featu
 
 |  | Lerd | Laravel Sail |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | License | Open source (MIT) | Open source (MIT) |
 | Container runtime | Rootless Podman | Docker Desktop / Orbstack / Colima |
 | Architecture | One shared nginx + PHP-FPM + services across every site | Per-project Docker Compose stack |
@@ -109,7 +109,7 @@ See [Laravel Sail alternative](/getting-started/sail) for the full migration gui
 
 |  | Lerd | ddev |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | License | Open source (MIT) | Open source (Apache 2.0) |
 | Container runtime | Rootless Podman | Docker / Podman / Orbstack / Colima |
 | Architecture | Shared nginx + PHP-FPM across all projects | Per-project containers behind a shared reverse proxy |
@@ -139,7 +139,7 @@ See [Laravel Sail alternative](/getting-started/sail) for the full migration gui
 
 |  | Lerd | Lando |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | License | Open source (MIT) | Open source (GPL-3.0) |
 | Container runtime | Rootless Podman | Docker |
 | Architecture | Shared nginx + PHP-FPM across all projects | Per-project containers behind a shared proxy |
@@ -169,7 +169,7 @@ See [Laravel Sail alternative](/getting-started/sail) for the full migration gui
 
 |  | Lerd | Laradock |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | License | Open source (MIT) | Open source (MIT) |
 | Container runtime | Rootless Podman, no daemon | Docker, root daemon or Docker Desktop |
 | Architecture | Shared nginx + PHP-FPM across all projects | Per-project Compose stack, one container per service |
