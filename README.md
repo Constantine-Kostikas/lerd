@@ -116,7 +116,7 @@ Lerd is built for PHP developers who want frictionless local development, on a L
 
 - 📶 **Nothing downloads behind your back.** Every command that can pull or rebuild an image names it and its size first, read from the registry manifest. The dashboard asks, an assistant over MCP has to come back with your answer, and `--no-pull`, `LERD_OFFLINE=1` and `lerd start --dry-run` cover a metered link.
 
-- 📌 **Pinned host tools.** Composer, mise, fnm and mkcert are pinned behind a published manifest rather than whatever `releases/latest` served that day, so an upstream release cannot break a fresh install, and the System page applies each update on the card that flagged it.
+- 📌 **Pinned host tools.** Composer, mise and fnm are pinned behind a published manifest rather than whatever `releases/latest` served that day, so an upstream release cannot break a fresh install, and the System page applies each update on the card that flagged it.
 
 - 🔒 **Rootless and daemonless.** Podman-native, no Docker required, dual-stack IPv4 + IPv6.
 
@@ -357,7 +357,6 @@ Lerd stands on a set of excellent open-source projects it bundles or fetches to 
 - [phpantom_lsp](https://github.com/PHPantom-dev/phpantom_lsp) - the PHP language server behind tinker autocomplete, diagnostics and semantic highlighting
 - [Monaco](https://github.com/microsoft/monaco-editor) - the editor engine for every in-browser editing surface
 - [php-spx](https://github.com/NoiseByNorthwest/php-spx) - the profiler behind the SPX flame graphs
-- [mkcert](https://github.com/FiloSottile/mkcert) - the local CA that backs `.test` HTTPS
 - [mise](https://github.com/jdx/mise) - the per-project Node version manager on new installs
 - [fnm](https://github.com/Schniz/fnm) - the Node version manager installs set up before mise
 - [static-php-cli](https://github.com/crazywhalecc/static-php-cli) - the prebuilt static PHP binaries lerd falls back to when a project's own bundled runtime is missing an extension a command needs

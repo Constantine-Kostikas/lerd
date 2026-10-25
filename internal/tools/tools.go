@@ -267,7 +267,7 @@ func fetchPublished(ctx context.Context, urls []string) (map[string]Tool, []byte
 }
 
 // Names lists the managed tools in display order.
-func Names() []string { return []string{"composer", "mise", "fnm", "mkcert"} }
+func Names() []string { return []string{"composer", "mise", "fnm"} }
 
 func binPath(name string) string {
 	switch name {
@@ -425,8 +425,6 @@ func probeVersion(name, path string) string {
 	switch name {
 	case "fnm", "mise":
 		arg = "--version"
-	case "mkcert":
-		arg = "-version"
 	case "composer":
 		return composerVersion(path)
 	default:

@@ -98,7 +98,7 @@ Two Arch defaults are worth knowing about, because they differ from the Debian a
 sudo pacman -S crun
 ```
 
-**`nss` provides `certutil`.** mkcert needs it to install the CA into Chrome and Firefox, so `lerd secure` produces a certificate the browser accepts with no warning page:
+**`nss` provides `certutil`.** lerd needs it to install the CA into Chrome and Firefox, so `lerd secure` produces a certificate the browser accepts with no warning page:
 
 ```bash
 sudo pacman -S nss

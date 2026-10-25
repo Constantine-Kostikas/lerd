@@ -12,6 +12,6 @@ func runBootstrapTrustCA(string, string) error {
 	return fmt.Errorf("lerd bootstrap is only supported on Linux")
 }
 
-func runBootstrapUntrustCA() error {
+func runBootstrapUntrustCA(string) error {
 	return fmt.Errorf("lerd bootstrap is only supported on Linux")
 }

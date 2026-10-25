@@ -1,21 +1,16 @@
 package certs
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/geodro/lerd/internal/config"
 )
 
 // certReissueWindow is how close to NotAfter a leaf cert may drift before the
@@ -40,22 +35,17 @@ func lockForDomain(domain string) *sync.Mutex {
 	return m.(*sync.Mutex)
 }
 
+// writeLeafFn signs the leaf; a var so tests can make the write fail midway.
+var writeLeafFn = writeLeaf
+
 // tempSuffixSeq increments per call to issueCertAtomic so concurrent
 // callers (across processes too) don't share a tempfile path even if the
 // per-domain mutex is bypassed somehow.
 var tempSuffixSeq atomic.Uint64
 
-// MkcertPath returns the path to the mkcert binary.
-func MkcertPath() string {
-	return filepath.Join(config.BinDir(), "mkcert")
-}
-
-// IssueCert issues a TLS certificate covering all the given domains using mkcert.
-// The cert files are named after primaryDomain. Each domain also gets a wildcard entry.
-// An existing cert/key pair is reused without re-running mkcert only while the
-// cert is still valid and more than certReissueWindow from NotAfter; a cert that
-// is expired, near expiry, or unreadable falls through to the atomic reissue so
-// an ordinary start or watcher pass self-heals an aging cert.
+// IssueCert issues a certificate named after primaryDomain covering every domain
+// and its wildcard. An existing pair is reused only while it is valid and clear
+// of certReissueWindow, so a start or watcher pass self-heals an aging cert.
 func IssueCert(primaryDomain string, allDomains []string, certsDir string) error {
 	certFile := filepath.Join(certsDir, primaryDomain+".crt")
 	keyFile := filepath.Join(certsDir, primaryDomain+".key")
@@ -89,10 +79,9 @@ func certNeedsReissue(path string, window time.Duration) bool {
 	return time.Until(parsed.NotAfter) < window
 }
 
-// IssueCertForce regenerates the certificate for primaryDomain even if files
-// exist. Writes to temp paths and renames atomically so a transient mkcert
-// failure leaves the previous cert/key intact (which is critical: a missing
-// cert trips RepairVhosts into flipping the site to plain HTTP).
+// IssueCertForce regenerates the certificate even if files exist, renaming
+// atomically so a failure keeps the previous pair: a missing cert trips
+// RepairVhosts into flipping the site to plain HTTP.
 func IssueCertForce(primaryDomain string, allDomains []string, certsDir string) error {
 	return issueCertAtomic(primaryDomain, allDomains, certsDir)
 }
@@ -121,19 +110,15 @@ func issueCertAtomic(primaryDomain string, allDomains []string, certsDir string)
 		sans = append(sans, d, "*."+d)
 	}
 
-	args := []string{"-cert-file", tmpCert, "-key-file", tmpKey}
-	args = append(args, sans...)
-
-	// Capture mkcert's chatty success banner instead of letting it spill into
-	// the CLI's clean step output; surface it only when the command fails.
-	cmd := exec.Command(MkcertPath(), args...)
-	var mkOut bytes.Buffer
-	cmd.Stdout = &mkOut
-	cmd.Stderr = &mkOut
-	if err := cmd.Run(); err != nil {
+	// Generating the CA on first issue, as mkcert did, keeps a site secured
+	// before install ever ran working.
+	if err := EnsureCA(); err != nil {
+		return fmt.Errorf("certificate for %s: %w", primaryDomain, err)
+	}
+	if err := writeLeafFn(sans, tmpCert, tmpKey); err != nil {
 		os.Remove(tmpCert) //nolint:errcheck
 		os.Remove(tmpKey)  //nolint:errcheck
-		return fmt.Errorf("mkcert for %s: %w\n%s", primaryDomain, err, strings.TrimSpace(mkOut.String()))
+		return fmt.Errorf("certificate for %s: %w", primaryDomain, err)
 	}
 
 	// Swap the new cert and key in with os.Rename, which atomically replaces

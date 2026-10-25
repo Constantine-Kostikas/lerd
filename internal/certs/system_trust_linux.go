@@ -63,24 +63,24 @@ func TrustCAInSystemStore(caPEM []byte) error {
 	return ErrNoSystemTrustStore
 }
 
-// UntrustCAFromSystemStore removes the anchor TrustCAInSystemStore wrote and
-// refreshes the bundle. The caller must be root. mkcert's own -uninstall keys
-// on the filename mkcert chose, so it never reaches this one; without this the
-// CA would stay trusted on the machine after lerd is gone. Idempotent, and
-// every store is swept rather than only the first so nothing is left behind.
-func UntrustCAFromSystemStore() error {
+// UntrustCAFromSystemStore removes, as root, the anchor TrustCAInSystemStore
+// wrote and any other holding caPEM's certificate, since installs before #1194
+// let mkcert write its own under a name only mkcert knew.
+func UntrustCAFromSystemStore(caPEM []byte) error {
 	var sawStore bool
 	for _, store := range systemTrustStores {
 		if info, err := os.Stat(store.dir); err != nil || !info.IsDir() {
 			continue
 		}
 		sawStore = true
-		caFile := filepath.Join(store.dir, store.filename)
-		if _, err := os.Stat(caFile); err != nil {
-			continue
+		files := anchorFiles(store, firstCertDER(caPEM))
+		for _, f := range files {
+			if err := os.Remove(f); err != nil {
+				return err
+			}
 		}
-		if err := os.Remove(caFile); err != nil {
-			return err
+		if len(files) == 0 {
+			continue
 		}
 		if err := updateSystemTrust(store.command); err != nil {
 			return err
@@ -92,11 +92,33 @@ func UntrustCAFromSystemStore() error {
 	return nil
 }
 
-// SystemTrustAnchorPresent reports whether a lerd-written anchor is on disk, so
-// an uninstall only escalates to root when there is something to remove.
+// anchorFiles lists the anchors in store that lerd put there: its own file,
+// and any file whose certificate is der.
+func anchorFiles(store systemTrustStore, der []byte) []string {
+	own := filepath.Join(store.dir, store.filename)
+	var files []string
+	if _, err := os.Stat(own); err == nil {
+		files = append(files, own)
+	}
+	if der == nil {
+		return files
+	}
+	entries, _ := os.ReadDir(store.dir)
+	for _, e := range entries {
+		path := filepath.Join(store.dir, e.Name())
+		if path != own && e.Type().IsRegular() && bytes.Equal(firstCertDER(readFileNoErr(path)), der) {
+			files = append(files, path)
+		}
+	}
+	return files
+}
+
+// SystemTrustAnchorPresent reports whether an anchor lerd put there is on
+// disk, so an uninstall only escalates to root when there is something to remove.
 func SystemTrustAnchorPresent() bool {
+	der := rootCADER()
 	for _, store := range systemTrustStores {
-		if _, err := os.Stat(filepath.Join(store.dir, store.filename)); err == nil {
+		if len(anchorFiles(store, der)) > 0 {
 			return true
 		}
 	}

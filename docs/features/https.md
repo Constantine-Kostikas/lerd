@@ -1,9 +1,9 @@
 # HTTPS / TLS
 
-Lerd uses [mkcert](https://github.com/FiloSottile/mkcert), a locally-trusted CA that your browser will accept without warnings.
+Lerd runs its own local certificate authority, trusted by your system and browsers, so `.test` sites load over HTTPS without warnings. The CA lives where [mkcert](https://github.com/FiloSottile/mkcert) keeps one (`~/.local/share/mkcert` on Linux, `~/Library/Application Support/mkcert` on macOS, or `$CAROOT`) and uses mkcert's format, so a CA mkcert made, including one an older lerd install made through it, keeps signing and nothing is trusted again. Lerd signs the certificates itself and no longer downloads mkcert.
 
 > [!NOTE]
-> HTTPS is only available when lerd is managing DNS. If you installed in disabled-DNS mode (`dns.enabled: false`, sites under `*.localhost`), the mkcert root CA was never installed, the `lerd init` wizard skips the "Enable HTTPS?" question, the per-site HTTPS toggle in the dashboard becomes a muted lock icon, and `lerd secure` refuses with `HTTPS requires lerd-managed DNS, set dns.enabled: true and re-run lerd install`. A project whose committed `.lerd.yaml` carries `secured: true` is linked over http on a disabled-DNS install rather than registered as a non-functional HTTPS site. See [DNS](dns.md) for the toggle and how to switch back.
+> HTTPS is only available when lerd is managing DNS. If you installed in disabled-DNS mode (`dns.enabled: false`, sites under `*.localhost`), the root CA was never installed, the `lerd init` wizard skips the "Enable HTTPS?" question, the per-site HTTPS toggle in the dashboard becomes a muted lock icon, and `lerd secure` refuses with `HTTPS requires lerd-managed DNS, set dns.enabled: true and re-run lerd install`. A project whose committed `.lerd.yaml` carries `secured: true` is linked over http on a disabled-DNS install rather than registered as a non-functional HTTPS site. See [DNS](dns.md) for the toggle and how to switch back.
 
 ```bash
 cd ~/Lerd/my-app
@@ -33,7 +33,7 @@ The PHP-FPM and FrankenPHP images trust the mkcert CA too, so composer, curl and
 
 ## Browser trust (certutil / nss-tools)
 
-mkcert installs the local CA into two places: the system trust store, used by curl, PHP, wget and openssl, and the browser NSS databases used by Firefox and Chrome/Chromium. Writing to the browser stores needs `certutil`, which ships in `nss-tools`. When `certutil` is missing mkcert still trusts the system store, so command-line tools accept `.test` HTTPS, but browsers show a certificate warning. `lerd doctor` reports this under "browser HTTPS trust", and `lerd install` / `lerd dns:enable` print a note when it applies.
+Lerd installs the local CA into two places: the system trust store, used by curl, PHP, wget and openssl, and the browser NSS databases used by Firefox and Chrome/Chromium. Writing to the browser stores needs `certutil`, which ships in `nss-tools`. When `certutil` is missing the system store is still trusted, so command-line tools accept `.test` HTTPS, but browsers show a certificate warning. `lerd doctor` reports this under "browser HTTPS trust", and `lerd install` / `lerd dns:enable` print a note when it applies.
 
 That check looks in the stores themselves rather than settling for `certutil` being installed, since the two can disagree: a CA that never reached a browser, or one that was removed from a profile afterwards, leaves every `.test` site warning on a machine that otherwise looks healthy. The certificate found in each store is compared against the CA lerd signs with today, so a CA regenerated after a profile imported the old one is reported rather than accepted for carrying the same name. Any store that comes up short is named in the warning, and `lerd dns:repair` installs the CA there. A machine with no browser store at all has nothing to check and passes.
 
@@ -57,13 +57,13 @@ lerd dns:repair
 If you would rather not install a package at all, run `lerd dns:disable` to serve your sites over plain http on `*.localhost`, which needs no certificate.
 
 > [!NOTE]
-> On atomic desktops a Flatpak Firefox or Chrome keeps its own trust store inside the sandbox, which mkcert cannot reach even once certutil is installed. A native (non-Flatpak) browser, or Chrome using the shared `~/.pki/nssdb`, picks up the CA normally.
+> On atomic desktops a Flatpak Firefox or Chrome keeps its own trust store inside the sandbox, which lerd cannot reach even once certutil is installed. A native (non-Flatpak) browser, or Chrome using the shared `~/.pki/nssdb`, picks up the CA normally.
 
 ---
 
 ## Automatic renewal
 
-mkcert issues each leaf certificate with a lifetime of a little over two years. Lerd renews a secured site's certificate on its own before it lapses: whenever a certificate is within roughly 30 days of its `NotAfter` (or has already expired, gone missing, or been corrupted), the next ordinary `lerd start` or watcher pass reissues it in place. A still-valid certificate comfortably clear of that window is left untouched, so the renewal check is cheap and silent. `lerd status` continues to surface the same 30-day expiry warning under `[TLS Certificates]`, but you no longer need to act on it manually; a long-lived site that just keeps running self-heals its own certificate.
+Each leaf certificate lasts 27 months, under the 825 days macOS and iOS accept. Lerd renews a secured site's certificate on its own before it lapses: whenever a certificate is within roughly 30 days of its `NotAfter` (or has already expired, gone missing, or been corrupted), the next ordinary `lerd start` or watcher pass reissues it in place. A still-valid certificate comfortably clear of that window is left untouched, so the renewal check is cheap and silent. `lerd status` continues to surface the same 30-day expiry warning under `[TLS Certificates]`, but you no longer need to act on it manually; a long-lived site that just keeps running self-heals its own certificate.
 
 To reset the clock on demand, without toggling HTTPS off and on, run:
 
@@ -99,7 +99,7 @@ If a [Stripe webhook listener](../usage/stripe.md#stripe-listen) is running for 
 
 ## How it works
 
-1. `lerd install` generates a local CA with mkcert and installs it into the system trust store (NSS databases for Chrome/Firefox, and the system root store).
+1. `lerd install` generates a local CA, unless one is already there, and installs it into the system trust store (NSS databases for Chrome/Firefox, and the system root store).
 2. `lerd secure <site>` issues a certificate signed by that CA for `<site>.test` **and** `*.<site>.test` (wildcard), so all subdomain worktrees are covered. When worktrees exist, `*.branch.<site>.test` SANs are included so deep subdomains work too. The certificate is reissued automatically when new worktrees are created.
 3. The nginx vhost is regenerated to listen on port 443 with the new cert, and port 80 redirects to HTTPS (302, not 301, so the redirect is not cached by browsers).
 4. `APP_URL` in the project's `.env` (and any worktree `.env` files) is updated to `https://`.

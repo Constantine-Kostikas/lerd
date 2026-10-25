@@ -24,7 +24,16 @@ func TestMain(m *testing.M) {
 	dashPing = func(string) {}
 	serviceKeepAlivePing = func(string) {}
 	wakeHoldPing = func(string) {}
-	os.Exit(m.Run())
+	// Securing a site generates a CA when none is there, and on macOS the
+	// default CAROOT ignores the XDG vars the tests redirect.
+	caroot, err := os.MkdirTemp("", "lerd-test-caroot-*")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("CAROOT", caroot)
+	code := m.Run()
+	os.RemoveAll(caroot)
+	os.Exit(code)
 }
 
 type discardPushTransport struct{}

@@ -59,7 +59,7 @@ Steps for all frameworks:
   3. lerd env                — configure env file with lerd service settings
   4. lerd mcp:inject         — inject MCP config (off by default)
   5. npm run <build|production|prod> — build front-end assets (detected from package.json scripts)
-  6. lerd secure             — enable HTTPS via mkcert (off by default)
+  6. lerd secure             — enable HTTPS with lerd's local CA (off by default)
 
 Additional steps for Laravel projects:
   7. php artisan storage:link — create storage symlink

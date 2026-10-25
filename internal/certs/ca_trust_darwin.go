@@ -144,34 +144,33 @@ func init() {
 	}
 }
 
-// RepairSystemTrust re-asserts trust for mkcert's root CA directly, for the
-// state CAPresentButUntrusted reports: the certificate sits in the keychain
-// but has no trust-settings entry, most likely because a macOS update cleared
-// it independent of the certificate item itself. The write restores the entry
-// the trust check reads, so a repaired CA reads as trusted from the next run
-// on and the prompt does not come back.
-//
-// This deliberately does not go through `mkcert -install`. mkcert's own
-// "already installed" self-check (m.caCert.Verify against the system pool)
-// is susceptible to the false positive plistTrustsCert exists to avoid: a
-// self-signed root cryptographically verifies against itself regardless of
-// its actual trust settings, so mkcert may silently skip re-establishing
-// trust in exactly the state this function exists to fix. Running the
-// add-trusted-cert half of mkcert's own install directly sidesteps that
-// self-check. macOS authorizes the write itself, through the same admin
-// dialog `mkcert -install` raises, so the caller is expected to have
-// announced it; with no window server to draw that dialog (over ssh, say)
-// the command fails and the caller reports it rather than looping.
+// RepairSystemTrust adds the root CA to the system keychain as a trusted root:
+// the first install, and the repair for a CA whose trust a macOS update cleared.
+// macOS asks for the admin password itself, so over ssh it fails and says so.
 func RepairSystemTrust() error {
 	root, err := caRootFunc()
 	if err != nil {
-		return fmt.Errorf("resolving mkcert CAROOT: %w", err)
+		return fmt.Errorf("resolving CAROOT: %w", err)
 	}
 	if root == "" {
-		return fmt.Errorf("resolving mkcert CAROOT: empty path")
+		return fmt.Errorf("resolving CAROOT: empty path")
 	}
-	args := addTrustedCertArgs(systemKeychainPath, filepath.Join(root, "rootCA.pem"))
+	args := addTrustedCertArgs(systemKeychainPath, filepath.Join(root, caCertName))
 	cmd := exec.Command("security", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// RemoveSystemTrust drops the admin-domain trust RepairSystemTrust set, the
+// same remove-trusted-cert mkcert -uninstall ran. macOS raises its own dialog.
+func RemoveSystemTrust() error {
+	root, err := caRootFunc()
+	if err != nil {
+		return fmt.Errorf("resolving CAROOT: %w", err)
+	}
+	cmd := exec.Command("security", "remove-trusted-cert", "-d", filepath.Join(root, caCertName))
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
