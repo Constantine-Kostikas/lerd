@@ -2,6 +2,9 @@ package cli
 
 import (
 	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -80,5 +83,20 @@ func TestEnableWSLSystemd_missingSystemdDoesNotRestart(t *testing.T) {
 	}
 	if len(*steps) > 0 {
 		t.Errorf("steps = %v, want nothing run", *steps)
+	}
+}
+
+func TestPatchRootFile_unreadableFileIsNotReplaced(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wsl.conf")
+	if err := os.WriteFile(path, []byte("[network]\nhostname=dev\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(path); err == nil {
+		t.Skip("running as root, the file stays readable")
+	}
+	patched := false
+	_, err := patchRootFile(io.Discard, path, func(c string) (string, bool) { patched = true; return c + "x", true })
+	if err == nil || patched {
+		t.Errorf("err = %v, patched = %v, want the read error and no rewrite", err, patched)
 	}
 }

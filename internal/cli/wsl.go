@@ -159,6 +159,9 @@ func patchRootFile(w io.Writer, path string, patch func(string) (string, bool)) 
 	cur := ""
 	if b, err := os.ReadFile(path); err == nil {
 		cur = string(b)
+	} else if !os.IsNotExist(err) {
+		// Replacing a file it cannot read would drop every other setting in it.
+		return false, err
 	}
 	next, changed := patch(cur)
 	if !changed {
