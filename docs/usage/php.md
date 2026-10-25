@@ -401,6 +401,8 @@ The base image tag is a hash of the recipe, so an upstream `php:X.Y-fpm-alpine` 
 
 You see it in three places. **System → PHP** marks the version card with an up arrow and offers "Rebuild on the new base" as its first action, which streams the rebuild the same way an install does. The same menu has **Check for updates**, which bypasses the cached digest and asks the registry right now. And `lerd doctor` reports the version as a warning with `lerd php:rebuild <version>` as the fix, so `lerd doctor --fix` picks it up too. If push notifications are on, a version that becomes stale while the dashboard is open announces itself like a service update does.
 
+A rebuild ends by listing the Alpine packages it changed, `brotli-libs 1.2.0-r1 → 1.2.1-r0` for instance, so you can see the fixes it brought in. The base image workflow writes the same changelog to its run summary whenever it republishes a tag.
+
 The check is cached for six hours and never runs on the dashboard's critical path, so an offline machine stays quiet rather than reporting a false update. A version whose image was built locally (`--local`) has no recorded base and is never flagged: there is no published image behind it to compare against.
 
 A security fix Alpine ships before upstream refreshes its image triggers the same republish. A daily scan checks the published bases for high or critical vulnerabilities with a fix out, and the rebuild runs `apk upgrade`, so the patched packages land under the same tag and the version shows as having an update. PHP 7.4 and 8.0 are left out, since their Alpine branches no longer get fixes.
