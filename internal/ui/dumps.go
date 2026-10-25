@@ -66,12 +66,10 @@ func startDumpsServer() {
 	}
 	srv.SetSiteResolver(newEventSiteNamer(10 * time.Second))
 	// Before Import, so the slowest requests in an old buffer file stay kept.
-	keepSlowestRequests(srv)
-	go func() {
-		for range time.Tick(keepSlowestEvery) {
-			keepSlowestRequests(srv)
-		}
-	}()
+	keeper := &slowestKeeper{srv: srv}
+	keeper.refresh(true)
+	slowestKeep.Store(keeper)
+	go keeper.follow()
 	if err := srv.Import(config.DumpsBufferFile()); err != nil {
 		fmt.Printf("[WARN] importing the old debug buffer: %v\n", err)
 	}

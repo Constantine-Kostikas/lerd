@@ -390,3 +390,34 @@ func TestStoreSlowestRIDsKeepsEveryPotentialWinner(t *testing.T) {
 		t.Fatalf("slowest rids = %v, want %v", got, want)
 	}
 }
+
+// Following the store as it grows lands on the set one full read gives, so the
+// kept requests track arrivals without rereading the window.
+func TestStoreFollowMatchesAFullRead(t *testing.T) {
+	s := tempStore(t)
+	at := func(m int) time.Time { return base.Add(time.Duration(m) * time.Minute) }
+	req := func(m int, route string, ms float64, rid string) Record {
+		return Record{At: at(m), Site: "acme", Method: "GET", Route: "GET " + route, URI: route, Status: 200, Millis: ms, RID: rid}
+	}
+	var l Leaders
+	seed(t, s, []Record{req(-20, "/a", 300, "beaten"), req(-15, "/a", 900, "leader"), req(-14, "/b", 50, "b-old")})
+	if _, err := s.Follow(&l, at(-60)); err != nil {
+		t.Fatal(err)
+	}
+	seed(t, s, []Record{req(-9, "/a", 800, "next"), req(-8, "/b", 70, "b-new"), req(-7, "/a", 100, "newest")})
+	took, err := s.Follow(&l, at(-60))
+	if err != nil || !took {
+		t.Fatalf("follow took=%v err=%v, want the new rows", took, err)
+	}
+	full, err := s.SlowestRIDs(at(-60))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"leader": true, "next": true, "newest": true, "b-new": true}
+	if fmt.Sprint(l.RIDs()) != fmt.Sprint(want) || fmt.Sprint(full) != fmt.Sprint(want) {
+		t.Fatalf("followed %v, full read %v, want %v", l.RIDs(), full, want)
+	}
+	if took, _ := s.Follow(&l, at(-60)); took {
+		t.Fatal("a follow with nothing new took rows")
+	}
+}

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/geodro/lerd/internal/config"
@@ -84,23 +86,60 @@ type analyticsResponse struct {
 	Excluded []string `json:"excluded"`
 }
 
-// keepSlowestEvery is how often the kept set follows the stats. The debug
-// buffer spares new events for two of these, so a refresh always sees a
-// request before it can be trimmed.
-const keepSlowestEvery = 15 * time.Second
+// keepRebuildEvery is how often the kept set is read afresh, which is how a
+// request that aged out of the retention window lets go of its events.
+const keepRebuildEvery = time.Hour
 
-// keepSlowestRequests keeps every request that is, or can still become, a
-// route's slowest past the debug buffer, so its time bar stays clickable.
-func keepSlowestRequests(srv *dumps.Server) {
+// slowestKeeper keeps every request that is, or can still become, a route's
+// slowest past the debug buffer, so its time bar stays clickable. It takes in
+// requests as the watcher stores them rather than rereading the window.
+type slowestKeeper struct {
+	mu      sync.Mutex
+	srv     *dumps.Server
+	leaders reqstats.Leaders
+}
+
+// slowestKeep is set once the dumps receiver is up; nil until then.
+var slowestKeep atomic.Pointer[slowestKeeper]
+
+// refresh takes in the requests stored since the last one, or starts over.
+func (k *slowestKeeper) refresh(rebuild bool) {
 	store, err := getAnalyticsStore()
 	if err != nil {
 		return
 	}
-	keep, err := store.SlowestRIDs(time.Now().Add(-reqstats.Retention))
-	if err != nil {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if rebuild {
+		k.leaders = reqstats.Leaders{}
+	}
+	took, err := store.Follow(&k.leaders, time.Now().Add(-reqstats.Retention))
+	if err != nil || (!took && !rebuild) {
 		return
 	}
-	srv.SetKeep(keep)
+	k.srv.SetKeep(k.leaders.RIDs())
+}
+
+// follow refreshes on every batch the watcher writes, for lerd-ui's life.
+func (k *slowestKeeper) follow() {
+	stored := requestsFeed.subscribe()
+	rebuild := time.NewTicker(keepRebuildEvery)
+	for {
+		select {
+		case <-stored:
+			k.refresh(false)
+		case <-rebuild.C:
+			k.refresh(true)
+		}
+	}
+}
+
+// rebuildSlowestKeep starts the kept set over after requests were removed or a
+// route excluded, which takes leaders away rather than adding one.
+func rebuildSlowestKeep() {
+	if k := slowestKeep.Load(); k != nil {
+		k.refresh(true)
+	}
 }
 
 // analyticsRange maps a range label to its window, defaulting to the last hour
@@ -301,6 +340,7 @@ func analyticsMutateRoute(w http.ResponseWriter, r *http.Request, domain, action
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return true
 		}
+		rebuildSlowestKeep()
 		writeJSON(w, map[string]any{"ok": true})
 		return true
 	}
@@ -341,6 +381,7 @@ func analyticsMutateRoute(w http.ResponseWriter, r *http.Request, domain, action
 			return true
 		}
 	}
+	rebuildSlowestKeep()
 	writeJSON(w, map[string]any{"ok": true, "removed": removed})
 	return true
 }

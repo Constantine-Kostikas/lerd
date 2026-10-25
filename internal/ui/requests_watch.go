@@ -42,8 +42,7 @@ func (f *changeFeed) subscribe() chan struct{} {
 	return ch
 }
 
-// unsubscribe stops the source with the last page, so lerd-ui watches nothing
-// while no request list is open.
+// unsubscribe stops the source with the last subscriber.
 func (f *changeFeed) unsubscribe(ch chan struct{}) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -72,7 +71,8 @@ func (f *changeFeed) notify() {
 }
 
 // requestsFeed fires when the watcher writes requests to the durable store. One
-// inotify watch on the database and its WAL serves every dashboard socket.
+// inotify watch on the database and its WAL serves every dashboard socket and
+// the slowest-request keeper.
 var requestsFeed = newChangeFeed(func(ctx context.Context, onChange func()) error {
 	db := config.RequestStatsDB()
 	names := []string{filepath.Base(db), filepath.Base(db) + "-wal"}
