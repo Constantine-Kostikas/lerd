@@ -53,45 +53,6 @@ func TestMkcertPath_usesDataDir(t *testing.T) {
 	}
 }
 
-// ── CertExists ────────────────────────────────────────────────────────────────
-
-func TestCertExists_returnsFalseWhenMissing(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("XDG_DATA_HOME", tmp)
-	if CertExists("myapp.test") {
-		t.Error("expected false for non-existent cert")
-	}
-}
-
-func TestCertExists_returnsTrueWhenPresent(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("XDG_DATA_HOME", tmp)
-
-	// Create the expected cert file path
-	certsDir := filepath.Join(tmp, "lerd", "certs", "sites")
-	os.MkdirAll(certsDir, 0755)
-	os.WriteFile(filepath.Join(certsDir, "myapp.test.crt"), []byte("fake cert"), 0644)
-
-	if !CertExists("myapp.test") {
-		t.Error("expected true when cert file exists")
-	}
-}
-
-func TestCertExists_onlyCrtRequired(t *testing.T) {
-	// CertExists checks for .crt only, not .key
-	tmp := t.TempDir()
-	t.Setenv("XDG_DATA_HOME", tmp)
-
-	certsDir := filepath.Join(tmp, "lerd", "certs", "sites")
-	os.MkdirAll(certsDir, 0755)
-	// .crt exists, no .key
-	os.WriteFile(filepath.Join(certsDir, "site.test.crt"), []byte("fake cert"), 0644)
-
-	if !CertExists("site.test") {
-		t.Error("expected true when only .crt file exists")
-	}
-}
-
 // ── IssueCert vs IssueCertForce semantics ────────────────────────────────────
 
 // IssueCert is documented as a no-op when the cert and key already exist on

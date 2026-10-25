@@ -185,56 +185,6 @@ func (m *Model) appendDebug(ev lerddumps.Event) {
 	}
 }
 
-// filteredDumps returns entries that match needle across any of the
-// human-meaningful fields (site, request, label, file, text). Case-
-// insensitive; empty needle returns the input unchanged so callers don't
-// pay the copy cost. ctx, when set, further restricts to entries whose
-// Type matches ("fpm" or "cli") — wired to the chip toggles in the dumps
-// header.
-func filteredDumps(in []DumpEntry, needle string) []DumpEntry {
-	return filteredDumpsWithCtx(in, needle, "")
-}
-
-func filteredDumpsWithCtx(in []DumpEntry, needle, ctx string) []DumpEntry {
-	needle = strings.ToLower(strings.TrimSpace(needle))
-	if needle == "" && ctx == "" {
-		return in
-	}
-	out := make([]DumpEntry, 0, len(in))
-	for _, e := range in {
-		if ctx != "" && !strings.EqualFold(e.Type, ctx) {
-			continue
-		}
-		if needle != "" && !dumpMatches(e, needle) {
-			continue
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
-func dumpMatches(e DumpEntry, needle string) bool {
-	if strings.Contains(strings.ToLower(e.Site), needle) {
-		return true
-	}
-	if strings.Contains(strings.ToLower(e.Request), needle) {
-		return true
-	}
-	if strings.Contains(strings.ToLower(e.Label), needle) {
-		return true
-	}
-	if strings.Contains(strings.ToLower(e.File), needle) {
-		return true
-	}
-	if strings.Contains(strings.ToLower(e.Text), needle) {
-		return true
-	}
-	if strings.Contains(strings.ToLower(e.Type), needle) {
-		return true
-	}
-	return false
-}
-
 // dumpBodyLines returns the lines to render below an entry header: a brief
 // preview by default (first 4 lines), or the full text when expanded.
 // Wraps long lines at width; expanded entries render every line.
