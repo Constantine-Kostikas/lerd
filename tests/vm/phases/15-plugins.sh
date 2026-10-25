@@ -14,7 +14,7 @@ CATPORT=18765
 
 # A run left half way leaves plugins, a service and a catalog server behind.
 cleanup() {
-	for p in vmplug vmcopy vmbroken vmsvc vmcat; do lerd plugin remove "$p" </dev/null >/dev/null 2>&1; done
+	for p in vmplug vmcopy vmbroken vmsvc vmcat vmnew; do lerd plugin remove "$p" </dev/null >/dev/null 2>&1; done
 	lerd service remove vmplugcache </dev/null >/dev/null 2>&1
 	pkill -f "http.server $CATPORT" 2>/dev/null
 }
@@ -109,7 +109,13 @@ mkdir -p "$W/vmclash/services"
 printf 'name: redis\nimage: docker.io/library/redis:7.4\n' >"$W/vmclash/services/redis.yaml"
 check_out "15.13 a PHP script is refused by name" 'php' lerd plugin install "$W/vmphp"
 check_out "15.13 a platform this is not is refused by name" "runs only on $other" lerd plugin install "$W/vmplat"
-check_out "15.13 a newer lerd bound is refused by name" '99\.0' lerd plugin install "$W/vmnew"
+# A dev build past a tag loads every plugin on purpose, so only a release build can refuse one.
+if lerd --version | grep -Eq -- '-[0-9]+-g[0-9a-f]+|-dirty'; then
+	check "15.13 a dev build installs a plugin bound to a newer lerd" lerd plugin install "$W/vmnew"
+	lerd plugin remove vmnew </dev/null >/dev/null 2>&1
+else
+	check_out "15.13 a newer lerd bound is refused by name" '99\.0' lerd plugin install "$W/vmnew"
+fi
 check_out "15.13 a missing requirement is refused by name" 'vm-missing-tool' lerd plugin install "$W/vmreq"
 check_out "15.13 a service name lerd has is refused by name" 'already has: .*redis' lerd plugin install "$W/vmclash"
 check_not "15.13 none of them was installed" 'vmphp|vmplat|vmnew|vmreq|vmclash' lerd plugin list
