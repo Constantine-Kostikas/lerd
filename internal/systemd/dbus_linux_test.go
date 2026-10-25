@@ -35,7 +35,7 @@ func TestWithServiceSuffix(t *testing.T) {
 
 // withDefaultSuffix is used by property lookups that may legitimately target
 // a .timer or a .service. Bare names default to .service; explicit suffixes
-// pass through verbatim so IsTimerActive's name+".timer" composition works.
+// pass through verbatim so a name+".timer" composition works.
 func TestWithDefaultSuffix(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -53,12 +53,12 @@ func TestWithDefaultSuffix(t *testing.T) {
 	}
 }
 
-// IsTimerActive composes name+".timer" and asks DBus. The suffix rule must
-// pass ".timer" through unchanged so IsTimerActive doesn't end up querying
+// Timer lookups compose name+".timer" and ask DBus. The suffix rule must
+// pass ".timer" through unchanged so a lookup doesn't end up querying
 // "lerd-foo.timer.service".
 func TestTimerSuffixIsNotDoubleAppended(t *testing.T) {
 	if got := withServiceSuffix("lerd-foo.timer"); got != "lerd-foo.timer" {
-		t.Errorf("withServiceSuffix(%q) = %q, want passthrough — IsTimerActive would query the wrong unit", "lerd-foo.timer", got)
+		t.Errorf("withServiceSuffix(%q) = %q, want passthrough, a timer lookup would query the wrong unit", "lerd-foo.timer", got)
 	}
 	if got := withDefaultSuffix("lerd-foo.timer"); got != "lerd-foo.timer" {
 		t.Errorf("withDefaultSuffix(%q) = %q, want passthrough", "lerd-foo.timer", got)

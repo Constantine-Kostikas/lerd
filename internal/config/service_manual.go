@@ -41,25 +41,6 @@ func SetServicePinned(name string, v bool) error {
 	return serviceSetUpdate(pinnedServicesFile(), name, v)
 }
 
-// CountSitesUsingPHP returns how many non-ignored, non-paused sites are
-// registered with the given PHP version.
-func CountSitesUsingPHP(version string) int {
-	reg, err := LoadSites()
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for _, s := range reg.Sites {
-		if s.Ignored || s.Paused {
-			continue
-		}
-		if s.PHPVersion == version {
-			count++
-		}
-	}
-	return count
-}
-
 // SitesUsingService returns the active (non-ignored, non-paused) sites lerd env
 // wired to the service, whose .lerd.yaml lists it, or whose env file references
 // lerd-{name}. The env file is the one the framework declares, so a project

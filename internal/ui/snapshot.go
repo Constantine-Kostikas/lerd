@@ -173,11 +173,3 @@ func (c *snapshotCache) Invalidate(kind string) {
 		c.status.invalidate()
 	}
 }
-
-// InvalidateAll drops all cached snapshots.
-func (c *snapshotCache) InvalidateAll() {
-	c.sites.invalidate()
-	c.services.invalidate()
-	c.status.invalidate()
-	c.unhealthy.invalidate()
-}

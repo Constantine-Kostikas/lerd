@@ -308,8 +308,3 @@ func StripeStopForSite(siteName string) error {
 func StripeSecretSet(sitePath string) bool {
 	return config.StripeSecretSet(sitePath)
 }
-
-// stripeSiteName extracts the site name from a lerd-stripe-* unit name.
-func stripeSiteName(unit string) string {
-	return strings.TrimPrefix(unit, "lerd-stripe-")
-}

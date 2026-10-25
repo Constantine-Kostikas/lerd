@@ -14,25 +14,9 @@ import (
 	"github.com/geodro/lerd/internal/services"
 )
 
-// migrateWorkersOnModeChange applies the worker-mode flip to every active
-// worker: stop it in its old shape, clean up stale artifacts for that
-// shape, and let the caller (applyWorkersMode) re-run writeWorkerUnitFile
-// via the normal start path so workers come back in the new shape.
-//
-// Scope deliberately narrow: only workers are touched, not FPM, nginx,
-// services, watchers. That way toggling the mode is O(workers on this
-// machine) rather than a full `lerd stop && lerd start`.
-//
-// fromMode is the mode workers were actually launched in; toMode is what
-// the user just requested. Safe to call with fromMode == toMode (no-op).
-func migrateWorkersOnModeChange(fromMode, toMode string) error {
-	return migrateWorkersOnModeChangeStreaming(fromMode, toMode, nil)
-}
-
-// migrateWorkersOnModeChangeStreaming is the streaming variant. emit is
-// invoked at every meaningful step (saving, per-worker stop/clean/start,
-// final sweep) so the dashboard modal can reflect live progress. nil emit
-// is allowed for the CLI path that doesn't need streaming.
+// migrateWorkersOnModeChangeStreaming stops and cleans each active worker in its
+// old shape so the normal start path brings it back in the new one; only workers
+// are touched, never a full stop/start. emit may be nil; fromMode == toMode is a no-op.
 func migrateWorkersOnModeChangeStreaming(fromMode, toMode string, emit func(WorkerModePhaseEvent)) error {
 	if emit == nil {
 		emit = func(WorkerModePhaseEvent) {}

@@ -88,9 +88,6 @@ func IsServiceActiveOrRestarting(name string) bool {
 	return state == "active" || state == "activating"
 }
 
-// IsTimerActive returns true if the worker's sibling .timer is active.
-func IsTimerActive(name string) bool { return DBusActiveState(name+".timer") == "active" }
-
 // unitBelongsToLongerSite reports whether the unit file belongs to a registered
 // site whose name is longer than siteName and ends with "-<siteName>" worth of
 // collision (e.g. unit "...-admin-astrolov.service" belongs to "admin-astrolov",
