@@ -1,0 +1,265 @@
+{
+  "plugins": [
+    {
+      "name": "db-import-host",
+      "description": "Bring your databases over from a MySQL, MariaDB or PostgreSQL server installed on this machine"
+    },
+    {
+      "name": "remote-pull",
+      "description": "Pull a site's database and uploaded files from its server over SSH, with an optional sanitize step"
+    },
+    {
+      "name": "visual-diff",
+      "description": "Screenshot a site's pages and see what changed since the baseline, pixel by pixel"
+    }
+  ],
+  "managed": [
+    {
+      "name": "db-import-host",
+      "version": "0.1.0",
+      "description": "Bring your databases over from a MySQL, MariaDB or PostgreSQL server installed on this machine",
+      "adds": [
+        "commands",
+        "site_commands",
+        "mcp"
+      ],
+      "requires": [
+        "node"
+      ],
+      "icon": "/demo/plugins/db-import-host/icon.svg",
+      "features": [
+        {
+          "kind": "command",
+          "name": "lerd db-import-host:connect",
+          "detail": "Save how to reach this machine's own server: connect <mysql|postgres> [--host] [--port] [--user] [--password] [--socket] [--bin-dir]"
+        },
+        {
+          "kind": "command",
+          "name": "lerd db-import-host:list",
+          "detail": "The databases on this machine's own server and the lerd site each one fills"
+        },
+        {
+          "kind": "command",
+          "name": "lerd db-import-host:import",
+          "detail": "Copy a site's database from this machine's own server into lerd: import [site...] [--all] [--from <database>] [--database <name>]"
+        },
+        {
+          "kind": "site_command",
+          "name": "Import database from this machine",
+          "detail": "Replace this site's lerd database with the one of the same name on the MySQL or PostgreSQL server installed on this machine, after a snapshot"
+        },
+        {
+          "kind": "mcp",
+          "name": "db-import-host_list",
+          "detail": "List the databases on the MySQL/MariaDB or PostgreSQL server installed natively on this machine (outside lerd), with the lerd site each one would fill"
+        },
+        {
+          "kind": "mcp",
+          "name": "db-import-host_import",
+          "detail": "Replace a lerd site's database with the copy on the machine's own MySQL or PostgreSQL server. Snapshots the lerd database first as before-host-import"
+        }
+      ],
+      "has_docs": false,
+      "notifications": "none"
+    },
+    {
+      "name": "remote-pull",
+      "version": "0.1.0",
+      "description": "Pull a site's database and uploaded files from its server over SSH, with an optional sanitize step",
+      "adds": [
+        "commands",
+        "site_commands",
+        "mcp"
+      ],
+      "requires": [
+        "node",
+        "rsync",
+        "ssh"
+      ],
+      "icon": "/demo/plugins/remote-pull/icon.svg",
+      "features": [
+        {
+          "kind": "command",
+          "name": "lerd remote-pull:setup",
+          "detail": "Save the site's server: setup --ssh user@host --path /remote/project [--files a,b] [--sanitize file.sql] [--database --db-user --db-password]"
+        },
+        {
+          "kind": "command",
+          "name": "lerd remote-pull:pull",
+          "detail": "Pull the database and files from the site's server: pull [site] [--db-only | --files-only]"
+        },
+        {
+          "kind": "site_command",
+          "name": "Pull from server",
+          "detail": "Replace this site's database with a fresh copy from its server, after a snapshot, and sync its uploaded files"
+        },
+        {
+          "kind": "mcp",
+          "name": "remote-pull_pull",
+          "detail": "Replace a lerd site's local database with a fresh dump from its production or staging server over SSH, after a before-remote-pull snapshot, then sync its configured upload folders. The server is set once by the user with lerd remote-pull:setup"
+        }
+      ],
+      "has_docs": false,
+      "notifications": "none"
+    },
+    {
+      "name": "visual-diff",
+      "version": "0.1.0",
+      "description": "Screenshot a site's pages and see what changed since the baseline, pixel by pixel",
+      "adds": [
+        "commands",
+        "site_commands",
+        "mcp",
+        "api",
+        "site_tab"
+      ],
+      "requires": [
+        "node"
+      ],
+      "icon": "/demo/plugins/visual-diff/icon.svg",
+      "features": [
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:routes",
+          "detail": "Show or replace the routes to screenshot: routes [site] [/route ...]"
+        },
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:hide",
+          "detail": "Show or replace, inside the project, the CSS selectors blanked before each shot for content that changes on every load: hide [selector ...]"
+        },
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:login",
+          "detail": "Inside the project, log in before capturing pages behind a login: login --path /login --user u --password p [--user-field css] [--password-field css] | --off"
+        },
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:baseline",
+          "detail": "Screenshot the routes that have no baseline yet: baseline [site] [--all to retake every one]"
+        },
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:check",
+          "detail": "Screenshot every route again and report what changed since the baseline; exits 1 on a change"
+        },
+        {
+          "kind": "command",
+          "name": "lerd visual-diff:approve",
+          "detail": "Take the last check's screenshots as the new baseline: approve [site] [/route ...]"
+        },
+        {
+          "kind": "site_command",
+          "name": "Visual check",
+          "detail": "Screenshot this site's routes and compare them with the baseline"
+        },
+        {
+          "kind": "mcp",
+          "name": "visual-diff_check",
+          "detail": "Screenshot a lerd site's configured routes in Chromium and compare each with its baseline. Returns per-route status (same, changed, new), the changed pixel count and their share of the page"
+        },
+        {
+          "kind": "mcp",
+          "name": "visual-diff_baseline",
+          "detail": "Screenshot a lerd site's routes that have no baseline yet, for later checks to compare against. With all, retake every route's baseline, which throws the old ones away; ask the user first"
+        },
+        {
+          "kind": "mcp",
+          "name": "visual-diff_approve",
+          "detail": "Accept the last check's screenshots as the baseline, for the given routes or every changed one. Only after the user agreed the change is intended"
+        },
+        {
+          "kind": "site_tab",
+          "name": "Visual diff"
+        }
+      ],
+      "has_docs": false,
+      "notifications": "none"
+    }
+  ],
+  "catalog": [
+    {
+      "name": "db-import-host",
+      "description": "Bring your databases over from a MySQL, MariaDB or PostgreSQL server installed on this machine",
+      "repo": "https://github.com/lerd-env/plugin-db-import-host",
+      "commit": "7836bd44d5678074c233b6d8429cc7d407256932",
+      "author": "lerd-env",
+      "category": "Migration",
+      "tags": [
+        "mysql",
+        "mariadb",
+        "postgres",
+        "migration",
+        "herd"
+      ],
+      "version": "0.1.0",
+      "lerd": ">=1.38",
+      "requires": [
+        "node"
+      ],
+      "images": [
+        "https://plugins.lerd.sh/images/db-import-host/7836bd44d5678074c233b6d8429cc7d407256932/1.png"
+      ],
+      "added_at": "2026-10-24",
+      "updated_at": "2026-10-24",
+      "installed": true,
+      "compatible": true,
+      "runs_here": true
+    },
+    {
+      "name": "sail",
+      "description": "Bring a Laravel Sail project's database and MinIO or RustFS files into Lerd",
+      "repo": "https://github.com/lerd-env/plugin-sail",
+      "commit": "58f535dce8e5663ad7058ee98fce551f507ae54c",
+      "author": "lerd-env",
+      "category": "Migration",
+      "tags": [
+        "sail",
+        "laravel",
+        "migration",
+        "docker"
+      ],
+      "version": "0.1.0",
+      "lerd": ">=1.38",
+      "requires": [
+        "node"
+      ],
+      "images": [
+        "https://plugins.lerd.sh/images/sail/58f535dce8e5663ad7058ee98fce551f507ae54c/1.png"
+      ],
+      "added_at": "2026-10-23",
+      "updated_at": "2026-10-23",
+      "stars": 1,
+      "installed": false,
+      "compatible": true,
+      "runs_here": true
+    },
+    {
+      "name": "site-services",
+      "description": "A site tab and MCP tool listing the services a site uses, with each one's description, default login and address",
+      "repo": "https://github.com/ExeQue/lerd-plugin-site-services",
+      "commit": "dcb5218ce811b0d59c1c5275aaa4934d6890bbf4",
+      "author": "ExeQue",
+      "category": "Services",
+      "tags": [
+        "services",
+        "site-tab",
+        "mcp",
+        "credentials"
+      ],
+      "version": "0.2.0",
+      "lerd": ">=1.38",
+      "requires": [
+        "python3"
+      ],
+      "images": [
+        "https://plugins.lerd.sh/images/site-services/dcb5218ce811b0d59c1c5275aaa4934d6890bbf4/1.png"
+      ],
+      "added_at": "2026-10-23",
+      "updated_at": "2026-10-24",
+      "installed": false,
+      "compatible": true,
+      "runs_here": true
+    }
+  ]
+}

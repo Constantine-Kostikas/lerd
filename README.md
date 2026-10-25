@@ -1,13 +1,13 @@
 # Lerd
 
 > Open-source local PHP development environment for Linux and macOS,
-> with Windows supported via WSL2 (beta). Podman-native, rootless, with a
+> with Windows supported via WSL2. Podman-native, rootless, with a
 > built-in Web UI.
 
 [![CI](https://github.com/lerd-env/lerd/actions/workflows/ci.yml/badge.svg)](https://github.com/lerd-env/lerd/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/lerd-env/lerd)](https://github.com/lerd-env/lerd/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL2%20(beta)-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL2-lightgrey)]()
 [![Docs](https://img.shields.io/badge/docs-lerd.sh-blue)](https://lerd.sh)
 [![Reddit](https://img.shields.io/badge/Reddit-r%2Flerd-ff2d20?logo=reddit)](https://reddit.com/r/lerd)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/5JK54s7xCC)
@@ -19,13 +19,13 @@
 https://github.com/user-attachments/assets/6e5889f4-01b7-4e8f-ada4-dffed9ddc53c
 
 Lerd runs Nginx, PHP-FPM, and your services as rootless [Podman](https://podman.io) containers,
-designed for PHP developers on Linux and macOS, and on Windows through WSL2 (beta).
-No Docker. No sudo. No system pollution. Just `lerd link` and your project
+designed for PHP developers on Linux and macOS, and on Windows through WSL2.
+No Docker. No system pollution. Just `lerd link` and your project
 is live at `project.test` with HTTPS.
 
 ## Built for PHP developers on Linux and macOS
 
-Lerd is built for PHP developers who want frictionless local development, on a Linux desktop, a Mac, or Windows through WSL2 (beta): automatic `.test` domains, per-project PHP versions, one-click HTTPS, zero Docker. Works with Laravel, Symfony, WordPress, Drupal, Magento, CakePHP, Statamic, Yii, and any custom PHP framework.
+Lerd is built for PHP developers who want frictionless local development, on a Linux desktop, a Mac, or Windows through WSL2: automatic `.test` domains, per-project PHP versions, one-click HTTPS, zero Docker. Works with Laravel, Symfony, WordPress, Drupal, Magento, CakePHP, Statamic, Yii, and any custom PHP framework.
 
 ## Features
 
@@ -149,21 +149,22 @@ Twelve grouped tools, each driven by an `action`: `site`, `service`, `db`, `env`
 |-------------------------|------|--------------|---------|------|-------|------|
 | Linux                   | ✅   | ❌           | ❌      | ✅   | ✅    | ✅   |
 | macOS                   | ✅   | ✅           | ❌      | ✅   | ✅    | ✅   |
-| Windows                 | 🧪   | ✅           | ✅      | ✅   | ✅    | ✅   |
+| Windows                 | ✅   | ✅           | ✅      | ✅   | ✅    | ✅   |
 | Podman-native           | ✅   | ❌           | ❌      | 🟡   | ❌    | ❌   |
 | Rootless                | ✅   | ✅           | ❌      | ❌   | ❌    | ❌   |
 | Open source             | ✅   | ❌           | ❌      | ✅   | ✅    | ✅   |
 | Free, no paid tier      | ✅   | ❌           | ❌      | ✅   | ✅    | ✅   |
 | Zero per-project config | ✅   | ✅           | ✅      | ❌   | ❌    | ❌   |
-| Git worktrees as sites  | ✅   | ❌           | ❌      | ❌   | ❌    | ❌   |
+| Git worktrees as sites  | ✅   | ✅           | ❌      | ❌   | ❌    | ❌   |
 | Web UI                  | ✅   | ✅           | ❌      | ❌   | ❌    | ❌   |
 | Terminal dashboard      | ✅   | ❌           | ❌      | ❌   | ❌    | ❌   |
 | Profiler & debug window | ✅   | ✅           | ❌      | ❌   | ❌    | ❌   |
 | MCP server              | ✅   | ✅           | ❌      | ❌   | ❌    | ❌   |
+| Plugins                 | ✅   | ❌           | ❌      | ✅   | ✅    | ❌   |
 
 🟡 DDEV runs on Docker by default and can also use Podman as an alternative runtime; Lerd is built exclusively for rootless Podman.
 
-🧪 Lerd's Windows support runs inside WSL2 and is currently **beta**, see the [Windows (WSL2) guide](https://lerd.sh/getting-started/wsl2). Laragon runs natively on Windows and has no Linux or macOS build, see [Laragon for Linux](https://lerd.sh/getting-started/laragon-linux) if that is what brought you here.
+🪟 On Windows, `Install-Lerd.exe` sets up WSL2, Lerd and the desktop app in one go, see the [Windows (WSL2) guide](https://lerd.sh/getting-started/wsl2). Laragon runs natively on Windows and has no Linux or macOS build, see [Laragon for Linux](https://lerd.sh/getting-started/laragon-linux) if that is what brought you here.
 
 ## Install
 
@@ -260,7 +261,7 @@ nix run github:lerd-env/lerd-nixos -- --help
 
 The [`lerd-nixos`](https://github.com/lerd-env/lerd-nixos) flake packages the binary and ships the `configuration.nix` blocks the stack needs. See the [NixOS guide](https://lerd.sh/getting-started/nixos) for the full runbook.
 
-### Windows (beta)
+### Windows
 
 Download [`Install-Lerd.exe`](https://github.com/lerd-env/lerd-desktop/releases/latest/download/Install-Lerd.exe) and run it. The wizard sets up WSL2, an Ubuntu 24.04 distro with your Linux user, lerd and the Lerd desktop app, which holds the tray and notifications on Windows. Already running WSL? Install lerd inside your distro as on Linux, then run `lerd wsl:setup`. See the [Windows (WSL2) guide](https://lerd.sh/getting-started/wsl2) for every step.
 

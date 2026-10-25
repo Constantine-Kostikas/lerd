@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
+import { FAQ } from './theme/landing-data.js'
 
 const SITE_URL = 'https://lerd.sh'
 const OG_IMAGE = `${SITE_URL}/assets/social-preview.png`
@@ -49,12 +50,12 @@ export default defineConfig({
     ['meta', { property: 'og:image:type', content: 'image/png' }],
     ['meta', { property: 'og:image:width', content: '1499' }],
     ['meta', { property: 'og:image:height', content: '787' }],
-    ['meta', { property: 'og:image:alt', content: 'Lerd, local PHP development for Linux and macOS' }],
+    ['meta', { property: 'og:image:alt', content: 'Lerd, local PHP development for Linux, macOS and Windows' }],
 
     // Twitter / X
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: OG_IMAGE }],
-    ['meta', { name: 'twitter:image:alt', content: 'Lerd, local PHP development for Linux and macOS' }],
+    ['meta', { name: 'twitter:image:alt', content: 'Lerd, local PHP development for Linux, macOS and Windows' }],
 
     // Structured data (rich results / knowledge graph)
     [
@@ -69,7 +70,7 @@ export default defineConfig({
             applicationCategory: 'DeveloperApplication',
             operatingSystem: 'Linux, macOS, Windows (WSL2)',
             description:
-              'Open-source local PHP development environment for Linux, macOS and Windows (WSL2): automatic .test domains and HTTPS, per-project PHP 7.4–8.5 and Node, rootless Podman, a built-in Web UI, and an MCP server for AI agents. No Docker daemon, no sudo.',
+              'Open-source local PHP development environment for Linux, macOS and Windows (WSL2): automatic .test domains and HTTPS, per-project PHP 7.4–8.6 and Node, rootless Podman, a built-in Web UI, and an MCP server for AI agents. No Docker daemon.',
             keywords:
               'local PHP development, Laravel Herd for Linux, Laragon for Linux, Laragon alternative Linux, .test domains, rootless Podman, PHP-FPM, local development environment',
             url: SITE_URL,
@@ -106,6 +107,15 @@ export default defineConfig({
       ['meta', { name: 'twitter:title', content: title }],
       ['meta', { name: 'twitter:description', content: description }],
     )
+    // The landing FAQ is rendered from the same list, so the markup and the page never disagree.
+    if (pageData.relativePath === 'index.md') {
+      const faq = {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: FAQ.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+      }
+      pageData.frontmatter.head.push(['script', { type: 'application/ld+json' }, JSON.stringify(faq)])
+    }
   },
 
   themeConfig: {
@@ -138,7 +148,7 @@ export default defineConfig({
           items: [
             { text: 'Omarchy', link: '/getting-started/omarchy' },
             { text: 'NixOS', link: '/getting-started/nixos' },
-            { text: 'Windows (WSL2, beta)', link: '/getting-started/wsl2' },
+            { text: 'Windows (WSL2)', link: '/getting-started/wsl2' },
           ],
         },
         {
@@ -367,7 +377,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Lerd',
+      copyright: '© 2026 George Dumitrescu',
     },
 
     search: {
