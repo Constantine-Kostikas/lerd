@@ -91,7 +91,7 @@ Lerd keeps the part that was worth having, every service one command away, and d
 
 |  | Lerd | Laradock |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | License | Open source (MIT) | Open source (MIT) |
 | Container runtime | Rootless Podman, no daemon | Docker, with a root daemon or Docker Desktop |
 | Architecture | One shared nginx, PHP-FPM and service layer across every site | A per-project Compose stack, one container per service |

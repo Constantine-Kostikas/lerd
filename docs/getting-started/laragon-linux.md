@@ -91,7 +91,7 @@ Prefer your package manager? Lerd is also available through an [apt PPA, a Fedor
 
 |  | Lerd | Laragon |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Windows only |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Windows only |
 | License | Open source (MIT), free for commercial use | Proprietary, a licence is required from Laragon 7 onwards |
 | Cost | Free | Free unlicenced tier with a reminder popup and no auto-updates; paid non-commercial and commercial licences |
 | Stack | Nginx, PHP-FPM and services as rootless Podman containers | Apache or Nginx and services as native Windows binaries in a portable folder |
@@ -158,7 +158,7 @@ Be aware of these before you switch, they are the places where the mental model 
 
 ## Staying on Windows
 
-If you are not leaving Windows, Lerd runs inside WSL2, currently in beta. Your projects live on the Linux filesystem and are reachable from Windows browsers at their `.test` addresses. See the [Windows (WSL2) guide](/getting-started/wsl2).
+If you are not leaving Windows, Lerd runs inside WSL2. Your projects live on the Linux filesystem and are reachable from Windows browsers at their `.test` addresses. See the [Windows (WSL2) guide](/getting-started/wsl2).
 
 ## Frequently asked questions
 

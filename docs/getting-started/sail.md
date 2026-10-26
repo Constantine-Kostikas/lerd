@@ -99,7 +99,7 @@ The bill arrives when the projects multiply. Each repo is a full stack, so five 
 
 |  | Lerd | Laravel Sail |
 |---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 (beta) | Linux, macOS, Windows |
+| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
 | Container runtime | Rootless Podman, no daemon | Docker Desktop / Orbstack / Colima |
 | Architecture | One shared nginx, PHP-FPM and service layer | A per-project Compose stack |
 | PHP versions | 7.4, 8.0 to 8.5, per project, no rebuild | Per-project Sail image |

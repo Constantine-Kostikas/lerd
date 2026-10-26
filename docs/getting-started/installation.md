@@ -314,9 +314,9 @@ lerd uninstall
 
 Tears down the launchd agents, the DNS resolver and the containers, then removes the binary. The Podman machine stays, remove it with `podman machine rm` if nothing else uses it. If you installed via Homebrew, finish with `brew uninstall lerd`.
 
-## Windows (beta)
+## Windows
 
-There is no native Windows build. Lerd runs on Windows through WSL2, where the standard Linux build works unchanged once systemd and rootless Podman are set up. Windows support is **beta**, it works well for daily development but gets less testing than native Linux or macOS. See the [Windows (WSL2) guide](./wsl2) for the full walkthrough, including the `events_logger` Podman tweak and the mkcert root CA export to the Windows trust store.
+There is no native Windows build. Lerd runs on Windows through WSL2, where the standard Linux build works unchanged once systemd and rootless Podman are set up. See the [Windows (WSL2) guide](./wsl2) for the full walkthrough, including the `events_logger` Podman tweak and the mkcert root CA export to the Windows trust store.
 
 ## NixOS
 
