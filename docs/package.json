@@ -12,7 +12,7 @@
     "dev": "vitepress dev .",
     "build": "vitepress build .",
     "preview": "vitepress preview .",
-    "test": "node --test \".vitepress/theme/*.test.mjs\""
+    "test": "node --test \".vitepress/*.test.mjs\" \".vitepress/theme/*.test.mjs\""
   },
   "devDependencies": {
     "vitepress": "^1.6.4"
