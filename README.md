@@ -37,7 +37,7 @@ Lerd is built for PHP developers who want frictionless local development, on a L
 
 - 🧱 **Node, Python, Rails and more.** `lerd init` recognises a Node, Python, Rails or Rack, Go or Rust project, runs its dev server on the host under lerd's supervision and serves it at a `.test` domain with HTTPS, services and worktrees included, or as a rootless container from a starter `Containerfile.lerd`.
 
-- 🌳 **First-class git worktrees.** Auto-detected branch domains, per-worktree PHP and Node versions, a database picked from the branch's migrations when a script adds it, wildcard cert SANs and a per-branch Vite worker. A bare `git worktree add` from any tool is provisioned automatically, and the site header fetches, pulls, pushes and switches branches, offering the installs and migrations the move needs with the database snapshotted first.
+- 🌳 **First-class git worktrees.** Auto-detected branch domains, per-worktree PHP and Node versions, a database picked from the branch's migrations when a script adds it, wildcard cert SANs and a per-branch Vite worker. A bare `git worktree add` from any tool is provisioned automatically, and the site header fetches, pulls, pushes and switches branches, offering the installs and migrations the move needs with the database snapshotted first. Uncommitted changes open in a diff editor that stages, commits and stashes.
 
 - 🌍 **Share a site.** On your LAN with a stable port and a QR code, or publicly through ngrok, cloudflared, Expose, Pinggy, serveo or localhost.run. Set a base domain once and every share keeps the same URL between runs, through a tunnel service or the reverse proxy you already run.
 
@@ -100,7 +100,7 @@ Lerd is built for PHP developers who want frictionless local development, on a L
 
 - 🔔 **Notifications** for the things worth interrupting you, delivered to open dashboards, to subscribed browsers over Web Push, or to your desktop's native notification daemon. Every one also lands in the dashboard's sidebar bell, which keeps the last 50 with an unread count across reloads.
 
-- 🤖 **MCP server.** Let AI assistants (Claude Code, Cursor, JetBrains Junie, Codex CLI, Gemini CLI, GitHub Copilot, Google Antigravity, Windsurf, OpenCode) manage your environment directly, registered with one command or one switch in the dashboard.
+- 🤖 **MCP server.** Let AI assistants (Claude Code, Cursor, JetBrains Junie, Codex CLI, Gemini CLI, GitHub Copilot, Google Antigravity, Windsurf, OpenCode) manage your environment directly, registered with one command or one switch in the dashboard, on Windows too. Claude Code also gets lerd's PHP language server for exact definitions and callers.
 
 ### Health and upkeep
 
@@ -354,7 +354,7 @@ Using Lerd across a team? Commercial support is available, covering onboarding, 
 
 Lerd stands on a set of excellent open-source projects it bundles or fetches to power the experience:
 
-- [phpantom_lsp](https://github.com/PHPantom-dev/phpantom_lsp) - the PHP language server behind tinker autocomplete, diagnostics and semantic highlighting
+- [phpantom_lsp](https://github.com/PHPantom-dev/phpantom_lsp) - the PHP language server behind tinker autocomplete, diagnostics and semantic highlighting, and behind `lerd lsp` for AI agents
 - [Monaco](https://github.com/microsoft/monaco-editor) - the editor engine for every in-browser editing surface
 - [php-spx](https://github.com/NoiseByNorthwest/php-spx) - the profiler behind the SPX flame graphs
 - [mise](https://github.com/jdx/mise) - the per-project Node version manager on new installs
