@@ -385,7 +385,7 @@ Custom services can declare that they need another service to be running first u
 ```yaml
 # ~/.config/lerd/services/phpmyadmin.yaml
 name: phpmyadmin
-image: docker.io/phpmyadmin:latest
+image: docker.io/library/phpmyadmin:latest
 ports:
   - 8080:80
 depends_on:
@@ -399,7 +399,7 @@ description: "phpMyAdmin web interface for MySQL"
 ```bash
 lerd service add \
   --name phpmyadmin \
-  --image docker.io/phpmyadmin:latest \
+  --image docker.io/library/phpmyadmin:latest \
   --port 8080:80 \
   --depends-on mysql \
   --dashboard http://localhost:8080

@@ -460,7 +460,7 @@ func TestResolveDynamicEnv_DiscoverFamily(t *testing.T) {
 
 	svc := &CustomService{
 		Name:  "phpmyadmin",
-		Image: "phpmyadmin:latest",
+		Image: "docker.io/library/phpmyadmin:latest",
 		DynamicEnv: map[string]string{
 			"PMA_HOSTS": "discover_family:mysql",
 		},
@@ -607,7 +607,7 @@ func TestResolveDynamicEnv_RepeatFamily(t *testing.T) {
 
 	svc := &CustomService{
 		Name:  "phpmyadmin",
-		Image: "phpmyadmin:latest",
+		Image: "docker.io/library/phpmyadmin:latest",
 		DynamicEnv: map[string]string{
 			"PMA_HOSTS":     "discover_family:mysql,mariadb",
 			"PMA_USERS":     "repeat_family:mysql,mariadb=root",
