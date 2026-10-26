@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pollWhileVisible } from '$lib/pollWhileVisible';
   import { dashboardOpen, closeDashboard, keepServiceAwake } from '$stores/dashboard';
   import { services } from '$stores/services';
   import ServiceIcon from './ServiceIcon.svelte';
@@ -96,14 +97,12 @@
   $effect(() => {
     if (!isProfiler || isReportView || !$profilerEnabled) return;
     let lastReportCount = -1;
-    const id = setInterval(async () => {
-      if (document.hidden) return;
+    return pollWhileVisible(async () => {
       const count = await fetchSpxReportCount();
       if (count === null) return;
       if (lastReportCount >= 0 && count > lastReportCount) reloadIframe();
       lastReportCount = count;
     }, 4000);
-    return () => clearInterval(id);
   });
 
   // iframeWindow returns the embedded window only when it is same-origin and

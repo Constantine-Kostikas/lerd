@@ -175,11 +175,17 @@ func (c *ContainerCache) PollNow() {
 	c.poll()
 }
 
-// SetInterval changes the background polling interval. Safe to call from any goroutine.
+// SetInterval changes the background polling interval. Safe to call from any
+// goroutine. A shorter one polls at once, since the wait under way still runs
+// on the old interval.
 func (c *ContainerCache) SetInterval(d time.Duration) {
 	c.intervalMu.Lock()
+	shorter := d < c.interval
 	c.interval = d
 	c.intervalMu.Unlock()
+	if shorter {
+		c.Refresh()
+	}
 }
 
 // Pause suspends the background poll loop. Refcounted: nested Pause/Resume

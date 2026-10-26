@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pollWhileVisible } from '$lib/pollWhileVisible';
   import { tick, untrack } from 'svelte';
   import type { Site } from '$stores/sites';
   import {
@@ -129,8 +130,8 @@
   // nothing worth asking for.
   $effect(() => {
     if (suspended) return;
-    const poll = setInterval(refreshEntries, 5000);
-    return () => clearInterval(poll);
+    // Untracked, or the first tick's reads would restart the poll after every load.
+    return pollWhileVisible(() => untrack(() => void refreshEntries()), 5000);
   });
 
   // The poll must not flicker the spinner or move the reader's scroll, so it

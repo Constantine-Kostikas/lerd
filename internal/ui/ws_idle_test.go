@@ -6,27 +6,28 @@ import (
 )
 
 // chooseInterval is the only branching point that decides the cache poll
-// cadence. The full state space is 4 combinations of (visible>0, idle);
-// table covers them and a couple of edge values for the visible counter.
+// cadence, over (visible>0, focused, idle) plus edge values for the counter.
 func TestChooseInterval(t *testing.T) {
 	cases := []struct {
 		name    string
 		visible int32
+		focused bool
 		idle    bool
 		want    time.Duration
 	}{
-		{"focused tab, active session", 1, false, intervalFocused},
-		{"focused tab, idle session", 1, true, intervalIdle},
-		{"no tabs, active session", 0, false, intervalIdle},
-		{"no tabs, idle session", 0, true, intervalIdle},
-		{"many tabs, active session", 7, false, intervalFocused},
-		{"many tabs, idle session", 7, true, intervalIdle},
-		{"negative counter, active session", -1, false, intervalIdle},
+		{"focused tab, active session", 1, true, false, intervalFocused},
+		{"focused tab, idle session", 1, true, true, intervalIdle},
+		{"tab open behind another window", 1, false, false, intervalIdle},
+		{"no tabs, active session", 0, false, false, intervalIdle},
+		{"no tabs, idle session", 0, false, true, intervalIdle},
+		{"many tabs, one focused", 7, true, false, intervalFocused},
+		{"many tabs, idle session", 7, true, true, intervalIdle},
+		{"negative counter, active session", -1, true, false, intervalIdle},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := chooseInterval(tc.visible, tc.idle); got != tc.want {
-				t.Errorf("chooseInterval(%d, %v) = %v, want %v", tc.visible, tc.idle, got, tc.want)
+			if got := chooseInterval(tc.visible, tc.focused, tc.idle); got != tc.want {
+				t.Errorf("chooseInterval(%d, %v, %v) = %v, want %v", tc.visible, tc.focused, tc.idle, got, tc.want)
 			}
 		})
 	}
