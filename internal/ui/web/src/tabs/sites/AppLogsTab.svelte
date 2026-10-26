@@ -130,7 +130,8 @@
   // nothing worth asking for.
   $effect(() => {
     if (suspended) return;
-    return pollWhileVisible(() => void refreshEntries(), 5000);
+    // Untracked, or the first tick's reads would restart the poll after every load.
+    return pollWhileVisible(() => untrack(() => void refreshEntries()), 5000);
   });
 
   // The poll must not flicker the spinner or move the reader's scroll, so it

@@ -66,6 +66,18 @@ describe('pollWhileVisible', () => {
     stop();
   });
 
+  // Inside the focus handler hasFocus() can still report the window it left.
+  it('refreshes on focus even while hasFocus still says otherwise', () => {
+    vi.useFakeTimers();
+    setFocused(false);
+    const fn = vi.fn();
+    const stop = pollWhileVisible(fn, 1000);
+    vi.advanceTimersByTime(5000);
+    window.dispatchEvent(new Event('focus'));
+    expect(fn).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
   it('stops ticking and listening once stopped', () => {
     vi.useFakeTimers();
     const fn = vi.fn();

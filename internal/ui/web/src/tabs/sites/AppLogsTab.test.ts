@@ -159,6 +159,12 @@ describe('AppLogsTab', () => {
       expect(entryCalls()).toBe(initial + 2);
     });
 
+    it('fetches the entries once when the tab opens', async () => {
+      render(SiteHarness, { props: { site: siteWith() } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(entryCalls()).toBe(1);
+    });
+
     it('does not poll a suspended site', async () => {
       render(SiteHarness, { props: { site: siteWith({ idle_suspended: true }) } });
       await vi.advanceTimersByTimeAsync(0);

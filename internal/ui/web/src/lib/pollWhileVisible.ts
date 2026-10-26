@@ -8,15 +8,16 @@ export const UNFOCUSED_MS = 60_000;
 export function pollWhileVisible(fn: () => void, intervalMs: number): () => void {
   let stopped = false;
   let last = 0;
-  function tick() {
+  function run(focused: boolean) {
     if (stopped) return;
-    if (typeof document !== 'undefined') {
-      if (document.hidden) return;
-      if (!document.hasFocus() && Date.now() - last < UNFOCUSED_MS) return;
-    }
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (!focused && Date.now() - last < UNFOCUSED_MS) return;
     last = Date.now();
     fn();
   }
+  const tick = () => run(typeof document === 'undefined' || document.hasFocus());
+  // The event is the word on focus: inside it hasFocus() can still say no.
+  const onFocus = () => run(true);
   tick();
   const timer = setInterval(tick, intervalMs);
 
@@ -28,7 +29,7 @@ export function pollWhileVisible(fn: () => void, intervalMs: number): () => void
     document.addEventListener('visibilitychange', onVisibility);
   }
   if (typeof window !== 'undefined') {
-    window.addEventListener('focus', tick);
+    window.addEventListener('focus', onFocus);
   }
 
   return () => {
@@ -38,7 +39,7 @@ export function pollWhileVisible(fn: () => void, intervalMs: number): () => void
       document.removeEventListener('visibilitychange', onVisibility);
     }
     if (typeof window !== 'undefined') {
-      window.removeEventListener('focus', tick);
+      window.removeEventListener('focus', onFocus);
     }
   };
 }

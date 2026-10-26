@@ -432,3 +432,31 @@ func TestRefreshPollsEvenWhileStopped(t *testing.T) {
 		t.Error("explicit Refresh() must poll even while lerd is stopped")
 	}
 }
+
+// A wait already under way runs on the interval it started with, so a dashboard
+// taking focus would see container state up to a minute old without a wake.
+func TestSetIntervalShorterPollsAtOnce(t *testing.T) {
+	polled := make(chan struct{}, 10)
+	c := newTestCache(func() (string, error) {
+		polled <- struct{}{}
+		return "", nil
+	})
+	c.mu.Lock()
+	c.started = true
+	c.mu.Unlock()
+	c.interval = 10 * time.Minute
+	startLoop(t, c)
+
+	c.SetInterval(20 * time.Minute)
+	select {
+	case <-polled:
+		t.Fatal("a longer interval polled at once")
+	case <-time.After(100 * time.Millisecond):
+	}
+	c.SetInterval(time.Minute)
+	select {
+	case <-polled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a shorter interval did not poll at once")
+	}
+}
