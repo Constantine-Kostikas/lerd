@@ -47,30 +47,30 @@
   let versions = $state<GitVersions | null>(null);
   let stats = $state<{ added: number; removed: number } | null>(null);
   let error = $state('');
-  let ignoreSpace = $state(false);
   // Outlives the commit box, which goes once the last change is committed.
   let notice = $state('');
   let filesHidden = $state(false);
   // Keyed by group and folder, so a folder collapsed under Staged stays open under Unstaged.
   let collapsed = $state<Record<string, boolean>>({});
 
-  // Full screen and the view are remembered, so the next diff opens the way this one was left.
+  // Full screen, the view and hidden whitespace are remembered, so the next diff opens the way this one was left.
   const PREFS_KEY = 'lerd:gitDiff';
-  type Prefs = { fullscreen: boolean; unified: boolean };
+  type Prefs = { fullscreen: boolean; unified: boolean; ignoreSpace: boolean };
   function readPrefs(): Prefs {
     try {
       const v = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
-      return { fullscreen: v.fullscreen === true, unified: v.unified === true };
+      return { fullscreen: v.fullscreen === true, unified: v.unified === true, ignoreSpace: v.ignoreSpace === true };
     } catch {
-      return { fullscreen: false, unified: false };
+      return { fullscreen: false, unified: false, ignoreSpace: false };
     }
   }
   const prefs = readPrefs();
   let fullscreen = $state(prefs.fullscreen);
   let unified = $state(prefs.unified);
+  let ignoreSpace = $state(prefs.ignoreSpace);
   $effect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ fullscreen, unified }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ fullscreen, unified, ignoreSpace }));
     } catch {
       /* localStorage may be unavailable (private mode, quota), non-fatal */
     }
