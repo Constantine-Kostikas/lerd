@@ -19,7 +19,7 @@ func TestRestoreInlineService_savesTheDefinitionWithTheUnit(t *testing.T) {
 	podman.DaemonReloadFn = func() error { return nil }
 	t.Cleanup(func() { podman.DaemonReloadFn = prev })
 
-	inline := &config.CustomService{Image: "docker.io/phpmyadmin:latest", Ports: []string{"127.0.0.1:18081:80"}}
+	inline := &config.CustomService{Image: "docker.io/library/phpmyadmin:latest", Ports: []string{"127.0.0.1:18081:80"}}
 	if err := restoreInlineService("phpmyadmin", inline); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestLinkApplyServices_skipsARemovedService(t *testing.T) {
 	_ = config.SetServiceRemoved("phpmyadmin", true)
 	proj := &config.ProjectConfig{Services: []config.ProjectService{{
 		Name:   "phpmyadmin",
-		Custom: &config.CustomService{Image: "docker.io/phpmyadmin:latest"},
+		Custom: &config.CustomService{Image: "docker.io/library/phpmyadmin:latest"},
 	}}}
 
 	out := captureStdout(t, func() {
