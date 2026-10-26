@@ -100,7 +100,7 @@ Lerd is built for PHP developers who want frictionless local development, on a L
 
 - 🔔 **Notifications** for the things worth interrupting you, delivered to open dashboards, to subscribed browsers over Web Push, or to your desktop's native notification daemon. Every one also lands in the dashboard's sidebar bell, which keeps the last 50 with an unread count across reloads.
 
-- 🤖 **MCP server.** Let AI assistants (Claude Code, Cursor, JetBrains Junie, Codex CLI, Gemini CLI, GitHub Copilot, Google Antigravity, Windsurf, OpenCode) manage your environment directly, registered with one command or one switch in the dashboard, on Windows too. Claude Code also gets lerd's PHP language server for exact definitions and callers.
+- 🤖 **MCP server.** Let AI assistants (Claude Code, Cursor, JetBrains Junie, Codex CLI, Gemini CLI, GitHub Copilot, Google Antigravity, Windsurf, OpenCode) manage your environment directly, registered with one command or one switch in the dashboard, on Windows too. Claude Code on Linux, macOS or inside WSL also gets lerd's PHP language server for exact definitions and callers.
 
 ### Health and upkeep
 
