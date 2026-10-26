@@ -64,13 +64,17 @@ describe('GitDiffModal', () => {
     expect(loadGitVersions).toHaveBeenLastCalledWith('acme.test', '/srv/acme', 'untracked', 'notes.md');
   });
 
-  it('passes the whitespace switch to the editor', async () => {
+  it('passes the whitespace switch to the editor, and keeps the choice', async () => {
     loadGitChanges.mockResolvedValue({ staged: [], unstaged: [{ path: 'c.yaml', status: 'M' }], untracked: [] });
     loadGitVersions.mockResolvedValue(text('    - x\n', '  - x\n'));
-    render(GitDiffModal, { props });
+    const first = render(GitDiffModal, { props });
     expect((await screen.findByTestId('diff')).dataset.ignoreSpace).toBe('false');
     await fireEvent.click(screen.getByRole('switch', { name: 'Hide whitespace' }));
     expect(screen.getByTestId('diff').dataset.ignoreSpace).toBe('true');
+    first.unmount();
+
+    render(GitDiffModal, { props });
+    expect((await screen.findByTestId('diff')).dataset.ignoreSpace).toBe('true');
   });
 
   it('closes from full screen and opens full screen next time', async () => {
