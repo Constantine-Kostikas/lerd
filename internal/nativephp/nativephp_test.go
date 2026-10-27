@@ -411,3 +411,32 @@ func TestWriteOverridesKeepsBundleWhenCAGoesMissing(t *testing.T) {
 		t.Errorf("bundle = %q, want the earlier one left in place", got)
 	}
 }
+
+// Two native commands starting together both refresh the bundle; a shared
+// temp name would let one rename it away from under the other.
+func TestWriteCABundleSurvivesConcurrentWriters(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", tmp)
+	system := filepath.Join(tmp, "cert.pem")
+	if err := os.WriteFile(system, []byte("SYSTEM ROOTS\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "rootCA.pem"), []byte("LERD CA\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	orig := systemCABundle
+	systemCABundle = system
+	t.Cleanup(func() { systemCABundle = orig })
+
+	const writers = 32
+	errs := make(chan error, writers)
+	for range writers {
+		go func() { errs <- writeCABundle() }()
+	}
+	for range writers {
+		if err := <-errs; err != nil {
+			t.Errorf("concurrent writeCABundle: %v", err)
+		}
+	}
+}

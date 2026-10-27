@@ -193,11 +193,23 @@ func writeCABundle() error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(body), 0644); err != nil {
+	// A temp file per writer: two native commands starting together both land here.
+	tmp, err := os.CreateTemp(filepath.Dir(path), "ca-bundle-*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(body); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // WriteOverrides materialises the override fragment for a version.
