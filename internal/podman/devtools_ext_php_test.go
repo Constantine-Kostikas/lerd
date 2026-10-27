@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,5 +168,78 @@ echo 'ok';
 	}
 	if ended != 1 {
 		t.Errorf("connection still open after the request ended, with php still running")
+	}
+}
+
+// Every way PHP makes a request reaches the lens exactly once: curl easy and
+// multi handles (Guzzle, Stripe, Symfony's CurlHttpClient) and the http stream
+// wrapper (file_get_contents, fopen, Symfony's NativeHttpClient).
+func TestDevtoolsExt_CapturesEveryHTTPClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	php, args, dir, sink := devtoolsExtSetup(t, strings.ReplaceAll(`<?php
+echo defined('LERD_DEVTOOLS_HTTP') && LERD_DEVTOOLS_HTTP ? 'HTTP=1' : 'HTTP=0';
+if (PHP_VERSION_ID < 80200) { echo ' SKIP'; exit; }
+echo function_exists('http_get_last_response_headers') ? ' HEADERS=1' : '';
+$ch = curl_init(SRV.'/easy');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_exec($ch);
+
+$mh = curl_multi_init();
+$ch = curl_init(SRV.'/multi');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_multi_add_handle($mh, $ch);
+do { curl_multi_exec($mh, $running); curl_multi_select($mh); } while ($running);
+while (curl_multi_info_read($mh)) {}
+
+file_get_contents(SRV.'/get');
+fclose(fopen(SRV.'/open', 'r'));
+file_get_contents(__FILE__);
+`, "SRV", phpQuote(srv.URL)), false)
+	collector, err := DevtoolsCollectorPHP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "devtools-collector.php"), []byte(collector), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	if strings.Contains(string(out), "SKIP") {
+		if !strings.Contains(string(out), "HTTP=0") {
+			t.Errorf("LERD_DEVTOOLS_HTTP set where the curl seam cannot fire, so Laravel's Http calls would vanish: %s", out)
+		}
+		t.Skip("observers only see built-in functions from PHP 8.2")
+	}
+	if !strings.Contains(string(out), "HTTP=1") {
+		t.Errorf("LERD_DEVTOOLS_HTTP not set, so the Laravel adapter would report Http client calls twice: %s", out)
+	}
+
+	lines, _ := sink.result()
+	var paths []string
+	for _, l := range lines {
+		var e struct {
+			Kind string
+			Data struct {
+				URL    string
+				Status int
+			}
+		}
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatalf("bad JSON line %q: %v", l, err)
+		}
+		if e.Kind != "http" {
+			continue
+		}
+		// Before 8.4 file_get_contents leaves its headers where only the caller can read them.
+		if e.Data.Status != 200 && !(strings.HasSuffix(e.Data.URL, "/get") && !strings.Contains(string(out), "HEADERS=1")) {
+			t.Errorf("%s status = %d, want 200", e.Data.URL, e.Data.Status)
+		}
+		paths = append(paths, strings.TrimPrefix(e.Data.URL, srv.URL))
+	}
+	if want := []string{"/easy", "/multi", "/get", "/open"}; !slices.Equal(paths, want) {
+		t.Errorf("http events = %v, want %v once each", paths, want)
 	}
 }

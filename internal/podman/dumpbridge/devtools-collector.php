@@ -1384,10 +1384,8 @@ function sentry_exception_bag($event): array
     return [];
 }
 
-// http captures one outgoing Symfony HttpClient request at call time. The
-// response is lazy (not sent until read), so no status code is available here;
-// the UI shows the request as "sent". Method and url are read at the begin
-// observer because request() rewrites its $url argument internally.
+// http reports a request by method and url alone. An extension built before
+// the curl and stream seams calls it from Symfony HttpClient's request().
 function http($method, $url): void
 {
     $u = is_string($url) ? $url : '';
@@ -1395,4 +1393,75 @@ function http($method, $url): void
         return;
     }
     emit('http', ['method' => is_string($method) ? $method : '', 'url' => $u]);
+}
+
+// curl reports one finished curl transfer, whichever library ran it: Guzzle,
+// Laravel's Http client, Symfony's CurlHttpClient and SDKs like Stripe's all
+// end in curl, so this one seam covers them all.
+function curl($ch, ?int $errno = null): void
+{
+    try {
+        $info = curl_getinfo($ch);
+        if (!is_array($info) || empty($info['url'])) {
+            return;
+        }
+        $errno = $errno ?? curl_errno($ch);
+        // CURLINFO_EFFECTIVE_METHOD only exists on PHP 8.3+; older ones leave the row url-only.
+        $method = defined('CURLINFO_EFFECTIVE_METHOD') ? (string) curl_getinfo($ch, \CURLINFO_EFFECTIVE_METHOD) : '';
+        $data = [
+            'method'  => $method,
+            'url'     => (string) $info['url'],
+            'status'  => (int) ($info['http_code'] ?? 0),
+            'time_ms' => round((float) ($info['total_time'] ?? 0) * 1000, 2),
+        ];
+        if ($errno !== 0) {
+            $data['failed'] = true;
+        }
+        emit('http', $data);
+    } catch (\Throwable $_) {
+    }
+}
+
+// curl_multi_done reports the transfer a curl_multi_info_read() call returned.
+// Every multi client reads its finished handles through it, so each transfer is
+// reported once, with the result code the multi handle recorded for it.
+function curl_multi_done($msg): void
+{
+    if (!is_array($msg) || !isset($msg['handle'])) {
+        return;
+    }
+    curl($msg['handle'], (int) ($msg['result'] ?? 0));
+}
+
+// stream reports a file_get_contents() or fopen() of an http(s) url, which is
+// how PHP fetches without curl and what Symfony's NativeHttpClient runs on.
+function stream($url, $context, $result): void
+{
+    if (!is_string($url) || !preg_match('#^https?://#i', $url)) {
+        return;
+    }
+    $method = 'GET';
+    if (is_resource($context)) {
+        $opts = stream_context_get_options($context);
+        $method = strtoupper((string) ($opts['http']['method'] ?? $opts['https']['method'] ?? 'GET'));
+    }
+    $headers = null;
+    if (is_resource($result)) {
+        $meta = stream_get_meta_data($result);
+        $headers = $meta['wrapper_data'] ?? null;
+    } elseif (function_exists('http_get_last_response_headers')) {
+        $headers = http_get_last_response_headers();
+    }
+    $status = 0;
+    // A redirect leaves every hop's status line in the list; the last one is the answer.
+    foreach (is_array($headers) ? $headers : [] as $h) {
+        if (is_string($h) && preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+            $status = (int) $m[1];
+        }
+    }
+    $data = ['method' => $method, 'url' => $url, 'status' => $status];
+    if ($result === false) {
+        $data['failed'] = true;
+    }
+    emit('http', $data);
 }

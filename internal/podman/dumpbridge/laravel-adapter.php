@@ -846,22 +846,25 @@ try {
             emit('event', ['name' => $name]);
         });
 
-        // Outgoing HTTP client requests.
-        $events->listen(\Illuminate\Http\Client\Events\ResponseReceived::class, static function ($e) {
-            emit('http', [
-                'method' => method_exists($e->request, 'method') ? $e->request->method() : '',
-                'url'    => method_exists($e->request, 'url') ? $e->request->url() : '',
-                'status' => method_exists($e->response, 'status') ? $e->response->status() : 0,
-            ]);
-        });
-        $events->listen(\Illuminate\Http\Client\Events\ConnectionFailed::class, static function ($e) {
-            emit('http', [
-                'method' => method_exists($e->request, 'method') ? $e->request->method() : '',
-                'url'    => method_exists($e->request, 'url') ? $e->request->url() : '',
-                'status' => 0,
-                'failed' => true,
-            ]);
-        });
+        // Outgoing HTTP client requests, unless the extension's curl seam
+        // already reports them along with every other client's.
+        if (!\defined('LERD_DEVTOOLS_HTTP')) {
+            $events->listen(\Illuminate\Http\Client\Events\ResponseReceived::class, static function ($e) {
+                emit('http', [
+                    'method' => method_exists($e->request, 'method') ? $e->request->method() : '',
+                    'url'    => method_exists($e->request, 'url') ? $e->request->url() : '',
+                    'status' => method_exists($e->response, 'status') ? $e->response->status() : 0,
+                ]);
+            });
+            $events->listen(\Illuminate\Http\Client\Events\ConnectionFailed::class, static function ($e) {
+                emit('http', [
+                    'method' => method_exists($e->request, 'method') ? $e->request->method() : '',
+                    'url'    => method_exists($e->request, 'url') ? $e->request->url() : '',
+                    'status' => 0,
+                    'failed' => true,
+                ]);
+            });
+        }
     }
 
     // Views — name + path + the top-level data keys passed in, skipping the

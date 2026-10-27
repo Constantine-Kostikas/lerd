@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1217,5 +1219,98 @@ for ($i = 0; $i < 3; $i++) {
 	}
 	if conns != 3 {
 		t.Errorf("connections = %d, want 3", conns)
+	}
+}
+
+// The extension hands over a curl handle (easy or multi) or a stream call, and
+// the collector reads method, url, status and timing off it, so an SDK with
+// its own client shows up the same as a framework's.
+func TestCollectorPHP_ReportsEveryHTTPClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dead := "http://" + ln.Addr().String() + "/down"
+	ln.Close()
+
+	lines := runCollectorPHP(t, strings.NewReplacer("OK_URL", phpQuote(srv.URL+"/charges"), "DEAD_URL", phpQuote(dead)).Replace(`<?php
+require COLLECTOR;
+$ch = curl_init(OK_URL);
+curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => 'a=1', CURLOPT_RETURNTRANSFER => true]);
+curl_exec($ch);
+\Lerd\Collector\curl($ch);
+
+$ch = curl_init(DEAD_URL);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_exec($ch);
+\Lerd\Collector\curl($ch);
+
+$mh = curl_multi_init();
+$ch = curl_init(OK_URL);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_multi_add_handle($mh, $ch);
+do { curl_multi_exec($mh, $running); curl_multi_select($mh); } while ($running);
+\Lerd\Collector\curl_multi_done(curl_multi_info_read($mh));
+\Lerd\Collector\curl_multi_done(false);
+
+$ctx = stream_context_create(['http' => ['method' => 'PUT', 'ignore_errors' => true]]);
+$fp = fopen(OK_URL, 'r', false, $ctx);
+\Lerd\Collector\stream(OK_URL, $ctx, $fp);
+\Lerd\Collector\stream(DEAD_URL, null, @file_get_contents(DEAD_URL));
+\Lerd\Collector\stream('/etc/hostname', null, 'x');
+`))
+
+	type ev struct {
+		Kind string `json:"kind"`
+		Data struct {
+			Method string  `json:"method"`
+			URL    string  `json:"url"`
+			Status int     `json:"status"`
+			Failed bool    `json:"failed"`
+			TimeMS float64 `json:"time_ms"`
+		} `json:"data"`
+	}
+	var got []ev
+	for _, l := range lines {
+		var e ev
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatalf("bad JSON line %q: %v", l, err)
+		}
+		if e.Kind == "http" {
+			got = append(got, e)
+		}
+	}
+	if len(got) != 5 {
+		t.Fatalf("http events = %d, want 5 (easy ok, easy failed, multi, fopen, failed stream; no local file): %v", len(got), lines)
+	}
+	want := []struct {
+		url    string
+		status int
+		failed bool
+	}{
+		{srv.URL + "/charges", 201, false},
+		{dead, 0, true},
+		{srv.URL + "/charges", 201, false},
+		{srv.URL + "/charges", 201, false},
+		{dead, 0, true},
+	}
+	for i, w := range want {
+		d := got[i].Data
+		if d.URL != w.url || d.Status != w.status || d.Failed != w.failed {
+			t.Errorf("event %d = %+v, want url %s status %d failed %v", i, d, w.url, w.status, w.failed)
+		}
+	}
+	if got[0].Data.TimeMS <= 0 {
+		t.Errorf("curl event has no time_ms: %+v", got[0].Data)
+	}
+	if m := got[0].Data.Method; m != "POST" && m != "" {
+		t.Errorf("curl method = %q, want POST (or empty where curl cannot say)", m)
+	}
+	if got[3].Data.Method != "PUT" {
+		t.Errorf("stream method = %q, want PUT from the context", got[3].Data.Method)
 	}
 }
