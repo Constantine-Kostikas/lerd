@@ -9,7 +9,7 @@
   import GitDiffModal from './GitDiffModal.svelte';
   import type { GitCommit } from '$lib/gitDiff';
   import { closeModal } from '$stores/modals';
-  import { pullPlan, streamPull, type BranchPlan } from '$stores/worktree';
+  import { pullPlan, streamPull, streamPullUndo, type BranchPlan, type StashKept } from '$stores/worktree';
   import { restoreSnapshot } from '$stores/databases';
   import { planRows, defaultSteps, type RowKey } from '$lib/planRows';
   import { m } from '../paraglide/messages.js';
@@ -34,8 +34,14 @@
   let error = $state('');
   let logs = $state<string[]>([]);
   let failedSnapshot = $state('');
+  let kept = $state<StashKept | null>(null);
   let restoring = $state(false);
   let restored = $state('');
+  // The snapshot the pull took, which undoing it loads when migrations ran.
+  let pullSnapshot = $state('');
+  let moved = $state(false);
+  let undoing = $state(false);
+  let undoFailed = $state(false);
   // Opens over this dialog, which keeps its plan underneath.
   let viewing = $state<GitCommit | null>(null);
   let viewingFiles = $state(false);
@@ -63,7 +69,7 @@
     pulling = true;
     error = '';
     logs = [];
-    let done: { ok?: boolean; error?: string; snapshot?: string } = { ok: false };
+    let done: { ok?: boolean; error?: string; snapshot?: string; stash?: StashKept; moved?: boolean } = { ok: false };
     try {
       await streamPull(domain, branch, { branch: plan?.branch, head: plan?.head, target: plan?.target }, { composer: on.composer, js: on.js, migrate: on.migrate, snapshot: on.snapshot, isolate: on.isolate, stash: stash && conflicts.length > 0 }, (ev) => {
         if (ev.done) done = ev;
@@ -74,13 +80,56 @@
     }
     pulling = false;
     onDone();
-    if (done.ok) {
+    kept = done.stash ?? null;
+    pullSnapshot = done.snapshot ?? '';
+    moved = Boolean(done.moved);
+    if (done.ok && !kept) {
       closeModal();
       return;
     }
-    error = done.error || m.sites_gitPullFailed();
-    failedSnapshot = done.snapshot ?? '';
+    // Kept local changes are worth reading even when every step went through.
+    if (!done.ok) {
+      error = done.error || m.sites_gitPullFailed();
+      failedSnapshot = done.snapshot ?? '';
+    }
     finished = true;
+  }
+
+  // Back to the commit the pull started from, with the work the stash kept put
+  // back on it; the database only goes back when migrations ran on a snapshot.
+  async function undoPull() {
+    undoing = true;
+    error = '';
+    logs = [];
+    const restore = on.migrate && on.snapshot ? pullSnapshot : '';
+    let done: { ok?: boolean; error?: string; stash?: StashKept; moved?: boolean } = { ok: false };
+    try {
+      await streamPullUndo(
+        domain,
+        branch,
+        { branch: plan?.branch, head: plan?.target, target: plan?.head },
+        { composer: on.composer, js: on.js, migrate: on.migrate && !on.snapshot, restore, db: restore ? plan?.db : undefined, stash: kept?.sha ?? '' },
+        (ev) => {
+          if (ev.done) done = ev;
+          else if (ev.line) logs = [...logs, ev.line];
+        }
+      );
+    } catch (e) {
+      done = { ok: false, error: e instanceof Error ? e.message : m.common_failed() };
+    }
+    undoing = false;
+    onDone();
+    undoFailed = true;
+    // Code that never moved back took nothing out of the stash or the database.
+    if (done.ok || done.moved || done.stash) kept = done.stash ?? null;
+    if (done.ok && !kept) {
+      closeModal();
+      return;
+    }
+    if (!done.ok) {
+      error = done.error || m.common_failed();
+      failedSnapshot = restore || failedSnapshot;
+    }
   }
 
   async function restoreFailed() {
@@ -95,7 +144,7 @@
 </script>
 
 <!-- Closing mid-pull would drop its error and the snapshot restore it offers. -->
-<Modal open title={m.gitSync_pullTitle({ branch: branchLabel })} onclose={() => (pulling ? undefined : closeModal())} size="lg">
+<Modal open title={m.gitSync_pullTitle({ branch: branchLabel })} onclose={() => (pulling || undoing ? undefined : closeModal())} size="lg">
   {#if !pulling && !finished}
     <div class="px-5 py-4 space-y-4">
       {#if planning}
@@ -113,13 +162,10 @@
           {plan}
           {rows}
           bind:on
-          conflictsText={m.pullPlan_conflicts()}
           thenText={m.pullPlan_then()}
           missingText={m.pullPlan_missingMigrations({ count: plan.migrations_missing })}
           onfiles={plan.target ? () => (viewingFiles = true) : undefined}
-        >
-          {#snippet conflictsRow(files: string[])}<StashRow {files} bind:on={stash} />{/snippet}
-        </PlanReview>
+        />
         <!-- Read after the plan's fetch, so it lists what the pull will bring. -->
         <GitCommitList {domain} {path} direction="incoming" onopen={(c) => (viewing = c)} />
         {#if diverged}
@@ -127,6 +173,8 @@
         {:else}
           <p class="text-xs text-gray-500 dark:text-gray-400">{m.gitSync_pullBody({ branch: branchLabel })}</p>
         {/if}
+        <!-- Last before the buttons: it is what holds the pull back. -->
+        {#if conflicts.length > 0}<StashRow files={conflicts} bind:on={stash} />{/if}
       {/if}
       {#if error}<p class="text-xs text-red-500 whitespace-pre-line">{error}</p>{/if}
     </div>
@@ -136,15 +184,27 @@
       note={finished && failedSnapshot
         ? restored ? m.branchSwitch_restored({ name: restored }) : m.pullPlan_failedWithSnapshot({ name: failedSnapshot })
         : ''}
+      stash={finished ? kept : null}
       {logs}
     />
   {/if}
 
   {#snippet footer()}
-    {#if finished}
+    {#if undoing}
+      <DetailButton tone="primary" disabled loading={true}>{m.pullPlan_undoing()}</DetailButton>
+    {:else if finished && !error}
+      <!-- The pull went through, only the stash was kept: closing is the expected way out. -->
+      {#if moved && !undoFailed}
+        <DetailButton onclick={undoPull}>{m.pullPlan_undo()}</DetailButton>
+      {/if}
+      <DetailButton tone="primary" onclick={closeModal}>{m.common_close()}</DetailButton>
+    {:else if finished}
       <DetailButton onclick={closeModal}>{m.common_close()}</DetailButton>
       {#if failedSnapshot && !restored}
-        <DetailButton tone="primary" onclick={restoreFailed} loading={restoring} disabled={restoring}>{m.branchSwitch_restoreSnapshot()}</DetailButton>
+        <DetailButton onclick={restoreFailed} loading={restoring} disabled={restoring}>{m.branchSwitch_restoreSnapshot()}</DetailButton>
+      {/if}
+      {#if moved && !undoFailed && !restored}
+        <DetailButton tone="primary" onclick={undoPull} disabled={restoring}>{m.pullPlan_undo()}</DetailButton>
       {/if}
     {:else if pulling}
       <DetailButton tone="primary" disabled loading={true}>{m.pullPlan_pulling()}</DetailButton>

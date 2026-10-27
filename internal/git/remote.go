@@ -16,6 +16,16 @@ func Fetch(dir string) (string, error) { return runQuiet(dir, "fetch") }
 // never left mid-merge.
 func FastForward(dir, to string) (string, error) { return runQuiet(dir, "merge", "--ff-only", to) }
 
+// UndoFastForward moves the branch back to the commit a pull left. --keep, not
+// --hard: uncommitted work in files the two commits agree on comes along, and
+// git refuses rather than overwrite any other.
+func UndoFastForward(dir, to string) (string, error) {
+	if _, err := runQuiet(dir, "reset", "--keep", "-q", to); err != nil {
+		return "", err
+	}
+	return "Moved back to " + to[:min(len(to), 7)], nil
+}
+
 // Push sends the branch to its upstream, never forced: a remote that moved on
 // makes git reject it. The explicit refspec keeps push.default and configured
 // push refspecs, which can match every branch or force, out of it. A branch

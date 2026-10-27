@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -127,7 +128,7 @@ func CheckoutLock(path string) (release func()) {
 
 // SwitchSiteBranch checks branch out in the site's main checkout and runs the
 // chosen steps around it, one switch per checkout at a time. It returns the
-// snapshot taken first, even on failure, so it can be restored.
+// snapshot taken first, so it can be restored if a step changing the database failed.
 func SwitchSiteBranch(site *config.Site, branch string, steps BranchSteps, out io.Writer) (string, error) {
 	release := CheckoutLock(site.Path)
 	if release == nil {
@@ -334,9 +335,36 @@ func switchBranch(fwAfter func() *config.Framework, path, branch string, steps B
 	}, steps, db, out)
 }
 
+// stashLabel names the entry a switch or pull sets local changes aside under.
+const stashLabel = "lerd: local changes set aside"
+
 // runAround moves the checkout's code with move and runs the chosen steps
 // around it: the snapshot before, then restore, installs and migrate after.
+// Work the stash kept is no reason to stop; it comes back as a *StashKept.
 func runAround(fwAfter func() *config.Framework, path string, move func() (string, error), steps BranchSteps, db *branchDB, out io.Writer) (string, error) {
+	if steps.Stash {
+		inner := move
+		move = func() (string, error) { return gitpkg.WithStash(path, stashLabel, inner) }
+	}
+	var kept *gitpkg.StashKept
+	snap, err := runSteps(fwAfter, path, func() (string, error) {
+		msg, err := move()
+		if errors.As(err, &kept) {
+			fmt.Fprintln(out, kept.Error())
+			return msg, nil
+		}
+		return msg, err
+	}, steps, db, out)
+	if kept != nil {
+		kept.Err = err
+		return snap, kept
+	}
+	return snap, err
+}
+
+// runSteps returns the snapshot taken first when every step ran or a step that
+// changes the database failed; earlier failures leave it as it was, so none is offered.
+func runSteps(fwAfter func() *config.Framework, path string, move func() (string, error), steps BranchSteps, db *branchDB, out io.Writer) (string, error) {
 	snap := ""
 	if steps.Snapshot && db != nil {
 		name, err := db.snapshot()
@@ -348,19 +376,15 @@ func runAround(fwAfter func() *config.Framework, path string, move func() (strin
 	}
 	if steps.Isolate {
 		if db == nil || db.isolate == nil {
-			return snap, fmt.Errorf("the site's database cannot be copied for its worktrees")
+			return "", fmt.Errorf("the site's database cannot be copied for its worktrees")
 		}
 		if err := db.isolate(out); err != nil {
-			return snap, fmt.Errorf("isolating worktrees: %w", err)
+			return "", fmt.Errorf("isolating worktrees: %w", err)
 		}
-	}
-	if steps.Stash {
-		inner := move
-		move = func() (string, error) { return gitpkg.WithStash(path, "lerd: local changes set aside", inner) }
 	}
 	msg, err := move()
 	if err != nil {
-		return snap, err
+		return "", err
 	}
 	fmt.Fprintln(out, msg)
 	if steps.Restore != "" && db != nil {
@@ -371,18 +395,18 @@ func runAround(fwAfter func() *config.Framework, path string, move func() (strin
 	}
 	if steps.Composer {
 		if err := gitpkg.InstallComposer(path, out); err != nil {
-			return snap, err
+			return "", err
 		}
 	}
 	if steps.JS {
 		if err := gitpkg.InstallJS(path, out); err != nil {
-			return snap, err
+			return "", err
 		}
 	}
 	if steps.Migrate {
 		c, dir, ok := resolveMigrateCommand(fwAfter(), path)
 		if !ok {
-			return snap, fmt.Errorf("the framework definition declares no migrate command")
+			return "", fmt.Errorf("the framework definition declares no migrate command")
 		}
 		fmt.Fprintln(out, "$ "+c.Command)
 		cmd := newCommandExec(dir, c.Command)

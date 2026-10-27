@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/geodro/lerd/internal/config"
+	gitpkg "github.com/geodro/lerd/internal/git"
+	"github.com/geodro/lerd/internal/serviceops"
 )
 
 func gitOut(t *testing.T, dir string, args ...string) string {
@@ -249,9 +251,9 @@ func TestPullSite_isolateOnlyFromTheMainCheckout(t *testing.T) {
 	}
 }
 
-// Local work that conflicts on the way back out of the stash stops the pull
-// before migrations run against a tree full of conflict markers.
-func TestPullBranch_stashConflictStopsBeforeTheSteps(t *testing.T) {
+// Local work that clashes on the way back out of the stash stays there, and
+// the steps still run on the pulled code.
+func TestPullBranch_stashConflictKeepsTheWorkAndRunsTheSteps(t *testing.T) {
 	dir := pullSiteFixture(t, func(dir string) {
 		putFile(t, filepath.Join(dir, "composer.lock"), "v2")
 		writeMigrations(t, filepath.Join(dir, "db"), "b")
@@ -260,10 +262,116 @@ func TestPullBranch_stashConflictStopsBeforeTheSteps(t *testing.T) {
 	putFile(t, filepath.Join(dir, "composer.lock"), "local")
 
 	_, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{Stash: true, Migrate: true}, nil, io.Discard)
-	if err == nil || !strings.Contains(err.Error(), "composer.lock") {
-		t.Fatalf("want the conflict named, got %v", err)
+	var kept *gitpkg.StashKept
+	if !errors.As(err, &kept) || kept.Err != nil || strings.Join(kept.Files, ",") != "composer.lock" {
+		t.Fatalf("want only the kept stash reported, got %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "migrated")); err == nil {
-		t.Error("migrate ran on a conflicted tree")
+	if _, err := os.Stat(filepath.Join(dir, "migrated")); err != nil {
+		t.Error("migrate did not run after the stash was kept")
+	}
+}
+
+// A step failing after the stash was kept reports both.
+func TestPullBranch_stashKeptThenStepFails(t *testing.T) {
+	dir := pullSiteFixture(t, func(dir string) {
+		putFile(t, filepath.Join(dir, "composer.lock"), "v2")
+	})
+	reviewed := reviewedTarget(t, dir)
+	putFile(t, filepath.Join(dir, "composer.lock"), "local")
+
+	_, err := pullBranch(fixed(&config.Framework{}), dir, reviewed, BranchSteps{Stash: true, Migrate: true}, nil, io.Discard)
+	var kept *gitpkg.StashKept
+	if !errors.As(err, &kept) || kept.Err == nil || !strings.Contains(kept.Err.Error(), "migrate command") {
+		t.Fatalf("want the kept stash with the migrate error, got %v", err)
+	}
+}
+
+// Undo puts the code back where the pull found it, then the work the stash
+// kept, and restores the database before anything else runs on it.
+func TestUndoPull_putsTheCodeAndTheKeptWorkBack(t *testing.T) {
+	dir := pullSiteFixture(t, func(dir string) {
+		putFile(t, filepath.Join(dir, "composer.lock"), "v2")
+	})
+	reviewed := reviewedTarget(t, dir)
+	putFile(t, filepath.Join(dir, "composer.lock"), "local")
+	_, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{Stash: true}, nil, io.Discard)
+	var kept *gitpkg.StashKept
+	if !errors.As(err, &kept) || kept.SHA == "" {
+		t.Fatalf("want the stash kept with its commit, got %v", err)
+	}
+
+	var restored string
+	db := &branchDB{restore: func(name string) error { restored = name; return nil }}
+	landed := Reviewed{Branch: "main", Head: reviewed.Commit, Commit: reviewed.Head}
+	if _, err := undoPull(fixed(migratingFW), dir, landed, BranchSteps{Restore: "branch-main-1"}, kept.SHA, db, io.Discard); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	if head := strings.TrimSpace(gitOut(t, dir, "rev-parse", "HEAD")); head != reviewed.Head {
+		t.Errorf("HEAD %s, want %s", head, reviewed.Head)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "composer.lock")); string(b) != "local" {
+		t.Errorf("composer.lock %q, want the local work back", b)
+	}
+	if list := strings.TrimSpace(gitOut(t, dir, "stash", "list")); list != "" {
+		t.Errorf("stash left behind: %q", list)
+	}
+	if restored != "branch-main-1" {
+		t.Errorf("restored %q", restored)
+	}
+}
+
+// A commit made on top of the pull is not the undo's to throw away.
+func TestUndoPull_refusesWhenTheBranchMovedOn(t *testing.T) {
+	dir := pullSiteFixture(t, func(string) {})
+	reviewed := reviewedTarget(t, dir)
+	if _, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{}, nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	gitT(t, dir, "commit", "-q", "--allow-empty", "-m", "after the pull")
+
+	landed := Reviewed{Branch: "main", Head: reviewed.Commit, Commit: reviewed.Head}
+	if _, err := undoPull(fixed(migratingFW), dir, landed, BranchSteps{}, "", nil, io.Discard); err == nil || !strings.Contains(err.Error(), "moved since the pull") {
+		t.Fatalf("want a refusal, got %v", err)
+	}
+}
+
+// Work the user had on top of the pulled code comes along to the old commit.
+func TestUndoPull_carriesUncommittedWork(t *testing.T) {
+	dir := pullSiteFixture(t, func(dir string) {
+		putFile(t, filepath.Join(dir, "composer.lock"), "v2")
+	})
+	reviewed := reviewedTarget(t, dir)
+	if _, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{}, nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	putFile(t, filepath.Join(dir, "composer.json"), `{"mine":1}`)
+
+	landed := Reviewed{Branch: "main", Head: reviewed.Commit, Commit: reviewed.Head}
+	if _, err := undoPull(fixed(migratingFW), dir, landed, BranchSteps{}, "", nil, io.Discard); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "composer.json")); string(b) != `{"mine":1}` {
+		t.Error("uncommitted work lost")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "composer.lock")); string(b) != "v1" {
+		t.Errorf("composer.lock %q, want v1", b)
+	}
+}
+
+// The snapshot's database comes from the pull that took it; the pulled code's
+// settings are never asked, and without one the code is not moved back at all.
+func TestUndoPullSite_needsTheSnapshotsDatabase(t *testing.T) {
+	dir := pullSiteFixture(t, func(string) {})
+	reviewed := reviewedTarget(t, dir)
+	if _, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{}, nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	landed := Reviewed{Branch: "main", Head: reviewed.Commit, Commit: reviewed.Head}
+	site := &config.Site{Name: "shop", Path: dir}
+	if _, err := UndoPullSite(site, dir, landed, BranchSteps{Restore: "branch-main-1"}, serviceops.SnapshotTarget{}, "", io.Discard); err == nil || !strings.Contains(err.Error(), "no database named") {
+		t.Fatalf("want a refusal, got %v", err)
+	}
+	if head := strings.TrimSpace(gitOut(t, dir, "rev-parse", "HEAD")); head != reviewed.Commit {
+		t.Errorf("the code moved back to %s", head)
 	}
 }
