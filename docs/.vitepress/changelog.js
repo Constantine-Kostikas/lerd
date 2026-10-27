@@ -53,7 +53,8 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 
 export function atomFeed(releases, render, siteUrl) {
   const entries = releases.slice(0, RECENT).map((r) => {
-    const link = `${siteUrl}/changelog#${slugify(r.heading)}`
+    // The archive keeps every release, so an entry's link outlives its spot on /changelog.
+    const link = `${siteUrl}/changelog-archive#${slugify(r.heading)}`
     return `  <entry>
     <title>Lerd ${esc(r.version)}</title>
     <id>${link}</id>

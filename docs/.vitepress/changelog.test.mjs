@@ -33,5 +33,6 @@ test('the feed carries the recent releases, newest first, escaped', () => {
   const xml = atomFeed(parseReleases(SRC).releases, (md) => `<p>${md}</p>`, 'https://lerd.sh')
   assert.equal(xml.match(/<entry>/g).length, RECENT)
   assert.match(xml, /<updated>2026-01-20T00:00:00Z<\/updated>/)
+  assert.match(xml, /<link href="https:\/\/lerd\.sh\/changelog-archive#_1-20-0-2026-01-20"\/>/)
   assert.match(xml, /&lt;p&gt;Notes for 1\.20\.0\.&lt;\/p&gt;/)
 })
