@@ -162,9 +162,9 @@ func caLines(bundle string) string {
 	return "curl.cainfo=" + bundle + "\n" + "openssl.cafile=" + bundle + "\n"
 }
 
-// writeCABundle joins the system roots and the lerd CA so native PHP trusts
-// .test sites the way the containers do through update-ca-certificates. With
-// either half missing there is no bundle, and PHP keeps its own defaults.
+// writeCABundle joins the system roots and the lerd CA, as update-ca-certificates
+// does in the containers. A missing half leaves any earlier bundle alone, since
+// running FPM pools still read it; the rename keeps readers off a partial file.
 func writeCABundle() error {
 	path := CABundlePath()
 	config.GuardRealWrite(path)
@@ -172,26 +172,32 @@ func writeCABundle() error {
 	if err != nil {
 		return err
 	}
-	lerdCA, lerdErr := os.ReadFile(filepath.Join(caRoot, "rootCA.pem"))
-	system, sysErr := os.ReadFile(systemCABundle)
-	if os.IsNotExist(lerdErr) || os.IsNotExist(sysErr) {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+	lerdCA, err := os.ReadFile(filepath.Join(caRoot, "rootCA.pem"))
+	if os.IsNotExist(err) {
 		return nil
 	}
-	if lerdErr != nil {
-		return lerdErr
+	if err != nil {
+		return err
 	}
-	if sysErr != nil {
-		return sysErr
+	system, err := os.ReadFile(systemCABundle)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	body := strings.TrimRight(string(system), "\n") + "\n" + string(lerdCA)
+	if existing, err := os.ReadFile(path); err == nil && string(existing) == body {
+		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	body := strings.TrimRight(string(system), "\n") + "\n" + string(lerdCA)
-	_, err = writeIfChanged(path, body)
-	return err
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // WriteOverrides materialises the override fragment for a version.

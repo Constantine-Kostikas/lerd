@@ -390,3 +390,24 @@ func TestWriteOverridesLeavesCADefaultsWithoutLerdCA(t *testing.T) {
 		t.Errorf("no bundle should be written without a lerd CA, stat err = %v", err)
 	}
 }
+
+// Running FPM pools keep pointing at the bundle they loaded, so a command that
+// cannot see the CA must leave the bundle in place rather than pull it away.
+func TestWriteOverridesKeepsBundleWhenCAGoesMissing(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", filepath.Join(tmp, "missing"))
+	if err := os.MkdirAll(filepath.Dir(CABundlePath()), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(CABundlePath(), []byte("EARLIER BUNDLE\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteOverrides("8.4"); err != nil {
+		t.Fatalf("WriteOverrides: %v", err)
+	}
+	if got, _ := os.ReadFile(CABundlePath()); string(got) != "EARLIER BUNDLE\n" {
+		t.Errorf("bundle = %q, want the earlier one left in place", got)
+	}
+}
