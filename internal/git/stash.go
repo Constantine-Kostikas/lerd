@@ -34,10 +34,9 @@ func (e *StashKept) Error() string {
 
 func (e *StashKept) Unwrap() error { return e.Err }
 
-// WithStash sets uncommitted work aside, untracked files included, runs move and
-// puts it back on top, touching only its own entry, found by commit, so the user's
-// stashes stay. A failed move gets it back; a clashing one leaves it stashed as a
-// *StashKept, with the move's message.
+// WithStash sets uncommitted work aside, untracked files included, runs move and puts
+// it back on top, touching only its own entry, found by commit, so the user's stashes
+// stay. A failed move gets it back; a clashing one stays stashed as a *StashKept.
 func WithStash(dir, label string, move func() (string, error)) (string, error) {
 	unlock := lockStash(dir)
 	before := stashTop(dir)
@@ -97,9 +96,15 @@ func popStash(dir, sha, label string) error {
 		return fmt.Errorf("the stash entry %q is gone; your local changes are not back", label)
 	}
 	ref := fmt.Sprintf("stash@{%d}", n)
+	top, err := Output(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return err
+	}
+	top = strings.TrimSpace(top)
+	dirty := dirtyPaths(top)
 	// --index brings back what was staged; git refuses it when the staged part
 	// no longer applies, and then the changes come back unstaged instead.
-	_, err := runQuiet(dir, "stash", "pop", "--index", ref)
+	_, err = runQuiet(dir, "stash", "pop", "--index", ref)
 	if err != nil && stashTop(dir) != "" && listed(dir, sha) && clean(dir) {
 		_, err = runQuiet(dir, "stash", "pop", ref)
 	}
@@ -110,34 +115,55 @@ func popStash(dir, sha, label string) error {
 	if files, _ := Output(dir, "diff", "--name-only", "--diff-filter=U"); strings.TrimSpace(files) != "" {
 		kept.Files = strings.Fields(files)
 	}
-	if err := undoPop(dir, sha); err != nil {
+	if err := undoPop(top, sha, dirty); err != nil {
 		return fmt.Errorf("%v, and undoing the partial put back failed: %w", kept, err)
 	}
 	return kept
 }
 
 // undoPop takes a failed pop's partial changes back out of the files the stash
-// holds, which git only touches when they were clean; other work stays.
-func undoPop(dir, sha string) error {
-	tracked, err := Output(dir, "diff", "-z", "--name-only", sha+"^1", sha)
+// holds, from the repository root since git names them from there. Paths dirty
+// before the pop are skipped: git refuses to touch them, so they hold newer work.
+func undoPop(top, sha string, dirty map[string]bool) error {
+	tracked, err := Output(top, "diff", "-z", "--name-only", sha+"^1", sha)
 	if err != nil {
 		return err
 	}
 	for _, p := range nulSplit(tracked) {
+		if dirty[p] {
+			continue
+		}
 		args := []string{"checkout", "-q", "HEAD", "--", p}
-		if _, err := Output(dir, "cat-file", "-e", "HEAD:"+p); err != nil {
+		if _, err := Output(top, "cat-file", "-e", "HEAD:"+p); err != nil {
 			args = []string{"rm", "-q", "-f", "--ignore-unmatch", "--", p}
 		}
-		if _, err := runQuiet(dir, args...); err != nil {
+		if _, err := runQuiet(top, args...); err != nil {
 			return err
 		}
 	}
 	// The untracked files the pop brought back; clean leaves tracked ones alone.
-	untracked, _ := Output(dir, "ls-tree", "-r", "-z", "--name-only", sha+"^3")
-	if paths := nulSplit(untracked); len(paths) > 0 {
-		_, err = runQuiet(dir, append([]string{"clean", "-q", "-f", "--"}, paths...)...)
+	untracked, _ := Output(top, "ls-tree", "-r", "-z", "--name-only", sha+"^3")
+	var paths []string
+	for _, p := range nulSplit(untracked) {
+		if !dirty[p] {
+			paths = append(paths, p)
+		}
+	}
+	if len(paths) > 0 {
+		_, err = runQuiet(top, append([]string{"clean", "-q", "-f", "--"}, paths...)...)
 	}
 	return err
+}
+
+// dirtyPaths lists the tracked changes and untracked files in the tree at top.
+func dirtyPaths(top string) map[string]bool {
+	changed, _ := Output(top, "diff", "-z", "--name-only", "HEAD")
+	untracked, _ := Output(top, "ls-files", "-z", "--others", "--exclude-standard")
+	dirty := map[string]bool{}
+	for _, p := range append(nulSplit(changed), nulSplit(untracked)...) {
+		dirty[p] = true
+	}
+	return dirty
 }
 
 func nulSplit(out string) []string {

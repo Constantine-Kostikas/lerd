@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -184,5 +185,52 @@ func TestPopStash_failureKeepsOtherWork(t *testing.T) {
 	}
 	if readFile(t, filepath.Join(dir, "a")) != "moved" {
 		t.Error("the stash's own file was not taken back")
+	}
+}
+
+// Work made on top since the entry was kept is what makes git refuse the pop,
+// and it must survive the clean up, untracked files too.
+func TestPopStash_refusalKeepsNewerWork(t *testing.T) {
+	dir := commitFixture(t)
+	write(t, filepath.Join(dir, "a"), "stashed")
+	write(t, filepath.Join(dir, "new"), "stashed")
+	gitRun(t, dir, "stash", "push", "-q", "--include-untracked", "-m", "lerd: test")
+	sha := strings.TrimSpace(mustOut(t, dir, "rev-parse", "refs/stash"))
+	write(t, filepath.Join(dir, "a"), "newer")
+	write(t, filepath.Join(dir, "new"), "newer")
+
+	var kept *StashKept
+	if err := PopStash(dir, sha, "lerd: test"); !errors.As(err, &kept) {
+		t.Fatalf("want the stash kept, got %v", err)
+	}
+	if readFile(t, filepath.Join(dir, "a")) != "newer" || readFile(t, filepath.Join(dir, "new")) != "newer" {
+		t.Error("newer work was thrown away")
+	}
+}
+
+// A site linked below the repository root still gets a clean tree back: git
+// names the stash's files from the root, not from the site's folder.
+func TestPopStash_conflictInSubfolderSite(t *testing.T) {
+	root := commitFixture(t)
+	site := filepath.Join(root, "apps", "shop")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(site, "a"), "base")
+	gitRun(t, root, "add", ".")
+	gitRun(t, root, "commit", "-q", "-m", "shop")
+	write(t, filepath.Join(site, "a"), "stashed")
+	write(t, filepath.Join(site, "new"), "stashed")
+	gitRun(t, site, "stash", "push", "-q", "--include-untracked", "-m", "lerd: test")
+	sha := strings.TrimSpace(mustOut(t, site, "rev-parse", "refs/stash"))
+	write(t, filepath.Join(site, "a"), "moved")
+	gitRun(t, site, "commit", "-q", "-am", "moved")
+
+	var kept *StashKept
+	if err := PopStash(site, sha, "lerd: test"); !errors.As(err, &kept) || len(kept.Files) == 0 {
+		t.Fatalf("want the clash kept in the stash, got %v", err)
+	}
+	if st := strings.TrimSpace(mustOut(t, root, "status", "--porcelain")); st != "" {
+		t.Errorf("tree left dirty: %q", st)
 	}
 }

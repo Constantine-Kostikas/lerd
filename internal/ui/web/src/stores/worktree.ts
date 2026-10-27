@@ -222,19 +222,23 @@ export async function streamPull(
 
 // streamPullUndo takes the checkout back from where the pull landed (head) to
 // where it started (target), puts back the work its stash kept (stash, the
-// entry's commit), then restores the snapshot and reruns the installs.
+// entry's commit), then restores the snapshot into db and reruns the installs.
 export async function streamPullUndo(
   domain: string,
   branch: string,
   landed: Pick<BranchPlan, 'branch' | 'head' | 'target'>,
-  steps: { composer: boolean; js: boolean; migrate: boolean; restore: string; stash: string },
+  steps: { composer: boolean; js: boolean; migrate: boolean; restore: string; db?: { service: string; database: string }; stash: string },
   onEvent: (e: BranchSwitchEvent) => void
 ): Promise<void> {
   const qs = stepsQuery(domain, branch, { composer: steps.composer, js: steps.js, migrate: steps.migrate, snapshot: false });
   qs.set('from', landed.branch ?? '');
   qs.set('head', landed.head ?? '');
   qs.set('target', landed.target ?? '');
-  if (steps.restore) qs.set('restore', steps.restore);
+  if (steps.restore) {
+    qs.set('restore', steps.restore);
+    qs.set('service', steps.db?.service ?? '');
+    qs.set('database', steps.db?.database ?? '');
+  }
   if (steps.stash) qs.set('stash', steps.stash);
   await streamSteps('/api/sites/pull-undo?' + qs.toString(), onEvent);
 }

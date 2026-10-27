@@ -234,4 +234,24 @@ describe('PullModal', () => {
     expect(closeModal).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Undo pull' })).toBeNull();
   });
+
+  // A refused undo leaves the code, the database and the stash as the pull left
+  // them, so the snapshot and the kept work are still offered.
+  it('keeps the snapshot and the stash when the undo is refused', async () => {
+    finishWith({ ok: true, moved: true, snapshot: 'branch-main-1', stash: { label: 'lerd: local changes set aside', sha: 'c0ffee', files: ['composer.lock'] } });
+    streamPullUndo.mockImplementation(async (_d: string, _b: string, _l: object, _s: object, on: (e: object) => void) =>
+      on({ done: true, ok: false, moved: false, error: 'feature has moved since the pull, so it is not undone' })
+    );
+    restoreSnapshot.mockResolvedValue({ ok: true });
+    render(PullModal, { props });
+    await screen.findByRole('switch', { name: 'composer install' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Undo pull' }));
+
+    expect(streamPullUndo).toHaveBeenCalledWith('acme.test', 'feature', expect.anything(), expect.objectContaining({ restore: 'branch-main-1', db: { service: 'mysql', database: 'acme' } }), expect.any(Function));
+    expect(await screen.findByText('feature has moved since the pull, so it is not undone')).toBeInTheDocument();
+    expect(screen.getByText(/stay in the stash as "lerd: local changes set aside"/)).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore snapshot' }));
+    expect(restoreSnapshot).toHaveBeenCalledWith('mysql', 'acme', 'branch-main-1');
+  });
 });

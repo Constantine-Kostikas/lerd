@@ -8,6 +8,7 @@ import (
 
 	"github.com/geodro/lerd/internal/config"
 	gitpkg "github.com/geodro/lerd/internal/git"
+	"github.com/geodro/lerd/internal/serviceops"
 )
 
 // PlanSitePull compares the checkout at dir, the site's or one of its
@@ -57,10 +58,9 @@ func planPull(fw *config.Framework, dir string) (BranchPlan, error) {
 // and the upstream commit it compared them with.
 type Reviewed struct{ Branch, Head, Commit string }
 
-// PullSite fast-forwards the checkout at dir to the commit its plan reviewed
-// and runs the chosen steps around it, one switch or pull per checkout at a
-// time. It returns the snapshot taken first, so it can be restored if a step
-// changing the database failed.
+// PullSite fast-forwards the checkout at dir to the reviewed commit and runs the
+// chosen steps around it, one switch or pull per checkout at a time. It returns the
+// snapshot taken first, so it can be restored if a step changing the database failed.
 func PullSite(site *config.Site, dir string, r Reviewed, steps BranchSteps, out io.Writer) (string, error) {
 	release := CheckoutLock(dir)
 	if release == nil {
@@ -112,8 +112,8 @@ func checkedOut(dir string, r Reviewed) error {
 
 // UndoPullSite takes the checkout at dir back to the commit a pull left, r.Head
 // being where it landed and r.Commit where it started, then puts back the work
-// the pull's stash kept and runs steps: the snapshot restore and the installs.
-func UndoPullSite(site *config.Site, dir string, r Reviewed, steps BranchSteps, keptSHA string, out io.Writer) (string, error) {
+// the pull's stash kept and runs steps, restoring steps.Restore into snapDB.
+func UndoPullSite(site *config.Site, dir string, r Reviewed, steps BranchSteps, snapDB serviceops.SnapshotTarget, keptSHA string, out io.Writer) (string, error) {
 	release := CheckoutLock(dir)
 	if release == nil {
 		return "", fmt.Errorf("a branch switch is running on this checkout")
@@ -125,11 +125,12 @@ func UndoPullSite(site *config.Site, dir string, r Reviewed, steps BranchSteps, 
 	}
 	var db *branchDB
 	if steps.Restore != "" {
-		t, ok := snapshotTargetFor(dir)
-		if !ok {
-			return "", fmt.Errorf("the site's database does not take snapshots")
+		// The snapshot was taken on the code before the pull, whose database
+		// settings may differ from the pulled ones still checked out here.
+		if snapDB.Service == "" || snapDB.Database == "" {
+			return "", fmt.Errorf("no database named for the snapshot %s", steps.Restore)
 		}
-		db = siteBranchDB(site, dir, t, out)
+		db = siteBranchDB(site, dir, snapshotTarget(&dbEnv{service: snapDB.Service, database: snapDB.Database}, false), out)
 	}
 	return undoPull(fwAfter, dir, r, steps, keptSHA, db, out)
 }

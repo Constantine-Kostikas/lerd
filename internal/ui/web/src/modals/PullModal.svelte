@@ -101,16 +101,14 @@
     undoing = true;
     error = '';
     logs = [];
-    const stashSha = kept?.sha ?? '';
-    kept = null;
-    failedSnapshot = '';
-    let done: { ok?: boolean; error?: string; stash?: StashKept } = { ok: false };
+    const restore = on.migrate && on.snapshot ? pullSnapshot : '';
+    let done: { ok?: boolean; error?: string; stash?: StashKept; moved?: boolean } = { ok: false };
     try {
       await streamPullUndo(
         domain,
         branch,
         { branch: plan?.branch, head: plan?.target, target: plan?.head },
-        { composer: on.composer, js: on.js, migrate: on.migrate && !on.snapshot, restore: on.migrate && on.snapshot ? pullSnapshot : '', stash: stashSha },
+        { composer: on.composer, js: on.js, migrate: on.migrate && !on.snapshot, restore, db: restore ? plan?.db : undefined, stash: kept?.sha ?? '' },
         (ev) => {
           if (ev.done) done = ev;
           else if (ev.line) logs = [...logs, ev.line];
@@ -121,14 +119,17 @@
     }
     undoing = false;
     onDone();
-    // Work the undo could not put back stays in a stash, which is worth reading.
-    kept = done.stash ?? null;
     undoFailed = true;
+    // Code that never moved back took nothing out of the stash or the database.
+    if (done.ok || done.moved || done.stash) kept = done.stash ?? null;
     if (done.ok && !kept) {
       closeModal();
       return;
     }
-    if (!done.ok) error = done.error || m.common_failed();
+    if (!done.ok) {
+      error = done.error || m.common_failed();
+      failedSnapshot = restore || failedSnapshot;
+    }
   }
 
   async function restoreFailed() {

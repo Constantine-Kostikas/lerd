@@ -7039,8 +7039,8 @@ func handleSitePull(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSitePullUndo answers POST /api/sites/pull-undo?domain=&branch=&from=&head=&target=
-// plus composer, js, migrate, restore and stash: head is where the pull landed,
-// target where it started, restore the snapshot to load and stash the entry it kept.
+// plus composer, js, migrate, stash and restore with its service and database: head is
+// where the pull landed, target where it started, stash the entry the pull kept.
 func handleSitePullUndo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -7061,7 +7061,12 @@ func handleSitePullUndo(w http.ResponseWriter, r *http.Request) {
 	steps.Restore = strings.TrimSpace(q.Get("restore"))
 	landed := cli.Reviewed{Branch: strings.TrimSpace(q.Get("from")), Head: strings.TrimSpace(q.Get("head")), Commit: strings.TrimSpace(q.Get("target"))}
 	streamSteps(w, func(out io.Writer) (string, error) {
-		return cli.UndoPullSite(site, dir, landed, steps, strings.TrimSpace(q.Get("stash")), out)
+		snapDB := serviceops.SnapshotTarget{Service: strings.TrimSpace(q.Get("service")), Database: strings.TrimSpace(q.Get("database"))}
+		return cli.UndoPullSite(site, dir, landed, steps, snapDB, strings.TrimSpace(q.Get("stash")), out)
+	}, func(payload map[string]any) {
+		// Whether the code went back, so a refused undo keeps offering the stash and snapshot.
+		head, _ := gitpkg.Output(dir, "rev-parse", "HEAD")
+		payload["moved"] = landed.Commit != "" && strings.TrimSpace(head) == landed.Commit
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/geodro/lerd/internal/config"
 	gitpkg "github.com/geodro/lerd/internal/git"
+	"github.com/geodro/lerd/internal/serviceops"
 )
 
 func gitOut(t *testing.T, dir string, args ...string) string {
@@ -354,5 +355,23 @@ func TestUndoPull_carriesUncommittedWork(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "composer.lock")); string(b) != "v1" {
 		t.Errorf("composer.lock %q, want v1", b)
+	}
+}
+
+// The snapshot's database comes from the pull that took it; the pulled code's
+// settings are never asked, and without one the code is not moved back at all.
+func TestUndoPullSite_needsTheSnapshotsDatabase(t *testing.T) {
+	dir := pullSiteFixture(t, func(string) {})
+	reviewed := reviewedTarget(t, dir)
+	if _, err := pullBranch(fixed(migratingFW), dir, reviewed, BranchSteps{}, nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	landed := Reviewed{Branch: "main", Head: reviewed.Commit, Commit: reviewed.Head}
+	site := &config.Site{Name: "shop", Path: dir}
+	if _, err := UndoPullSite(site, dir, landed, BranchSteps{Restore: "branch-main-1"}, serviceops.SnapshotTarget{}, "", io.Discard); err == nil || !strings.Contains(err.Error(), "no database named") {
+		t.Fatalf("want a refusal, got %v", err)
+	}
+	if head := strings.TrimSpace(gitOut(t, dir, "rev-parse", "HEAD")); head != reviewed.Commit {
+		t.Errorf("the code moved back to %s", head)
 	}
 }
