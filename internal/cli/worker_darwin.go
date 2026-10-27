@@ -72,7 +72,7 @@ func writeWorkerUnitFile(unitName, label, siteName, sitePath, phpVersion, comman
 	// A native site runs every PHP process on the host, workers included, so its
 	// workers take the host path with the native php ahead of BinDir's shim.
 	if site, err := config.FindSite(siteName); err == nil && site != nil && site.IsNative() {
-		return writeWorkerHostUnit(unitName, sitePath, command, restart, nativephp.ShimDir(phpVersion))
+		return writeWorkerHostUnit(unitName, sitePath, command, restart, phpVersion)
 	}
 
 	cfg, _ := config.LoadGlobal()
@@ -97,7 +97,9 @@ func writeWorkerUnitFile(unitName, label, siteName, sitePath, phpVersion, comman
 //
 // Lives under run/workers alongside the exec-mode guard scripts so
 // removeWorkerExecArtifacts cleans both up on stop.
-func writeWorkerHostUnit(unitName, sitePath, command, restart, phpBinDir string) (bool, error) {
+//
+// nativePHPVersion is set for a native site and empty otherwise.
+func writeWorkerHostUnit(unitName, sitePath, command, restart, nativePHPVersion string) (bool, error) {
 	workersDir := filepath.Join(config.RunDir(), "workers")
 	if err := os.MkdirAll(workersDir, 0755); err != nil {
 		return false, fmt.Errorf("creating worker run dir: %w", err)
@@ -138,7 +140,11 @@ func writeWorkerHostUnit(unitName, sitePath, command, restart, phpBinDir string)
 		}
 		extraBinDirs = strings.Join(dirs, ":")
 	}
-	script := buildDarwinHostWorkerGuardScript(execPrefix, config.BinDir(), sitePath, command, workerBinDirs(phpBinDir, extraBinDirs), pidFile)
+	phpBinDir, phpIniScanDir := "", ""
+	if nativePHPVersion != "" {
+		phpBinDir, phpIniScanDir = nativephp.ShimDir(nativePHPVersion), nativephp.IniScanDir(nativePHPVersion)
+	}
+	script := buildDarwinHostWorkerGuardScript(execPrefix, config.BinDir(), sitePath, command, workerBinDirs(phpBinDir, extraBinDirs), pidFile, phpIniScanDir)
 	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
 		return false, fmt.Errorf("writing host worker guard script: %w", err)
 	}

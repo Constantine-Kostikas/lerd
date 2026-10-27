@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/geodro/lerd/internal/config"
+	"github.com/geodro/lerd/internal/nativephp"
+	"github.com/geodro/lerd/internal/podman"
 	"github.com/geodro/lerd/internal/services"
 )
 
@@ -245,6 +247,36 @@ func TestWriteWorkerHostUnit_writesProcessGroupReap(t *testing.T) {
 	for _, want := range []string{"'" + pidFile + "'", `kill -TERM -"$pg"`, `kill -KILL -"$pg"`} {
 		if !strings.Contains(string(reap), want) {
 			t.Errorf("reap sidecar missing %q:\n%s", want, reap)
+		}
+	}
+}
+
+// A native site's worker runs the native php on the host, which loads no ini
+// files unless PHP_INI_SCAN_DIR points at lerd's conf.d set, so the CA bundle,
+// mail and dumps settings would all be missing from queued jobs.
+func TestWriteWorkerHostUnit_nativePHPGetsIniScanDir(t *testing.T) {
+	tmp := withTempXDGAndBin(t)
+	swapMgr(t, &trackingHostMgr{})
+	swapDaemonReload(t)
+
+	sitePath := filepath.Join(tmp, "site")
+	if err := os.MkdirAll(sitePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writeWorkerHostUnit("lerd-queue-mysite", sitePath, "php artisan queue:work", "always", "8.5"); err != nil {
+		t.Fatalf("writeWorkerHostUnit: %v", err)
+	}
+
+	guard, err := os.ReadFile(filepath.Join(config.RunDir(), "workers", "lerd-queue-mysite.sh"))
+	if err != nil {
+		t.Fatalf("reading guard script: %v", err)
+	}
+	for _, want := range []string{
+		`export PATH="` + nativephp.ShimDir("8.5") + ":",
+		"export PHP_INI_SCAN_DIR=" + podman.ShellQuote(nativephp.IniScanDir("8.5")) + "\n",
+	} {
+		if !strings.Contains(string(guard), want) {
+			t.Errorf("guard script missing %q:\n%s", want, guard)
 		}
 	}
 }
