@@ -12,7 +12,8 @@
     worktreeOptions,
     branchPlan,
     streamBranchSwitch,
-    type BranchPlan
+    type BranchPlan,
+    type StashKept
   } from '$stores/worktree';
   import { restoreSnapshot } from '$stores/databases';
   import { branchOptions } from '$lib/branchOptions';
@@ -34,6 +35,7 @@
   // Where a new branch starts; '' is the commit checked out now.
   let base = $state('');
   let failedSnapshot = $state('');
+  let kept = $state<StashKept | null>(null);
   let restoring = $state(false);
   let restored = $state('');
   let switching = $state(false);
@@ -128,7 +130,7 @@
     switching = true;
     error = '';
     logs = [];
-    let done: { ok?: boolean; error?: string; snapshot?: string } = { ok: false };
+    let done: { ok?: boolean; error?: string; snapshot?: string; stash?: StashKept } = { ok: false };
     const steps = {
       composer: on.composer,
       js: on.js,
@@ -150,12 +152,16 @@
     }
     switching = false;
     await loadSites();
-    if (done.ok) {
+    kept = done.stash ?? null;
+    if (done.ok && !kept) {
       closeModal();
       return;
     }
-    error = done.error || m.branchSwitch_failed();
-    failedSnapshot = done.snapshot ?? '';
+    // Kept local changes are worth reading even when every step went through.
+    if (!done.ok) {
+      error = done.error || m.branchSwitch_failed();
+      failedSnapshot = done.snapshot ?? '';
+    }
     finished = true;
   }
 
@@ -220,15 +226,14 @@
             {plan}
             {rows}
             bind:on
-            conflictsText={m.branchSwitch_conflicts({ branch: creating ? base || site.branch || 'HEAD' : branch })}
             thenText={m.branchSwitch_then()}
             missingText={m.branchSwitch_missingMigrations({ count: plan.migrations_missing })}
-          >
-            {#snippet conflictsRow(files: string[])}<StashRow {files} bind:on={stash} />{/snippet}
-          </PlanReview>
+          />
         {/if}
         <p class="text-xs text-gray-500 dark:text-gray-400">{m.branchSwitch_hint()}</p>
       {/if}
+      <!-- Last before the buttons: it is what holds the switch back. -->
+      {#if conflicts.length > 0}<StashRow files={conflicts} bind:on={stash} />{/if}
       {#if error}<p class="text-xs text-red-500 whitespace-pre-line">{error}</p>{/if}
     </div>
   {:else}
@@ -237,6 +242,7 @@
       note={finished && failedSnapshot
         ? restored ? m.branchSwitch_restored({ name: restored }) : m.branchSwitch_failedWithSnapshot({ name: failedSnapshot })
         : ''}
+      stash={finished ? kept : null}
       {logs}
     />
   {/if}

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
   import Icon from '$components/Icon.svelte';
   import Toggle from '$components/Toggle.svelte';
   import type { BranchPlan } from '$stores/worktree';
@@ -12,33 +11,14 @@
     plan: BranchPlan;
     rows: PlanRow[];
     on: Record<RowKey, boolean>;
-    conflictsText: string;
     thenText: string;
     missingText: string;
     // Makes the files card open the full list of changed files.
     onfiles?: () => void;
-    // Shown in place of the conflicts warning when the dialog offers a way past them.
-    conflictsRow?: Snippet<[string[]]>;
   }
-  let { plan, rows, on = $bindable(), conflictsText, thenText, missingText, onfiles, conflictsRow }: Props = $props();
-
-  const conflicts = $derived(plan.conflicts ?? []);
+  let { plan, rows, on = $bindable(), thenText, missingText, onfiles }: Props = $props();
 </script>
 
-{#if conflicts.length > 0 && conflictsRow}
-  {@render conflictsRow(conflicts)}
-{:else if conflicts.length > 0}
-  <div class="flex items-start gap-2.5 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2.5 text-xs leading-relaxed text-red-700 dark:text-red-300" role="alert">
-    <Icon name="alert" class="w-4 h-4 shrink-0 mt-px" />
-    <div class="min-w-0">
-      <p>{conflictsText}</p>
-      <ul class="mt-1.5 space-y-0.5 font-mono">
-        {#each conflicts.slice(0, 6) as f (f)}<li class="truncate">{f}</li>{/each}
-      </ul>
-      {#if conflicts.length > 6}<p class="mt-1">{m.branchSwitch_conflictsMore({ count: conflicts.length - 6 })}</p>{/if}
-    </div>
-  </div>
-{/if}
 {#snippet stat(n: string, label: string, link = false)}
   <div class="h-full rounded-lg bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-lerd-border px-3 py-2">
     <div class="text-lg font-semibold tabular-nums text-gray-800 dark:text-gray-100">{n}</div>

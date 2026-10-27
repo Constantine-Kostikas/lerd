@@ -230,6 +230,7 @@ func TestIsLoopbackOnlyPath(t *testing.T) {
 		{"/api/sites/branch-plan", true},
 		{"/api/sites/pull-plan", true},
 		{"/api/sites/pull", true},
+		{"/api/sites/pull-undo", true},
 		{"/api/sites/myapp.test/git:push", true},
 		{"/api/sites/myapp.test/git:fetch", true},
 		{"/api/sites/git-status", false},

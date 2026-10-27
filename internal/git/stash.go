@@ -7,9 +7,36 @@ import (
 	"sync"
 )
 
-// WithStash sets uncommitted work aside, untracked files included, runs move and
-// puts it back on top, touching only its own entry, found by commit, so the user's
-// stashes stay. A failed move gets it back; a conflicting one leaves it stashed.
+// StashKept is work that would not go back on top of the moved code. The tree is
+// left as the move made it and the work stays in the stash under Label. Err is a
+// later step's failure, so one error carries both.
+type StashKept struct {
+	Label string
+	// SHA finds the entry again: labels repeat across pulls.
+	SHA string
+	// Files clashed with the moved code; Reason is git's refusal when none did.
+	Files  []string
+	Reason string
+	Err    error
+}
+
+func (e *StashKept) Error() string {
+	why := e.Reason
+	if len(e.Files) > 0 {
+		why = "they conflict with " + strings.Join(e.Files, ", ")
+	}
+	msg := fmt.Sprintf("your local changes could not be put back (%s) and are kept in the stash as %q", why, e.Label)
+	if e.Err != nil {
+		return e.Err.Error() + "; " + msg
+	}
+	return msg
+}
+
+func (e *StashKept) Unwrap() error { return e.Err }
+
+// WithStash sets uncommitted work aside, untracked files included, runs move and puts
+// it back on top, touching only its own entry, found by commit, so the user's stashes
+// stay. A failed move gets it back; a clashing one stays stashed as a *StashKept.
 func WithStash(dir, label string, move func() (string, error)) (string, error) {
 	unlock := lockStash(dir)
 	before := stashTop(dir)
@@ -28,7 +55,7 @@ func WithStash(dir, label string, move func() (string, error)) (string, error) {
 		if moveErr != nil {
 			return "", fmt.Errorf("%v; your local changes are kept in the stash as %q", moveErr, label)
 		}
-		return "", err
+		return msg, err
 	}
 	return msg, moveErr
 }
@@ -52,6 +79,10 @@ func stashTop(dir string) string {
 	return strings.TrimSpace(out)
 }
 
+// PopStash puts back the entry WithStash kept, found by its commit. Work that
+// still clashes stays stashed as a *StashKept, with the tree left as it was.
+func PopStash(dir, sha, label string) error { return popStash(dir, sha, label) }
+
 func popStash(dir, sha, label string) error {
 	defer lockStash(dir)()
 	out, _ := Output(dir, "stash", "list", "--format=%H")
@@ -65,20 +96,81 @@ func popStash(dir, sha, label string) error {
 		return fmt.Errorf("the stash entry %q is gone; your local changes are not back", label)
 	}
 	ref := fmt.Sprintf("stash@{%d}", n)
+	top, err := Output(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return err
+	}
+	top = strings.TrimSpace(top)
+	dirty := dirtyPaths(top)
 	// --index brings back what was staged; git refuses it when the staged part
 	// no longer applies, and then the changes come back unstaged instead.
-	_, err := runQuiet(dir, "stash", "pop", "--index", ref)
+	_, err = runQuiet(dir, "stash", "pop", "--index", ref)
 	if err != nil && stashTop(dir) != "" && listed(dir, sha) && clean(dir) {
 		_, err = runQuiet(dir, "stash", "pop", ref)
 	}
 	if err == nil {
 		return nil
 	}
+	kept := &StashKept{Label: label, SHA: sha, Reason: err.Error()}
 	if files, _ := Output(dir, "diff", "--name-only", "--diff-filter=U"); strings.TrimSpace(files) != "" {
-		where := strings.Join(strings.Fields(files), ", ")
-		return fmt.Errorf("your local changes conflict with %s. They are kept in the stash as %q: resolve the conflicts, then run git stash drop", where, label)
+		kept.Files = strings.Fields(files)
 	}
-	return fmt.Errorf("your local changes could not all be put back, and are kept in the stash as %q: %v", label, err)
+	if err := undoPop(top, sha, dirty); err != nil {
+		return fmt.Errorf("%v, and undoing the partial put back failed: %w", kept, err)
+	}
+	return kept
+}
+
+// undoPop takes a failed pop's partial changes back out of the files the stash
+// holds, from the repository root since git names them from there. Paths dirty
+// before the pop are skipped: git refuses to touch them, so they hold newer work.
+func undoPop(top, sha string, dirty map[string]bool) error {
+	tracked, err := Output(top, "diff", "-z", "--name-only", sha+"^1", sha)
+	if err != nil {
+		return err
+	}
+	for _, p := range nulSplit(tracked) {
+		if dirty[p] {
+			continue
+		}
+		args := []string{"checkout", "-q", "HEAD", "--", p}
+		if _, err := Output(top, "cat-file", "-e", "HEAD:"+p); err != nil {
+			args = []string{"rm", "-q", "-f", "--ignore-unmatch", "--", p}
+		}
+		if _, err := runQuiet(top, args...); err != nil {
+			return err
+		}
+	}
+	// The untracked files the pop brought back; clean leaves tracked ones alone.
+	untracked, _ := Output(top, "ls-tree", "-r", "-z", "--name-only", sha+"^3")
+	var paths []string
+	for _, p := range nulSplit(untracked) {
+		if !dirty[p] {
+			paths = append(paths, p)
+		}
+	}
+	if len(paths) > 0 {
+		_, err = runQuiet(top, append([]string{"clean", "-q", "-f", "--"}, paths...)...)
+	}
+	return err
+}
+
+// dirtyPaths lists the tracked changes and untracked files in the tree at top.
+func dirtyPaths(top string) map[string]bool {
+	changed, _ := Output(top, "diff", "-z", "--name-only", "HEAD")
+	untracked, _ := Output(top, "ls-files", "-z", "--others", "--exclude-standard")
+	dirty := map[string]bool{}
+	for _, p := range append(nulSplit(changed), nulSplit(untracked)...) {
+		dirty[p] = true
+	}
+	return dirty
+}
+
+func nulSplit(out string) []string {
+	if out = strings.TrimRight(out, "\x00"); out == "" {
+		return nil
+	}
+	return strings.Split(out, "\x00")
 }
 
 func listed(dir, sha string) bool {
