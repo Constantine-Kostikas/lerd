@@ -1,54 +1,43 @@
+---
+title: "PHP"
+description: "How Lerd runs PHP on Linux and macOS: per-project PHP versions, extensions, php.ini overrides, Xdebug and Composer, plus the php and composer shims and PHP shells."
+---
+
 # PHP
+
+Lerd runs PHP for you, in containers or natively on macOS, so you never install PHP on the host. The `php` and `composer` commands on your PATH route to the right version for the project you are in.
+
+- [PHP versions per project](/usage/php-versions): switch the global version, pin one per project, and keep 7.4 to 8.5 side by side.
+- [PHP extensions](/usage/php-extensions): what ships in the image, adding any other extension or system package, locales and ODBC.
+- [php.ini overrides](/usage/php-ini): `memory_limit`, upload sizes and other settings, per version or for all of them.
+- [Xdebug](/usage/xdebug): step debugging from PhpStorm or VS Code, for web requests, workers and CLI scripts.
+- [Composer](/usage/composer): the pinned `composer.phar`, private repositories over SSH, and global packages.
+
+The rest of this page covers the shims, PHP shells, custom images and passing environment from outside.
+
+<script setup>
+// Sections of this page moved to their own pages; old #anchors follow them there.
+const MOVED = {"xdebug": "xdebug", "php-ini-settings": "php-ini", "version-resolution": "php-versions", "framework-php-ranges": "php-versions", "legacy-projects": "php-versions", "fpm-lifecycle": "php-versions", "pre-built-images": "php-versions", "when-the-base-image-is-refreshed": "php-versions", "legacy-php-versions": "php-versions", "prerelease-php-versions": "php-versions", "turning-it-on": "php-extensions", "turn-off-break-at-first-line": "xdebug", "picking-a-mode": "xdebug", "on-demand-debugging-workers-and-cli": "xdebug", "per-version-php-ini": "php-ini", "shared-settings-across-versions": "php-ini", "custom-extensions": "php-extensions", "what-each-version-actually-loaded": "php-extensions", "locales-and-internationalisation": "php-extensions", "composer-json-detection": "php-extensions", "odbc-databases": "php-extensions", "registering-a-driver": "php-extensions", "where-a-driver-may-live": "php-extensions", "drivers-that-need-more-than-gcompat": "php-extensions", "which-composer-runs": "composer", "which-php-version-it-uses": "composer", "private-repositories-over-ssh": "composer", "running-a-package-you-have-not-installed": "composer", "tools-in-vendor-bin": "composer", "composer-install-on-a-new-project": "composer", "extension-requirements": "composer"}
+if (typeof window !== 'undefined') {
+  const page = MOVED[decodeURIComponent(location.hash.slice(1))]
+  if (page) location.replace(`/usage/${page}${location.hash}`)
+}
+</script>
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `lerd use <version>` | Set the global PHP version and build the FPM image if needed |
-| `lerd isolate <version>` | Pin PHP version for cwd: writes `.php-version` and updates `.lerd.yaml` if it exists, then re-links. Builds the version's image first when the machine does not have it yet, so the site is never pointed at a runtime that cannot start. Running workers move to the new version with it. Refuses a version the framework, the project's `composer.json`, or its installed dependencies rule out; `--force` pins it anyway |
-| `lerd php:list` | List all installed PHP-FPM versions |
-| `lerd php:rebuild [version] [--local]` | Force-rebuild PHP-FPM images, or add a version this machine does not have yet; `--local` builds from source instead of pulling a base |
-| `lerd php:update [version]` | Update PHP to the newest published patch. On the native runtime this downloads the new build and restarts the pools; on the container runtime it rebuilds the images from the newest base |
-| `lerd fetch [version...] [--local]` | Pull pre-built PHP FPM base images from ghcr.io; `--local` builds from source instead |
-| `lerd xdebug on [version] [--mode MODE] [--on-demand]` | Enable Xdebug for a PHP version with the given mode (default `debug`) and restart the FPM container. `--on-demand` sets `start_with_request=trigger` so nothing auto-connects |
-| `lerd xdebug off [version]` | Disable Xdebug and restart the FPM container |
-| `lerd xdebug status` | Show Xdebug enabled/disabled state and active mode for all installed PHP versions |
-| `lerd xdebug pause [site] [--list] [--pid PID]` | Break the IDE debugger into a running worker/CLI process via Xdebug's control socket. `--list` shows candidate processes |
-| `lerd php:ext add <ext> [--apk-deps "pkg ..."]` | Add a custom PHP extension to every PHP image and rebuild the current version; `--apk-deps` lists extra Alpine packages the extension needs to build |
-| `lerd php:ext remove <ext>` | Remove a custom PHP extension from every PHP image and rebuild |
-| `lerd php:ext list` | List your declared extensions, and what each PHP version's image actually loaded |
 | `lerd php:bun install [version]` | Install a musl bun inside the PHP-FPM container, into a persistent volume |
 | `lerd php:bun remove` | Remove the in-container bun and clear its shared persistent volume |
 | `lerd php:bun update [version]` | Update the container's bun in place (`bun upgrade`) |
 | `lerd php:bun version [version]` | Show the bun version installed in the container |
-| `lerd php:pkg add <package...>` | Install extra Alpine packages into every FPM image and rebuild the current version |
-| `lerd php:pkg remove <package...>` | Remove extra Alpine packages from every FPM image and rebuild |
-| `lerd php:pkg list` | List your declared packages, and what each PHP version's image actually installed |
 | `lerd php:ports add <host:container...> [--php version]` | Publish a host port on the version's shell container; a bare number publishes the same port straight through, and a busy host port shifts to the next free one |
 | `lerd php:ports remove <host...> [--php version]` | Unpublish a host port from the version's shell container |
 | `lerd php:ports list [--php version]` | List the extra host ports published for a PHP version |
 | `lerd pest:browser install [version]` | Set up in-container Pest browser testing (musl chromium, Xvfb, Playwright shim); see [browser testing](browser-testing#pest-browser-testing-playwright) |
 | `lerd pest:browser remove [version]` | Remove chromium and Xvfb from the FPM image and disable Pest browser testing |
 | `lerd pest:browser doctor [version]` | Diagnose the Pest browser testing setup for a PHP version |
-| `lerd php:ini [version]` | Open the user php.ini for a PHP version in `$EDITOR` |
-
-If no version is given, the version is resolved from the current directory (`.php-version` or `composer.json`, falling back to the global default).
-
-Versions are written as `major.minor`, but common spellings are accepted everywhere a version is typed: `php8.4`, `84` and `8.4.7` all normalize to `8.4`. Anything that does not resolve to a supported version is rejected up front, so a typo can never end up as the stored default and break image names.
-
-Inside a linked site, the commands that run PHP in a container (`lerd php`, `lerd composer`, `lerd console`, `lerd shell`) use the version the site is registered on, which is the version its FPM container serves. That matters when a framework clamps the version at link time: a Laravel 13 project pinning `.php-version` to 8.1 is linked on 8.5, because Laravel 13 supports 8.3 to 8.5, and composer then runs on 8.5 too rather than resolving 8.1 from the file and quietly using a different PHP than the site itself.
-
-A git worktree resolves ahead of the site it belongs to. A worktree inherits its parent site's version until you pin one with `lerd isolate` from inside the checkout, and from then on the whole toolchain follows that pin: the worktree's own vhost, `lerd php`, `lerd composer`, and everything else that runs PHP in a container. This holds wherever the checkout lives, including inside the parent site's own directory, so a worktree on 8.3 under a site on 8.5 runs composer on 8.3 rather than picking up the parent's version.
-
-When a command needs a version that is not installed and you decline the install, lerd offers to switch to one you already have and pins the choice. Inside a worktree that pin is written on the checkout itself, so the switch travels with the branch and the parent site keeps the version it was on.
-
-So that the project agrees with what actually runs, `lerd link` pins the resolved version into `.php-version`, the same file `lerd isolate` and the dashboard's PHP dropdown write. A version outside the framework's range is clamped rather than accepted, so the file, the site registry and the container can never drift apart, and when the clamp moves a version `php_version` asked for, the link says so rather than reporting the version it landed on as the choice. Sites with no lerd-managed PHP version (host-proxy, and custom containers whose version comes from their Containerfile) are left untouched.
-
-`lerd isolate` answers differently, because there a human named the version: a request the framework range or the project's own `composer.json` rules out is refused and nothing is written, so a file the project commits is never edited to agree with a version its owner did not choose. The refusal names what the version had to satisfy and the closest installed version that does, and `--force` pins it regardless.
-
-What the installed dependencies require counts too, and it can be stricter than the project's own manifest. Laravel 13 declares `"php": "^8.3"` and then resolves Symfony 8 components that each require `>=8.4.1`, so the app cannot boot on 8.3 even though its manifest allows it. Composer works this out when it installs and records it in `vendor/composer/platform_check.php`; lerd reads that floor alongside the other two, which is why a fresh Laravel 13 site refuses `lerd isolate 8.3` rather than accepting it and answering 500 on the first request. A project with nothing installed yet has no such file, and composer omits the check when no package constrains PHP, so in both cases only the framework range and the manifest apply.
-
-A framework definition describes the framework, `composer.json` describes the application that has to boot, and both apply. Where the two cannot both be met, the project wins: an app served by a definition whose cap sits below what its own dependencies require would otherwise be linked onto a version that fails at the first request.
 
 ---
 
@@ -66,8 +55,6 @@ Because the `php` shim runs inside the PHP-FPM container, `php artisan`, `lerd a
 Prefer typing `lerd php` explicitly and keeping `php` pointed at a host install? Run `lerd path:disable`: it removes lerd's shims dir from your shell PATH and keeps installs and updates from re-adding it, while every `lerd …` command works unchanged (child processes lerd spawns still resolve the shims internally). `lerd path:enable` reverses it. One thing to know either way: the shimmed `php` runs inside the container, so a PHP script that `exec()`s host tools sees the container's PATH, not your shell's — with the shim disabled, a host `php` behaves like any other host process.
 
 The PATH line goes into your shell rc once, at install, so a PHP that lands below it later takes `php` back and console commands start failing on the service hostnames in your `.env` while the browser stays fine. `lerd doctor` checks for it: the Configuration section reports `php on PATH` and names the binary in front when it is not lerd's.
-
-Composer works the same way, with one thing worth knowing: lerd runs its own `composer.phar`, downloaded to `~/.local/share/lerd/bin/` at install and pinned in the tools manifest, and it runs it with the container's PHP. That is the copy behind `composer` on your PATH, behind `lerd composer`, behind the setup steps and behind the MCP composer tool, so an assistant and your terminal are never on two different versions of it, and a bumped pin reaches every install without an image rebuild. The FPM image ships a composer of its own, frozen at the day the image was built, so lerd's phar is bind-mounted over it and `composer` typed inside `lerd shell` is the same one again. If you already had a composer of your own on the host, it stays exactly where it is and `lerd install` says so; `lerd path:disable` puts it back in front.
 
 ### Shortcuts and `vendor/bin` fallback
 
@@ -87,21 +74,6 @@ lerd rector process
 
 These run inside the project's PHP-FPM container with the project's working directory mounted, so configuration files (`pest.xml`, `pint.json`, `phpstan.neon`, etc.) are picked up automatically. Real lerd commands always take precedence; if you have a `vendor/bin/composer`, `lerd composer` still resolves to the built-in command.
 
-### Running a package you have not installed
-
-[cpx](https://cpx.dev) is to Composer what npx is to npm: it runs a command from any Composer package without adding it to the project. Require it once, and `lerd cpx` runs it inside the project's container:
-
-```bash
-lerd composer global require cpx/cpx
-lerd cpx phpstan/phpstan analyse
-```
-
-The package runs on the PHP version the site is registered on rather than whatever PHP is on the host, which is the whole reason to route it through lerd. Fetched packages are cached under `~/.cpx` on the host, so they survive a container restart and are shared with any cpx you run outside lerd.
-
-Requiring it globally also puts a `cpx` shim on your PATH, so bare `cpx` works too and runs through the same container. `lerd cpx` is the explicit form, and the one that tells you what to install when cpx is missing.
-
-The MCP integration exposes the same surface through two tools, `vendor_bins` (list available binaries) and `vendor_run` (execute one), so AI assistants can discover and run project tooling without per-project configuration.
-
 ### IDE quality tools
 
 An IDE runs PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer and Rector against a copy of the buffer you are editing rather than against the file in the project tree, and it writes that copy into its own temp directory, usually somewhere under `/tmp`. Nothing under an ephemeral system tree is mounted into the PHP container, so a tool pointed at one of those copies would report a file that does not exist.
@@ -115,158 +87,6 @@ The copy is what makes it work, so there is a ceiling on it. A path larger than 
 Commands that run in a container get the colour capability of the terminal you started them from. `lerd php`, `lerd composer`, `lerd console`, `lerd shell` and the shell you open from the TUI forward `COLORTERM`, so Symfony Console, laravel/prompts, Pest, the Filament CLI and starship pick the same colour mode inside the container as the same tools do against a host PHP. Without it, podman hands the container a sixteen-colour terminal and anything styled with hex or 256 colours is flattened to the nearest basic colour.
 
 `NO_COLOR` and `FORCE_COLOR` travel with it, so a preference set in your shell holds on both sides of the boundary. `TERM` is deliberately not forwarded: the image only carries terminfo for the xterm family, and a terminal that names itself `foot` or `wezterm` would end up with no colour at all. A terminal that advertises more than sixteen colours gets `TERM=xterm-256color` instead of its own value, which keeps the 256-colour path reachable too. `lerd tinker` is the exception and still runs uncoloured, since its output is captured and rendered by the UI rather than written to your terminal.
-
----
-
-## Version resolution
-
-When serving a request, Lerd picks the PHP version for a project in this order:
-
-1. `.lerd.yaml` in the project root: `php_version` field (explicit lerd override)
-2. `.php-version` file in the project root (plain text, e.g. `8.2`)
-3. `composer.json`: `require.php` constraint, resolved to the best installed version (e.g. `^8.4` with PHP 8.4 and 8.5 installed resolves to `8.5`)
-4. Global default in `~/.config/lerd/config.yaml`
-
-Once a project is linked, that order is what lerd detects with, not what it runs. Linking clamps the detected version to the range the framework supports and stores the result in the site registry, and everything scoped to the site afterwards, the vhost, `lerd console`, `lerd php`, tinker, the workers and `lerd logs`, uses the stored version. So a project pinned to a version its framework does not support is served by the clamped one, and the pin only takes effect once it falls inside the range. A worktree inherits its parent site's version unless its own `.lerd.yaml` overrides it.
-
-When `.php-version` changes on disk, the lerd watcher automatically updates the site registry and regenerates the nginx vhost, no manual reload needed.
-
-To pin a project permanently:
-
-```bash
-cd ~/Lerd/my-app
-lerd isolate 8.5
-```
-
-This writes `.php-version: 8.5` (so CLI `php`, asdf, and other tools see the right version) and, when `.lerd.yaml` already exists in the project, also updates its `php_version` field to keep lerd's priority-1 override in sync. The site is re-linked automatically so nginx picks up the new version immediately. If 8.5 is outside what the framework or the project supports, the pin is refused with both files left as they were, and `lerd isolate 8.5 --force` applies it anyway.
-
-The UI PHP version selector and the MCP `site` tool's `php` action follow the same rules; they always write both files when applicable.
-
-The composer constraint is matched against all installed PHP versions using full semver rules (`^`, `~`, `>=`, `<`, `||`, `*`). The highest installed version that satisfies the constraint wins. If no installed version matches, the literal minimum from the constraint is used (and the FPM will be built on first use).
-
-::: tip Overriding a `composer.json` constraint
-If `composer.json` requires `^8.3` but you need to run the project on a specific version, `lerd isolate 8.5` is the right tool. It writes `.php-version` which takes priority over the composer constraint. Running `lerd use 8.5` alone won't help; that only sets the global fallback, which loses to the composer constraint.
-:::
-
-To change the global default (applies to all projects that don't have a per-project pin):
-
-```bash
-lerd use 8.5
-```
-
-## Framework PHP ranges
-
-Each framework version declares the PHP range it supports (for example Laravel 11 supports PHP 8.2 to 8.4). Lerd clamps the resolved PHP version into that range so a site never runs on a version its framework can't boot, and the PHP version picker in the dashboard and the TUI shows out-of-range versions as disabled rather than hiding them, so the constraint is visible.
-
-The range comes from the framework definition that matches your project. Lerd detects the framework major version from `composer.json` (for Laravel, the `laravel/framework` constraint) and loads that version's definition.
-
-### Legacy projects
-
-When a project's framework version predates every definition lerd ships, lerd serves it with the **lowest** available definition instead of the latest. A Laravel 6 project, for instance, is served by the Laravel 10 definition rather than Laravel 13.
-
-In that case the version is a best-effort guess: the definition targets a newer framework than your project, so its PHP range is **not** enforced. PHP clamping is relaxed and every installed version stays selectable, which lets a legacy Laravel 6 app keep running on PHP 7.4 even though the Laravel 10 definition asks for 8.1 and up. Pin the version you want with `lerd isolate 7.4`.
-
-Newer-than-shipped versions fall back to the latest definition as before, with its range enforced normally.
-
----
-
-## FPM lifecycle
-
-Lerd automatically manages which PHP-FPM containers are running based on which versions are actually needed by your sites.
-
-**`lerd start`**: only starts FPM containers for versions referenced by at least one site (active or paused). Unused versions are left stopped.
-
-**Auto-stop**: when you unlink a site, lerd checks every installed PHP version. If no remaining active (non-ignored, non-paused) site uses a version, its FPM container is stopped. The version itself stays installed; the container is just not running.
-
-**Paused sites count**: a site that is paused still counts as using its PHP version, so that version's FPM container is not stopped. When the site is resumed, FPM is guaranteed to be running.
-
-**Auto-start**: FPM is started automatically when you link a site (`lerd link`, `lerd park`, `lerd isolate`) or change the global default (`lerd use`). When unpausing a site, lerd also ensures the required FPM container is running before restoring the nginx vhost.
-
-**Build on first use**: when a link lands on a PHP version this machine has never built (an older framework clamps to a version below the ones you have, say), `lerd link` builds that version's image before starting it, so the site serves rather than answering 502. The build streams its progress as a link step. If the build cannot run (an unattended `lerd park` sweep withholds builds) or fails, the site is still registered and lerd names the one command that finishes the job, `lerd php:rebuild <version>`.
-
-**Adding a version by hand**: `lerd php:rebuild <version>` names a version this machine has never installed and installs it, registering the unit before it builds so the version shows up in `lerd php:list` either way. That is the command every surface points at when one is missing, so a pin written ahead of the install (`lerd isolate 8.4` in a directory that is not a site yet) has a way to be satisfied without waiting for a link.
-
-**Manual control**: unused PHP versions (no active sites) can be started and stopped manually from the dashboard (System > PHP > Start / Stop). From the CLI:
-
-```bash
-systemctl --user start  lerd-php84-fpm
-systemctl --user stop   lerd-php84-fpm
-```
-
-**`lerd status`**: stopped FPM containers for unused versions are reported as a warning, not an error.
-
----
-
-## Xdebug
-
-Toggling Xdebug restarts the version's FPM container, and the command waits for the pool to start accepting again before it reports success. That wait is the point: a restarted container comes back on a new address on the lerd network, and returning as soon as systemd reported the job done meant the next request could still reach the old one and sit there until it timed out. Every command that restarts a pool (`lerd php:ext`, `lerd php:rebuild`, `lerd php:ini`, a runtime switch) waits the same way, so when one of them returns, the site is serving.
-
-::: details Xdebug configuration values
-Xdebug is configured with:
-
-- `xdebug.mode=<mode>` (defaults to `debug`, configurable per PHP version)
-- `xdebug.start_with_request=yes` (or `trigger` with `--on-demand`)
-- `xdebug.client_host=host.containers.internal` (reaches your host IDE from the container)
-- `xdebug.client_port=9003`
-
-Set your IDE to listen on port `9003`. In VS Code, the default PHP Debug configuration works without changes. In PhpStorm, set **Settings > PHP > Debug > Debug port** to `9003`.
-
-Port `9003` is reserved: no lerd service is ever published on it, because a container that held it would answer Xdebug's connect-back itself and your IDE would simply never see a session. An install that already shifted a service onto it before this was reserved keeps it, so `lerd doctor` names the service and the command that moves it:
-
-```bash
-lerd service port rustfs 9004 --container 9001
-```
-
-`host.containers.internal` is resolved via a real reachability probe: when lerd writes the shared hosts file it tries each candidate IP (netavark's `host.containers.internal` entry, the host's primary LAN IP, slirp4netns's `10.0.2.2`) by opening a TCP connection to lerd-ui on port 7073 from inside lerd-nginx, and writes the first one that succeeds. If none succeed, `lerd doctor` reports the failure so you get a real diagnosis instead of Xdebug silently timing out with `Time-out connecting to debugging client`.
-:::
-
-### Turn off "break at first line"
-
-lerd mounts a small `auto_prepend_file` into every PHP version it builds, the bridge that carries `dump()` and `dd()` output to the dashboard. Being a prepend, it is the first file PHP runs on every request, before a single line of your application.
-
-An IDE set to stop on the first line of every script therefore stops there, in a file that exists only inside the container:
-
-```
-Cannot find a local copy of the file on server /usr/local/etc/lerd/dump-bridge.php
-```
-
-Nothing is broken, and your own breakpoints are still fine. In **PhpStorm** three settings can cause it, and the two that matter here are not the obvious one:
-
-- **Settings > PHP > Debug > External connections > Force break at first line when no path mapping specified** — the bridge has none, so this one fires and is what draws the *Click to set up path mappings* link
-- **Settings > PHP > Debug > External connections > Force break at first line when a script is outside the project** — the bridge is outside it, so this one fires too
-- **Settings > PHP > Debug > Break at first line in PHP scripts** — the general one, off by default
-
-All three are worth turning off for a lerd project: the first two default to **on**, so unchecking only the third leaves the session still stopping in the bridge. **VS Code** does not do this by default, but `"stopOnEntry": true` in a launch configuration behaves the same way.
-
-The same is worth knowing about `start_with_request=yes`, which is the default: with the debugger listening, *every* request connects, so the first one lands on the bridge before you have asked to debug anything in particular. [On-demand debugging](#on-demand-debugging-workers-and-cli) is the way to keep the debugger quiet until you trigger a session.
-
-### Picking a mode
-
-Xdebug supports several modes: `debug` (step debugging, the default), `coverage` (code coverage collection), `develop`, `profile`, `trace`, `gcstats`, and `off`. Pick one with `--mode`:
-
-```bash
-lerd xdebug on --mode coverage        # code coverage for phpunit / pest
-lerd xdebug on --mode debug,coverage  # both at once
-lerd xdebug on 8.4 --mode trace       # explicit version
-```
-
-When combined with PCOV this matters in one direction: if your test runner's `phpunit.xml` prefers PCOV it still wins for coverage, but once you enable Xdebug in `coverage` mode your runner can fall back to Xdebug when PCOV isn't available or is disabled (`pcov.enabled = 0` in `lerd php:ini`). Running Xdebug in `coverage` mode carries the usual runtime cost, so only switch while you actually need coverage.
-
-Re-run `lerd xdebug on --mode <new>` at any time to swap modes without going through `off` first.
-
-### On-demand debugging (workers and CLI)
-
-By default `start_with_request=yes`, so with the debugger listening every request and every running worker tries to connect at once. To debug a single process on demand instead, enable on-demand mode and attach with `pause`:
-
-```bash
-lerd xdebug on --on-demand        # start_with_request=trigger — nothing auto-connects
-lerd xdebug pause --list          # list running PHP processes that expose a control socket
-lerd xdebug pause --pid 1234      # break the IDE into that process
-```
-
-`pause` uses Xdebug's [control socket](https://xdebug.org/docs/xdebugctl) (Xdebug >= 3.3, baked into lerd's FPM images) via the `xdebugctl` tool. It is the practical way to debug a **queue/Horizon worker, a scheduled task, or a CLI script**: processes where you can't set a trigger cookie. Run it from a project directory (or pass a site name); lerd resolves the site's container, scopes the candidate list to that site's own processes, and tells the running process to connect to your IDE on port `9003`. The worker must have been started *after* Xdebug was enabled, and your IDE must be listening. Because `xdebugctl` ships only in the shared FPM image, `pause` is PHP-FPM only; FrankenPHP and custom-container sites run their own image without it (the regular `lerd xdebug on` toggle still works on them).
-
-For ordinary web requests under `--on-demand`, use the [Xdebug Helper](https://xdebug.org/docs/step_debug#browser-extensions) browser extension (or append `?XDEBUG_TRIGGER=1`) to trigger a session per page.
 
 ---
 
@@ -366,370 +186,6 @@ Toggling never restarts FPM or its workers. The bridge auto-prepend file and its
 
 ---
 
-## Pre-built images
-
-lerd ships pre-built PHP-FPM base images on ghcr.io for all supported versions (7.4 and 8.0–8.6), covering both `amd64` and `arm64`. When you run `lerd fetch` or `lerd php:rebuild`, lerd pulls the matching base image and layers just your mkcert CA certificate on top, bringing first-time build time from ~5 minutes down to ~30 seconds.
-
-The base image tag is derived from the embedded Containerfile, so lerd always pulls the exact image that matches the version of lerd you have installed. If the pull fails (no internet, image not yet published) lerd falls back to a full local build transparently.
-
-The images are public, so no ghcr.io login is required. lerd pulls them anonymously even if you are already logged into ghcr.io, to avoid authentication errors from expired or unrelated credentials.
-
-`lerd start` checks all required images before starting containers. If any are missing (e.g. after `podman image rm`), it rebuilds or pulls them automatically using the same parallel spinner UI, so containers always start against a valid image.
-
-To build entirely from source instead:
-
-```bash
-lerd fetch --local
-lerd fetch --local 8.5
-lerd php:rebuild --local
-```
-
-The image's PECL extensions (`redis`, `imagick`, `igbinary`, `mongodb`, `pcov`, `xdebug`) are installed with [PIE](https://github.com/php/pie), the replacement for the deprecated PECL, which builds each one from its GitHub source. pecl.php.net is only the fallback when PIE cannot install one, and the only source on PHP 7.4 and 8.0, which PIE does not run on.
-
-`lerd fetch` prepares the image; it does not install the version. A version whose image is ready but that has no PHP-FPM service behind it yet is still missing as far as `lerd php:list` and `lerd new` are concerned, and the fetch says so:
-
-```
- ✓ all requested PHP images ready
- → PHP 7.4 has an image but no runtime yet — run 'lerd php:rebuild 7.4' to install it
-```
-
-Linking a project that needs the version installs it on demand, so this only comes up when you fetch ahead of time.
-
-### When the base image is refreshed
-
-The base image tag is a hash of the recipe, so an upstream `php:X.Y-fpm-alpine` refresh, including a security patch Alpine has already shipped, republishes the same tag with new content. Nothing about your machine changes when that happens, so lerd records the digest of the base each image was built from and compares it against what the registry serves now, a manifest lookup with no pull. When they differ, the version is flagged as having an update available.
-
-You see it in three places. **System → PHP** marks the version card with an up arrow and offers "Rebuild on the new base" as its first action, which streams the rebuild the same way an install does. The same menu has **Check for updates**, which bypasses the cached digest and asks the registry right now. And `lerd doctor` reports the version as a warning with `lerd php:rebuild <version>` as the fix, so `lerd doctor --fix` picks it up too. If push notifications are on, a version that becomes stale while the dashboard is open announces itself like a service update does.
-
-A rebuild ends by listing the Alpine packages it changed, `brotli-libs 1.2.0-r1 → 1.2.1-r0` for instance, so you can see the fixes it brought in. The base image workflow writes the same changelog to its run summary whenever it republishes a tag.
-
-The check is cached for six hours and never runs on the dashboard's critical path, so an offline machine stays quiet rather than reporting a false update. A version whose image was built locally (`--local`) has no recorded base and is never flagged: there is no published image behind it to compare against.
-
-A security fix Alpine ships before upstream refreshes its image triggers the same republish. A daily scan checks the published bases for high or critical vulnerabilities with a fix out, and the rebuild runs `apk upgrade`, so the patched packages land under the same tag and the version shows as having an update. PHP 7.4 and 8.0 are left out, since their Alpine branches no longer get fixes.
-
-On the publishing side, an upstream refresh rebuilds the hash tag main computes plus the ones the last two stable releases resolve to, each from its own git checkout, with `apk upgrade` added where that release's recipe lacks it so Alpine's security fixes reach it too. Staying a release or two behind still gets you the patched base without updating lerd first.
-
----
-
-## Legacy PHP versions
-
-PHP 7.4 and 8.0 are available as a frozen legacy tier for old projects (Laravel 6–8 on 7.4, Laravel 8–9 on 8.0). They build from the same Alpine-based recipe as the current versions, including ICU full locale data, but with a few caveats:
-
-- They are end-of-life upstream and get no security patches. Use them only for local work on legacy apps.
-- Xdebug is pinned to the last release supporting that PHP line (3.1.6 for 7.4, 3.3.2 for 8.0).
-- The `mongodb` extension is unavailable (it requires PHP 8.1+), and so is `random` (a PHP core extension only from 8.2); everything else in the standard bundle is present.
-- The base image is Alpine 3.16, so the bundled Node.js is 16.x.
-
-Use them like any other version:
-
-```bash
-lerd use 7.4
-lerd isolate 8.0
-lerd fetch 7.4 8.0
-```
-
----
-
-## Prerelease PHP versions
-
-PHP 8.6 is not released upstream yet, and lerd builds it so a project can run its test suite against it before release. It is offered as a prerelease everywhere a version is picked, in the dashboard's version cards and both PHP dropdowns, so it is never chosen in the belief that it behaves like a released version. Once it is installed, its version card names the stage of the build it carries, alpha, beta or RC, read from the image itself, so the mark follows upstream without a lerd update; before that it reads preview:
-
-- It builds from the `8.6-rc` image the PHP Docker library publishes through beta and RC, because there is no plain `8.6-fpm-alpine` tag until release. That switches to the released tag when 8.6 ships, with nothing to change on your side.
-- `lerd fetch` with no arguments builds the released versions only. A prerelease builds when you name it.
-- FrankenPHP publishes no image for it, so an 8.6 site is served by FPM. Switching a site to the FrankenPHP runtime on 8.6 is refused rather than quietly run on a different PHP, and a site already on FrankenPHP falls back to FPM when it moves to 8.6.
-- PHP 8.6 removed PEAR, so `pecl` is gone from the upstream image and lerd installs PECL extensions from their release tarballs instead. `redis`, `imagick` and `mongodb` still build; `igbinary`, `pcov` and `xdebug` do not compile against 8.6 yet, so they are absent from the image and lerd does not advertise them on that version. They come back as their upstreams catch up. The profiler needs `php-spx`, which is in the same position, so it is unavailable on 8.6.
-- Upstream behaviour still changes between builds, so it is a place to test rather than a default to develop on.
-
-Use it like any other version:
-
-```bash
-lerd fetch 8.6
-lerd isolate 8.6
-```
-
----
-
-## Custom extensions
-
-The default lerd FPM image ships ~30 extensions covering the vast majority of Laravel projects (`bcmath`, `bz2`, `calendar`, `curl`, `dba`, `exif`, `ftp`, `gd`, `gmp`, `igbinary`, `imagick`, `intl`, `ldap`, `mbstring`, `mongodb`, `mysqli`, `odbc`, `opcache`, `pcntl`, `pdo_mysql`, `pdo_odbc`, `pdo_pgsql`, `pdo_sqlite`, `redis`, `soap`, `shmop`, `sockets`, `sqlite3`, `sysvmsg`, `sysvsem`, `sysvshm`, `xdebug`, `xsl`, `zip`, and more).
-
-Two of those names are version-gated, because the image genuinely cannot build them everywhere: `random` is a PHP core extension only from 8.2, and `mongodb` builds only on 8.1 and up. On older versions they are not part of the bundle, and `lerd park` warns when a project requires one rather than staying quiet and letting `composer install` fail its platform check.
-
-To add an extension that isn't in the bundle:
-
-```bash
-lerd php:ext add swoole
-```
-
-An extension the image already ships is refused, since the bundle is the better build of it. The image compiles those extensions as part of its own configure run, with flags a standalone rebuild on top of the image cannot pass, so redeclaring one would quietly replace it with a lesser build: `ftp` declared this way came back without FTPS support and no `ftp_ssl_connect`. Builds skip any bundled name left over in an existing declared set for the same reason, and an image built while one was still being rebuilt reads as out of date, so the next build puts the image's own version back with nothing to run by hand.
-
-Extensions belong to you, not to a PHP version. One declared set applies to every PHP image lerd builds, so a site that changes version keeps them. The version you are on is rebuilt and verified straight away; other installed versions carry the old set until they are rebuilt, and lerd says which ones those are.
-
-Those deferred versions are rebuilt by the next command that touches them, which is usually `lerd use`, `lerd link`, `lerd fetch`, `lerd unpause` or `lerd start`. When that happens to a version whose container is already running, lerd restarts the container onto the image it just built, so the running PHP always matches what `lerd php:ext list` and the dashboard report for it.
-
-Extensions are persisted in `~/.config/lerd/config.yaml` under `php.extensions`, so they survive `lerd php:rebuild`.
-
-After the rebuild, lerd checks that the extension actually loaded (`php -m`); if the PECL build failed, `lerd php:ext add` exits with an error and removes the extension from the config again, rather than reporting success for an extension that isn't there. A rebuild that fails outright is reverted the same way, so a name that cannot build is not left declared and retried by every command after it.
-
-#### What each version actually loaded
-
-A declared set cannot always be honoured. `mongodb` does not build below 8.1, and the legacy 7.4 and 8.0 images are Alpine 3.16, where some packages do not exist. lerd records what each version's image really loaded, verified after its build, and never advertises what an image does not have:
-
-```bash
-lerd php:ext list
-```
-
-```
-Declared, for every PHP version:
-  - mongodb
-  - swoole
-
-Per version:
-  PHP 7.4  swoole (cannot load: mongodb)
-  PHP 8.1  image predates this set, run 'lerd php:rebuild 8.1'
-  PHP 8.4  mongodb, swoole
-  PHP 8.5  mongodb, swoole
-```
-
-The three states are different problems. An image that **predates the set** was built before you declared something, and a rebuild fixes it. Something an image **cannot load** did not build on that version, and a rebuild will not change that. A version with no image at all is not listed. Nothing is reported as present unless that image really has it.
-
-The dashboard shows the same thing, plus every module the image loads, under **System → PHP → Extensions**. The module list is `php -m` read from the image itself, so it is what your code will actually see; it is fetched when you open the tab and cached against the image, so a rebuild refreshes it and nothing else pays for it. The TUI's System view carries a shorter `Extras · PHP <version>` line per version, from the same recorded data.
-
-Changing a site's PHP version is exactly when it would silently lose an extension, so lerd checks the target image at that moment. An image built before you declared something can be brought up to date with a rebuild:
-
-```
-$ lerd isolate 8.3
- ✓ PHP pinned to 8.3
- ⚠ PHP 8.3's image predates your custom extensions and packages
-       run 'lerd php:rebuild 8.3' to bring it up to date
-```
-
-An extension that genuinely cannot build on that version is reported differently, because no rebuild will fix it.
-
-One that loaded on **no version at all** is reported differently again. A version boundary shows up on some versions and not others, so an extension missing from every one of them is usually the build failing rather than the versions refusing it, and `lerd php:ext list` says so instead of reading it as a capability gap.
-
-Some extensions need extra Alpine packages to compile. lerd already knows the ones for `imap` (`imap-dev krb5-dev openssl-dev c-client`); for anything else, pass them with `--apk-deps`:
-
-```bash
-lerd php:ext add ssh2 --apk-deps "libssh2-dev"
-lerd php:ext add imap                                  # deps known to lerd, no flag needed
-```
-
-The packages are saved alongside the extension in `~/.config/lerd/config.yaml` (under `php.ext_apk_deps`), so they reapply on every `lerd php:rebuild`.
-
-```bash
-lerd php:ext list                # show your custom extensions and their apk deps
-lerd php:ext remove swoole       # remove from every version and rebuild
-```
-
-### php.ini settings
-
-Each PHP version has a user-editable ini file at `~/.local/share/lerd/php/<version>/98-lerd-user.ini`, mounted read-only into the FPM container. Edit it with:
-
-```bash
-lerd php:ini          # detected/default version
-lerd php:ini 8.3      # explicit version
-```
-
-This opens the file in `$EDITOR` (falls back to `nano`/`vim`). Saving restarts the affected FPM containers automatically, so the change applies straight away.
-
-The file is created automatically with commented-out examples when lerd first sets up the PHP version.
-
-#### Shared settings across versions
-
-A setting placed in a per-version file only applies to that version, so a site that changes PHP version silently loses it. For a setting you want everywhere, edit the shared file instead:
-
-```bash
-lerd php:ini shared   # applies to every PHP version
-```
-
-The shared file lives at `~/.local/share/lerd/php/shared/95-lerd-shared.ini` and is mounted into every PHP container (FPM, custom-image FPM, and FrankenPHP) below the per-version `98-lerd-user.ini`. Because `conf.d` loads alphabetically and the last file wins, layering happens for free:
-
-- A key set only in the shared file applies to all versions.
-- A key set in both files takes the per-version value on that version, and the shared value everywhere else.
-
-Nothing is merged and nothing is migrated: your existing per-version files keep working and keep winning. A key becomes shared only when you put it in the shared file. An unknown or removed directive on a given version is ignored (a startup notice, not a fatal), so a version-specific setting never breaks the others.
-
-In the web UI, open **System → PHP**, pick a version, and use the **Editing** dropdown at the top of its php.ini tab to switch to the shared file. Over MCP it is reachable through `runtime` with `ini_read` / `ini_write` / `ini_reset` (pass `shared: true`).
-
-### Locales and internationalisation
-
-The FPM image is Alpine-based, so it uses musl libc rather than glibc. Two consequences worth knowing:
-
-- **`ext-intl` (`NumberFormatter`, `IntlDateFormatter`, Laravel's `Number::currency()`, `money` formatting) works for every locale.** The image bundles ICU's full CLDR locale database (`icu-data-full`), so `new NumberFormatter('nl_NL', NumberFormatter::CURRENCY)` correctly produces `€ 13.943,20`. This is the recommended way to do locale-aware formatting and it does not depend on the system locale at all.
-- **The C-library `setlocale()` / `localeconv()` path stays in the C locale.** musl does not implement locale-specific `LC_NUMERIC` / `LC_MONETARY` rules, so `setlocale(LC_ALL, 'nl_NL')` will return a value but `localeconv()` keeps returning `.` / empty separators, and `number_format()` without explicit separators won't switch. Pass separators explicitly (`number_format($n, 2, ',', '.')`) or use `ext-intl`.
-
-If a library you depend on calls `setlocale()` and branches on whether it succeeded, adding the `musl-locales` / `musl-locales-lang` apk packages makes the call return a value, but it still will not change number or currency formatting.
-
----
-
-## ODBC databases
-
-The image ships the ODBC stack whole: unixODBC as the driver manager, `ext-odbc` for the `odbc_*` functions and their `odbc.defaultlrl` / `odbc.defaultbinmode` settings, and `ext-pdo_odbc` so `new PDO('odbc:...')` and any framework connection built on it work with nothing to declare and no extension to add.
-
-What the image cannot ship is the driver itself. Every ODBC driver (SAP HANA, Oracle, SQL Server, Snowflake) is vendor-licensed and downloaded from the vendor, so you bring the `.so` and register it. The images carry `gcompat` and `libstdc++` for exactly that moment: vendor drivers are built against glibc while lerd's images are Alpine/musl, and without the shim unixODBC cannot load them at all.
-
-### Turning it on
-
-There is nothing to enable. The extensions are part of the image recipe, so a version whose image is built from the current recipe has them, and one built before it does not until it is rebuilt.
-
-`lerd update` does that rebuild for you: the recipe changed, so the install step that follows an update rebuilds every PHP image, pulling the matching [pre-built base](#pre-built-images) rather than compiling. To force it, or to bring one version forward on its own:
-
-```bash
-lerd php:rebuild            # every installed version
-lerd php:rebuild 8.5        # just this one
-```
-
-Check what landed from inside the container:
-
-```bash
-lerd shell
-php -m | grep -i odbc                      # odbc, PDO_ODBC
-php -r 'print_r(PDO::getAvailableDrivers());'
-```
-
-The dashboard shows the same list under **System → PHP → Extensions**, read from the image itself.
-
-Two site kinds need one more step. An Octane site's FrankenPHP image is rebuilt by the same `lerd php:rebuild`. A site with its own `Containerfile.lerd` builds `FROM` the base image, so it keeps the image it has until you rebuild it:
-
-```bash
-cd my-project && lerd rebuild
-```
-
-That is also the moment such a project can drop its own `pdo_odbc` build steps, since the base it builds on carries them now.
-
-### Registering a driver
-
-A driver is named in `/etc/odbcinst.ini`, the driver manager's registry. lerd generates that file from the drivers you register and mounts it read-only into every PHP container, so one registration covers every version and every site:
-
-```bash
-lerd php:odbc add HDBODBC ~/sap/hdbclient/libodbcHDB.so --description "SAP HANA"
-lerd php:odbc list
-lerd php:odbc remove HDBODBC
-```
-
-The driver file itself stays where the vendor's installer put it; lerd only points at it. Anything under your home directory is already visible inside the containers at the same path, and a driver elsewhere has its directory mounted along with the registry.
-
-Until you register something, lerd mounts no registry at all, so a site whose own image writes `/etc/odbcinst.ini` keeps the drivers it baked in. Once a driver is registered, lerd's registry is what every container reads, and a driver baked into a site image has to be registered here too.
-
-`add` then reads the driver back from inside the image and says what it found, because a registration that looks fine on the host is exactly the one that fails later as a connection error with nothing in it:
-
-```
-$ lerd php:odbc add HDBODBC ~/sap/hdbclient/libodbcHDB.so
- › registering ODBC driver HDBODBC
-   /Users/you/sap/hdbclient/libodbcHDB.so
- ⚠ PHP 8.5 cannot load the driver, gcompat does not carry these glibc symbols:
-   qfcvt_r, qecvt_r, fcvt_r, backtrace, __strcpy_chk, gethostent_r, ...
-   a driver needing more than gcompat has to be patched in a per-site
-   Containerfile, see the ODBC section of the PHP docs
- ✓ driver HDBODBC registered for every PHP version, but the PHP 8.5 image cannot load it yet
-```
-
-The three ways a registration fails are worth telling apart, because unixODBC reports all of them at connect time as `Can't open lib '...' : file not found`, whatever the real cause. The container cannot see the path; the driver needs a library the image does not have; or every library resolved but one of them is musl standing in for glibc and does not carry a symbol the driver wants. Only the last one lists symbols, and those symbols are the shopping list for the shim below.
-
-`lerd php:odbc list` re-runs the check, so it reports what each driver does now rather than what it did when you registered it.
-
-A fourth outcome is worth reading carefully, because it is not a verdict on the driver. When the check cannot run at all, say the runtime is down or the version has no image yet, the registration still stands but nothing was established about it:
-
-```
- ✓ driver HDBODBC registered, but it was not read back from an image, so run
-   'lerd php:odbc list' once the runtime is up to see whether it loads
-```
-
-`list` says `not checked` for the same reason. Neither means the driver is broken, only that no image has been asked yet.
-
-### Where a driver may live
-
-The driver stays where the vendor put it, with one refusal. A driver sitting directly in a directory the container keeps its own libraries in is turned away, because lerd mounts the directory holding a driver into every PHP container and the host's copy would cover the container's own:
-
-```
-$ lerd php:odbc add PgOdbc /usr/lib/psqlodbcw.so
- ✗ driver "/usr/lib/psqlodbcw.so" sits in /usr/lib, which the PHP container keeps
-   its own libraries in: mounting it would take the container down. Copy the driver
-   somewhere of its own (say ~/odbc-drivers) and register that path
-```
-
-That is only the handful of directories the runtime itself occupies, `/usr/lib`, `/lib`, `/etc`, `/var` and their neighbours. A vendor client unpacked under `/opt` is the normal case and mounts as it is, and so does `/usr/lib64`, which the Alpine image does not have. Distributions that package an ODBC driver into `/usr/lib` are the ones to copy out.
-
-A driver already reachable inside the container gets no mount of its own. Anything under your home directory arrives through the home mount, and anything inside a parked project arrives through that project's, which keeps it writable where a read-only mount of lerd's own would not.
-
-If the driver directory later disappears, through an uninstall or a disk that is not plugged in, the registry entry stays and `list` reports the driver as one the container cannot see. The mount is dropped from the quadlets the next time the watcher starts, so the containers do not stay stuck on a path that has gone.
-
-### Drivers that need more than gcompat
-
-Some vendor clients want glibc symbols `gcompat` does not provide, and a few need patching before the loader will touch them at all. Those are prepared in a per-site [custom image](#custom-image-containerfile), where the driver can be unpacked, patched and registered in one place.
-
-SAP HANA is the fullest version of this problem, so it makes the best example. Its client is a glibc build, its ODBC library needs thirteen symbols musl does not have, and SAP's own installer cannot run on Alpine at all: `hdbinst` runs on a bundled perl built against glibc, which `gcompat` does not satisfy. The payloads inside the archive are plain tarballs, though, so they can be unpacked directly.
-
-Download the Linux client for your architecture from SAP (it is licensed, so it is not something lerd or your image registry can ship) and drop the tarball in `docker/hana/` next to a small C file supplying the missing symbols:
-
-```c
-// docker/hana/glibc-shim.c — one stub per symbol `lerd php:odbc add` listed.
-#include <string.h>
-#include <stdlib.h>
-
-void *__memcpy_chk(void *d, const void *s, size_t n, size_t dl) { (void)dl; return memcpy(d, s, n); }
-char *__strcpy_chk(char *d, const char *s, size_t dl) { (void)dl; return strcpy(d, s); }
-int backtrace(void **b, int size) { (void)b; (void)size; return 0; }
-// ... qfcvt_r, qecvt_r, fcvt_r, gethostent_r, getpwent_r, getservent_r,
-// getspent_r, pthread_mutexattr_setkind_np, __register_atfork
-```
-
-```dockerfile
-# Containerfile.lerd
-FROM lerd-php85-fpm:local
-
-# SAP ships glibc builds and the base is Alpine/musl. gcompat covers most of the
-# gap; the shim supplies what it does not, and patchelf wires it in as a
-# DT_NEEDED entry with an $ORIGIN rpath so whatever dlopens the driver, unixODBC
-# here, pulls the shim in with it.
-COPY docker/hana/ /tmp/hana/
-
-RUN set -eux; \
-    apk add --no-cache --virtual .hana-build patchelf build-base; \
-    mkdir -p /tmp/hana/x /usr/sap/hdbclient; \
-    tar -xzf /tmp/hana/hanaclient-*.tar.gz -C /tmp/hana/x; \
-    tar -xzf /tmp/hana/x/client/client/ODBC.TGZ -C /usr/sap/hdbclient; \
-    cc -shared -fPIC -O2 -o /usr/sap/hdbclient/libhdbglibcshim.so /tmp/hana/glibc-shim.c; \
-    patchelf --add-needed libhdbglibcshim.so --set-rpath '$ORIGIN' /usr/sap/hdbclient/libodbcHDB.so; \
-    ldd /usr/sap/hdbclient/libodbcHDB.so; \
-    printf '[HDBODBC]\nDescription=SAP HANA\nDriver=/usr/sap/hdbclient/libodbcHDB.so\n' > /etc/odbcinst.ini; \
-    apk del .hana-build; \
-    rm -rf /tmp/hana
-
-ENV LD_LIBRARY_PATH=/usr/sap/hdbclient
-```
-
-The `ldd` in the middle is deliberate: it runs during the build, so a shim that is still a symbol short fails visibly there rather than as a connection error weeks later.
-
-```yaml
-# .lerd.yaml — no port, so the site is served by fastcgi from this image
-domains:
-  - myapp
-container:
-  containerfile: Containerfile.lerd
-```
-
-Then `lerd rebuild`, and the DSN resolves through the name registered in the image:
-
-```php
-// config/database.php
-'hana' => [
-    'driver'   => 'odbc',
-    'dsn'      => 'odbc:Driver={HDBODBC};ServerNode=hana.example:30015;char_as_utf8=true;',
-    'username' => env('HANA_USERNAME'),
-    'password' => env('HANA_PASSWORD'),
-],
-```
-
-Laravel has no `odbc` database driver of its own, so a connection like this one needs a connector registered for it in a service provider, extending `Illuminate\Database\Connectors\Connector` and returning a PDO built from the `dsn` key. That part is your application's, not lerd's; what the image owes you is a driver the PDO constructor can actually open.
-
-A site whose image registers a driver this way keeps working exactly as before, because lerd mounts its own registry over `/etc/odbcinst.ini` only once you register something with `lerd php:odbc`. If you do both, lerd's registry is what the container reads, so register the in-image driver there too.
-
-unixODBC's own tools come with the image, so `lerd shell` is where a registration is checked by hand: `odbcinst -q -d` lists the drivers the manager can see, `isql -v HDBODBC user password` connects without PHP in the way, and `ldd /usr/sap/hdbclient/libodbcHDB.so` is the one that explains a driver that will not open. Its `Error relocating ...: symbol not found` lines are each a function the shim has to supply, and a driver whose libraries all resolve can still fail on every one of them.
-
----
-
 ## Custom image (Containerfile)
 
 When `php:ext` and per-version ini tweaks are not enough and a single site needs its own bespoke image (an extra system toolchain, a patched binary, arbitrary build steps), you can give that PHP site its own `Containerfile.lerd`. lerd builds a per-site image and serves the site by fastcgi from a dedicated FPM container, instead of the shared `lerd-php<ver>-fpm` one. It is the same `container:` key used for [custom containers](../getting-started/containers.md), with one difference: **no port**. A `container:` block with a port is a reverse-proxied app; a `container:` block with no port on a PHP project is served by fastcgi from your image.
@@ -819,27 +275,3 @@ The same list is available in the dashboard under **System > PHP > (version) > P
 This is a per-version pool, not per site. There is one shared FPM container per PHP version serving every site on it, so a published port maps to whichever single process binds it inside, and two sites wanting the same in-container port on the same version collide. It is a power-user escape hatch: for anything you can reach for a blessed path instead, prefer [host-proxy](host-proxy) (run the dev server on the host) or a worker with a proxy, which both scope cleanly to a single site.
 
 ---
-
-### Composer.json detection
-
-When you run `lerd park` or `lerd link`, Lerd reads `composer.json` and warns if any `ext-*` requirements are not covered by the bundled or installed extension set:
-
-```
-[!] my-app requires PHP extensions not in the image: swoole
-    Run: lerd php:ext add swoole
-```
-
-An extension can also be one the site's PHP version cannot have at all, rather than one that is merely absent from the image. `random` is a PHP core extension only from 8.2, and `mongodb` builds only on 8.1 and up, so on an older site no image rebuild can supply them and `lerd php:ext add` would fail after several minutes of building. Lerd says so up front instead of offering an install that cannot work:
-
-```
-[!] my-app requires ext-random, which is not available on PHP 8.1 (first shipped on 8.2)
-    lerd php:ext add cannot build it. Move the site to PHP 8.2 or newer, or require a polyfill package instead.
-```
-
-A requirement can also fail even though the extension is in the image, because composer names a few extensions differently from the name they are installed under. Composer builds its `ext-*` names from the module name PHP reports, and OPcache reports itself as `Zend OPcache`, so composer publishes `ext-zend-opcache` and never `ext-opcache`. A `composer.json` asking for `ext-opcache` therefore fails its platform check on `composer install` even though OPcache is loaded, and `lerd php:ext add opcache` will not help because nothing is actually missing. Lerd recognises both spellings and tells you which one composer wants:
-
-```
-[!] my-app requires ext-opcache, which composer publishes as ext-zend-opcache
-    The extension is in the image; composer install will still fail its platform check.
-    Require ext-zend-opcache in composer.json instead.
-```

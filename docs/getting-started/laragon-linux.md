@@ -108,44 +108,52 @@ Prefer your package manager? Lerd is also available through an [apt PPA, a Fedor
 
 **Choose Lerd when:** you are on Linux or macOS, you want the same zero-config workflow without a Docker daemon or a per-project compose file, or you want the environment itself described in a file you can commit.
 
-## Moving from Laragon to Lerd
+## Migrating from Laragon to Lerd
 
-Nothing inside your projects has to change. Lerd reads them where they are.
+Nothing inside your projects has to change. Lerd reads them where they are, and the steps below map each part of a Laragon setup onto its Lerd equivalent.
 
-**1. Copy the projects across.** Everything in `C:\laragon\www` can go anywhere on Linux, for example `~/code`. There is no document root to respect.
+### Project layout: `C:\laragon\www` becomes a parked folder
 
-**2. Export your databases.** From Laragon, dump each database before you leave Windows:
+Laragon serves every folder in `C:\laragon\www` as `<folder>.test`. Lerd does the same with a parked directory: copy the projects anywhere on Linux, for example `~/code`, then park it once.
+
+```bash
+curl -fsSL https://lerd.sh/install.sh | bash
+lerd start
+cd ~/code
+lerd park
+```
+
+Every PHP project inside `~/code` is now a site, and new folders you add later are picked up on their own, just like dropping a folder into `www`. To serve a single project from somewhere else, run `lerd link` inside it instead. Lerd detects the framework, picks the PHP version from `composer.json` and writes the nginx config. Use `lerd init` if you want a wizard to choose the PHP version, HTTPS and services and save the answers to `.lerd.yaml`.
+
+### Virtual hosts: `app.test` stays `app.test`
+
+Laragon's auto virtual hosts and Lerd's sites use the same `.test` names, so bookmarks and `APP_URL` values carry over. The differences:
+
+- No hosts file. Lerd answers every `.test` lookup with its own DNS server, so a new site resolves the moment it is linked.
+- HTTPS is one command, `lerd secure`, and the certificate is trusted by your browsers, with no warning page.
+- Custom vhost lines, Laragon's per-site Apache or nginx files, go into an [nginx override](/usage/nginx-overrides). A project that relied on `.htaccess` needs its rules translated, as described on the [MAMP page](/getting-started/mamp#do-you-need-to-translate-your-htaccess).
+- A different domain than the folder name is `lerd domain add`, covered in [Domains](/usage/domains).
+
+### Databases: dump, then import
+
+Dump each database from Laragon before you leave Windows, using its terminal or HeidiSQL's export:
 
 ```bash
 mysqldump -u root myapp > myapp.sql
 ```
 
-**3. Install Lerd and start it.**
-
-```bash
-curl -fsSL https://lerd.sh/install.sh | bash
-lerd start
-```
-
-**4. Link each project.** Run this inside the project directory:
-
-```bash
-cd ~/code/myapp
-lerd link
-```
-
-Lerd detects the framework, picks the PHP version from `composer.json`, writes the nginx vhost, registers `myapp.test` and provisions the certificate. Use `lerd init` instead if you want to choose the PHP version, HTTPS and services through a wizard and save the answers to `.lerd.yaml`.
-
-**5. Restore the database.**
+On Linux, start the matching service and let `lerd env` point the project at it. Laragon's MySQL runs as `root` with no password and Lerd's does not, so `lerd env` rewrites `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST` and `MAIL_HOST` to match the services Lerd runs instead of you editing `.env` by hand. Then import the dump into the site's database, which `lerd db:import` reads from that `.env`:
 
 ```bash
 lerd service start mysql
+cd ~/code/myapp
+lerd env
 lerd db:import myapp.sql
 ```
 
-**6. Point the app at the shared services.** `lerd env` rewrites the `.env` database, cache and mail entries to match the services lerd is running, so `DB_HOST`, `REDIS_HOST` and `MAIL_HOST` line up without you editing them by hand.
+A desktop client such as DBeaver or TablePlus connects on `127.0.0.1` with the credentials `lerd env` wrote. PostgreSQL works the same way with `lerd service start postgres`.
 
-Full detail lives in the [quick start](/getting-started/quick-start) and the [site management](/usage/sites) guide.
+Full detail lives in the [quick start](/getting-started/quick-start), [site management](/usage/sites) and [database](/usage/database) guides.
 
 ## What is genuinely different
 
@@ -158,7 +166,7 @@ Be aware of these before you switch, they are the places where the mental model 
 
 ## Staying on Windows
 
-If you are not leaving Windows, Lerd runs inside WSL2. Your projects live on the Linux filesystem and are reachable from Windows browsers at their `.test` addresses. See the [Windows (WSL2) guide](/getting-started/wsl2).
+If you are not leaving Windows, Lerd runs inside WSL2 and one installer sets it up. Your projects live on the Linux filesystem and are reachable from Windows browsers at their `.test` addresses. See [Lerd for Windows](/getting-started/windows).
 
 ## Frequently asked questions
 

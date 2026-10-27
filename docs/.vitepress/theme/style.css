@@ -3,11 +3,45 @@
    landing page (landing.css), applied to VitePress's reading layout.
    ----------------------------------------------------------------------- */
 
+/* Self-hosted so no third-party stylesheet blocks the first paint. */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/instrument-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/instrument-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --vp-font-family-base: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --vp-font-family-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --vp-c-brand-1: #e0241a;
+  --vp-c-brand-1: #d42019;
   --vp-c-brand-2: #ff2d20;
   --vp-c-brand-3: #ff5b50;
   --vp-c-brand-soft: rgba(255, 45, 32, 0.1);
@@ -20,7 +54,7 @@
   --vp-c-gutter: #e6e6e9;
   --vp-c-text-1: #0a0a0b;
   --vp-c-text-2: #4b4b55;
-  --vp-c-text-3: #8b8b95;
+  --vp-c-text-3: #6b6b75;
 
   --vp-button-brand-bg: #ff2d20;
   --vp-button-brand-hover-bg: #ff5b50;
@@ -31,7 +65,7 @@
   --vp-code-block-bg: #f4f4f5;
   --vp-custom-block-tip-bg: var(--vp-c-bg-soft);
   --vp-custom-block-info-bg: var(--vp-c-bg-soft);
-  --lerd-label: #8b8b95;
+  --lerd-label: #6b6b75;
   --vp-code-color: var(--vp-c-text-1);
 }
 

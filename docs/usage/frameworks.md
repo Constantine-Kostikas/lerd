@@ -49,6 +49,8 @@ lerd framework search
 ╰─────────────┴─────────────┴────────┴────────────────╯
 ```
 
+The store holds more than this excerpt, Winter CMS, Yii, TYPO3, Bedrock and Lumen among them. Each has a step-by-step walkthrough under Getting Started, for example [Winter CMS](/getting-started/winter) and [Yii](/getting-started/yii).
+
 ### Getting definitions from the store
 
 Definitions arrive automatically. Linking a project detects its framework and version and fetches the matching definition from the store, and the cached catalogue refreshes on its own in the background, so there is no install step to run. Because the catalogue is cached locally, detection resolves the right framework and version even offline and for frameworks you have not linked before.
@@ -314,3 +316,4 @@ This prevents accidentally running a project on an unsupported PHP version.
 
 - [Framework workers](framework-workers.md): conditional rules, conflicts, proxy wiring, project custom workers, orphaned workers.
 - [Framework definitions](framework-definitions.md): YAML schema, env setup, detection rules, doc-root fallback, log viewer.
+- [Framework commands](framework-commands.md): one-shot actions per framework, from the dashboard, the palette or `lerd run`.

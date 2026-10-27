@@ -1,6 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitepress'
+import { createMarkdownRenderer, defineConfig } from 'vitepress'
+import { atomFeed, parseReleases, recentChangelog } from './changelog.js'
 import { FAQ } from './theme/landing-data.js'
 import { SIDEBAR } from './sidebar.js'
 
@@ -8,6 +10,8 @@ const SITE_URL = 'https://lerd.sh'
 const OG_IMAGE = `${SITE_URL}/assets/social-preview.png`
 const PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url))
 const DIGEST_DIR = fileURLToPath(new URL('../public/digest', import.meta.url))
+const CHANGELOG = fileURLToPath(new URL('../changelog.md', import.meta.url))
+const hasDigest = (version: string) => existsSync(join(DIGEST_DIR, `v${version}.html`))
 
 // Read the version off the Go source of truth so the structured data can't
 // drift behind a release.
@@ -24,6 +28,8 @@ export default defineConfig({
   sitemap: {
     hostname: SITE_URL,
     transformItems(items) {
+      // The archive is noindex; listing it would contradict that.
+      items = items.filter((item) => !item.url.startsWith('changelog-archive'))
       // Static digest pages live in public/ and aren't page-derived. Read the
       // directory rather than listing them, so a new release is never missed.
       for (const file of readdirSync(DIGEST_DIR).filter((f) => f.endsWith('.html')).sort().reverse()) {
@@ -36,10 +42,9 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/logo.svg' }],
 
-    // Instrument Sans and JetBrains Mono, the landing page's and the docs' type
-    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
-    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap' }],
+    // Instrument Sans and JetBrains Mono, the landing page's and the docs' type, declared in style.css
+    ['link', { rel: 'preload', href: '/assets/fonts/instrument-sans-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: '' }],
+    ['link', { rel: 'preload', href: '/assets/fonts/jetbrains-mono-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: '' }],
 
     ['meta', { name: 'theme-color', content: '#FF2D20' }],
 
@@ -94,6 +99,22 @@ export default defineConfig({
     ],
   ],
 
+  markdown: {
+    // The plain GitHub themes' comment, keyword and string colours sit under 4.5:1 on our code block backgrounds.
+    theme: { light: 'github-light-high-contrast', dark: 'github-dark-high-contrast' },
+    config(md) {
+      md.core.ruler.before('normalize', 'recent-changelog', (state) => {
+        if (state.env.relativePath === 'changelog.md') state.src = recentChangelog(state.src, hasDigest)
+      })
+    },
+  },
+
+  async buildEnd(siteConfig) {
+    const md = await createMarkdownRenderer(siteConfig.srcDir, siteConfig.markdown, siteConfig.site.base)
+    const { releases } = parseReleases(readFileSync(CHANGELOG, 'utf8'))
+    writeFileSync(join(siteConfig.outDir, 'feed.xml'), atomFeed(releases, (src) => md.render(src), SITE_URL))
+  },
+
   transformPageData(pageData, { siteConfig }) {
     const canonicalUrl = `${SITE_URL}/${pageData.relativePath.replace(/\.md$/, '').replace(/index$/, '')}`
     const description = pageData.frontmatter.description ?? pageData.description ?? siteConfig.site.description
@@ -108,6 +129,9 @@ export default defineConfig({
       ['meta', { name: 'twitter:title', content: title }],
       ['meta', { name: 'twitter:description', content: description }],
     )
+    if (pageData.relativePath === 'changelog.md') {
+      pageData.frontmatter.head.push(['link', { rel: 'alternate', type: 'application/atom+xml', title: 'Lerd releases', href: '/feed.xml' }])
+    }
     // The landing FAQ is rendered from the same list, so the markup and the page never disagree.
     if (pageData.relativePath === 'index.md') {
       const faq = {
@@ -120,7 +144,7 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: '/assets/logo.svg',
+    logo: { src: '/assets/logo.svg', width: 24, height: 24 },
     siteTitle: 'Lerd',
 
     nav: [

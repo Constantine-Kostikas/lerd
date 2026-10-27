@@ -5,7 +5,7 @@
 .lerd-landing {
   --bg:#ffffff; --panel:#f7f7f8; --raised:#eeeef0; --line:#e6e6e9; --line-2:#d4d4d8;
   --ink:#0a0a0b; --ink-2:#3f3f46; --ink-hi:#27272a; --muted:#52525b; --faint:#71717a;
-  --accent:#e0241a; --accent-2:#c41e15; --wash:rgba(224,36,26,.07);
+  --accent:#d42019; --accent-2:#c41e15; --wash:rgba(224,36,26,.07);
   --emerald:#047857; --amber:#b45309;
   --shot-bg:linear-gradient(160deg,#f4f4f5,#e9e9ec); --win:#ffffff; --win-bar:#f4f4f5; --shadow:rgba(10,10,11,.18); --art-opacity:1;
   --sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
@@ -18,7 +18,7 @@
 }
 .dark .lerd-landing {
   --bg:#0a0a0b; --panel:#131316; --raised:#1d1d22; --line:#26262c; --line-2:#34343c;
-  --ink:#f4f4f5; --ink-2:#c4c4cc; --ink-hi:#ffffff; --muted:#8b8b95; --faint:#5d5d66;
+  --ink:#f4f4f5; --ink-2:#c4c4cc; --ink-hi:#ffffff; --muted:#8b8b95; --faint:#7e7e88;
   --accent:#ff2d20; --accent-2:#ff5b50; --wash:rgba(255,45,32,.12);
   --emerald:#34d399; --amber:#fbbf24;
   --shot-bg:linear-gradient(160deg,#17171b,#0d0d10); --win:#111113; --win-bar:#161616; --shadow:rgba(0,0,0,.9); --art-opacity:.7;
@@ -43,6 +43,9 @@
 .lerd-landing .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .lerd-landing .btn:hover{border-color:var(--faint)}
 .lerd-landing .btn.primary:hover{background:var(--accent-2)}
+/* White on the bright dark-mode red is under 4.5:1, so the filled button keeps the deeper red. */
+.dark .lerd-landing .btn.primary{background:#e0241a;border-color:#e0241a}
+.dark .lerd-landing .btn.primary:hover{background:#c41e15;border-color:#c41e15}
 .lerd-landing .btn.ink{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .lerd-landing .btn.ink:hover{background:var(--ink-hi);border-color:var(--ink-hi)}
 .lerd-landing .hdr .btn{height:34px;padding:0 14px;font-size:13px}
@@ -82,7 +85,7 @@
 .lerd-landing .hero-art{position:absolute;top:72px;left:56%;width:min(1000px,62vw);pointer-events:none;opacity:var(--art-opacity);
   -webkit-mask-image:linear-gradient(90deg,#000 45%,transparent 95%),linear-gradient(180deg,#000 55%,transparent 92%);-webkit-mask-composite:source-in;
   mask-image:linear-gradient(90deg,#000 45%,transparent 95%),linear-gradient(180deg,#000 55%,transparent 92%);mask-composite:intersect}
-.lerd-landing .hero-art img{width:100%;display:block}
+.lerd-landing .hero-art img{width:100%;height:auto;display:block}
 .lerd-landing .win{border:1px solid var(--line-2);border-radius:16px;background:var(--win);overflow:hidden;box-shadow:0 40px 80px -30px var(--shadow)}
 .lerd-landing .win-bar{display:flex;gap:8px;padding:14px 16px;background:var(--win-bar)}
 .lerd-landing .win-bar i{width:12px;height:12px;border-radius:50%;background:#ff5f57}
@@ -189,8 +192,9 @@
 /* hero sponsor */
 .lerd-landing .meta-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:32px;margin-top:56px}
 .lerd-landing .meta-row .meta{margin-top:0}
-.lerd-landing .sponsor{display:inline-flex;align-items:center;gap:16px;opacity:.8;transition:opacity .2s}
-.lerd-landing .sponsor:hover{opacity:1}
+.lerd-landing .sponsor{display:inline-flex;align-items:center;gap:16px}
+.lerd-landing .sponsor img{opacity:.8;transition:opacity .2s}
+.lerd-landing .sponsor:hover img{opacity:1}
 .lerd-landing .sponsor img{height:36px;width:auto}
 
 /* comparison */
@@ -284,12 +288,12 @@
 .lerd-landing .social a{width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);transition:color .15s,border-color .15s}
 .lerd-landing .social a:hover{color:var(--ink);border-color:var(--line-2)}
 .lerd-landing .social svg{width:18px;height:18px}
-.lerd-landing .foot h5{font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:14px}
+.lerd-landing .foot h2{font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:14px}
 .lerd-landing .foot ul{display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--ink-2)}
 .lerd-landing .foot ul a:hover{color:var(--ink)}
 .lerd-landing .foot .small{font-size:14px;color:var(--muted);margin-top:14px;max-width:32ch}
 .lerd-landing .legal{margin-top:56px;padding-top:24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font:12px var(--mono);color:var(--faint)}
-.lerd-landing .legal a{color:var(--muted)}
+.lerd-landing .legal a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .lerd-landing .legal a:hover{color:var(--ink)}
 
 @media (max-width:960px){

@@ -1,4 +1,9 @@
-# Framework definitions
+---
+title: "Framework definitions (YAML schema)"
+description: "The YAML schema Lerd uses to support a PHP framework: detection, document root, env file, workers, logs, doctor checks and commands, and where definitions load from."
+---
+
+# Framework definitions (YAML schema)
 
 Framework definitions are YAML files that tell Lerd how to detect a PHP framework, where its document root is, which env file it uses, and which workers and log paths it has. This page is the full schema reference.
 

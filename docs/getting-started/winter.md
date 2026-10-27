@@ -1,4 +1,9 @@
-# Winter CMS walkthrough
+---
+title: "Winter CMS local development with Lerd"
+description: "Set up Winter CMS locally with Lerd on Linux or macOS: create the project, serve it on a .test domain over HTTPS, and run its database, queue worker and scheduler."
+---
+
+# Winter CMS local development with Lerd
 
 End-to-end: from `lerd install` to a Winter CMS site running on `https://mysite.test` with its backend, a queue worker and a scheduler.
 
