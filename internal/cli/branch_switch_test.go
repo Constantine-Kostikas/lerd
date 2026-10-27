@@ -236,6 +236,17 @@ func TestSwitchBranch_failedMigrationKeepsTheSnapshotName(t *testing.T) {
 	}
 }
 
+// A step failing before the database is touched offers no snapshot to restore.
+func TestSwitchBranch_failureBeforeTheDatabaseOffersNoSnapshot(t *testing.T) {
+	dir := switchFixture(t, func(string) {})
+	db := &branchDB{snapshot: func() (string, error) { return "before-switch-3", nil }}
+
+	snap, err := switchBranch(fixed(migratingFW), dir, "nope", BranchSteps{Snapshot: true, Migrate: true}, db, io.Discard)
+	if err == nil || snap != "" {
+		t.Fatalf("want the switch error without a snapshot, got %q, %v", snap, err)
+	}
+}
+
 // Only the switcher's own copies of the same branch are replaced, the betas'
 // unflagged before-switch ones included. A snapshot taken by hand, even one
 // named like the switcher's, or another branch's copy is never touched.

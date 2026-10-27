@@ -315,6 +315,7 @@ func Start(currentVersion string) error {
 	mux.HandleFunc("/api/sites/branch-switch", withCORS(publishAfter(handleSiteBranchSwitch, eventbus.KindSites)))
 	mux.HandleFunc("/api/sites/pull-plan", withCORS(handleSitePullPlan))
 	mux.HandleFunc("/api/sites/pull", withCORS(publishAfter(handleSitePull, eventbus.KindSites)))
+	mux.HandleFunc("/api/sites/pull-undo", withCORS(publishAfter(handleSitePullUndo, eventbus.KindSites)))
 	mux.HandleFunc("/api/browse", withCORS(handleBrowse))
 	mux.HandleFunc("/api/runs", withCORS(publishAfter(handleRuns, eventbus.KindSites)))
 	mux.HandleFunc("/api/runs/", withCORS(handleRunStream))
@@ -7030,7 +7031,38 @@ func handleSitePull(w http.ResponseWriter, r *http.Request) {
 	}
 	steps := branchStepsFrom(q)
 	reviewed := cli.Reviewed{Branch: strings.TrimSpace(q.Get("from")), Head: strings.TrimSpace(q.Get("head")), Commit: strings.TrimSpace(q.Get("target"))}
-	streamSteps(w, func(out io.Writer) (string, error) { return cli.PullSite(site, dir, reviewed, steps, out) })
+	streamSteps(w, func(out io.Writer) (string, error) { return cli.PullSite(site, dir, reviewed, steps, out) }, func(payload map[string]any) {
+		// Whether the code moved, so a failure before it is not offered an undo.
+		head, _ := gitpkg.Output(dir, "rev-parse", "HEAD")
+		payload["moved"] = reviewed.Commit != "" && strings.TrimSpace(head) == reviewed.Commit
+	})
+}
+
+// handleSitePullUndo answers POST /api/sites/pull-undo?domain=&branch=&from=&head=&target=
+// plus composer, js, migrate, restore and stash: head is where the pull landed,
+// target where it started, restore the snapshot to load and stash the entry it kept.
+func handleSitePullUndo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	q := r.URL.Query()
+	site, err := config.FindSiteByDomain(q.Get("domain"))
+	if err != nil {
+		writeJSON(w, SiteActionResponse{Error: "site not found"})
+		return
+	}
+	dir := resolveSitePath(site, q.Get("branch"))
+	if dir == "" {
+		writeJSON(w, SiteActionResponse{Error: "unknown worktree branch"})
+		return
+	}
+	steps := branchStepsFrom(q)
+	steps.Restore = strings.TrimSpace(q.Get("restore"))
+	landed := cli.Reviewed{Branch: strings.TrimSpace(q.Get("from")), Head: strings.TrimSpace(q.Get("head")), Commit: strings.TrimSpace(q.Get("target"))}
+	streamSteps(w, func(out io.Writer) (string, error) {
+		return cli.UndoPullSite(site, dir, landed, steps, strings.TrimSpace(q.Get("stash")), out)
+	})
 }
 
 func branchStepsFrom(q url.Values) cli.BranchSteps {
@@ -7046,7 +7078,7 @@ func branchStepsFrom(q url.Values) cli.BranchSteps {
 
 // streamSteps streams run's output as server-sent events; the done event
 // names any snapshot taken first, so a failure can offer it back.
-func streamSteps(w http.ResponseWriter, run func(io.Writer) (string, error)) {
+func streamSteps(w http.ResponseWriter, run func(io.Writer) (string, error), report ...func(payload map[string]any)) {
 	flusher, ok := openEventStream(w)
 	if !ok {
 		return
@@ -7055,9 +7087,19 @@ func streamSteps(w http.ResponseWriter, run func(io.Writer) (string, error)) {
 	sw := &sseLineWriter{w: w, f: flusher}
 	snap, runErr := run(sw)
 	sw.flushTail()
-	payload := map[string]any{"ok": runErr == nil, "snapshot": snap}
+	payload := map[string]any{"snapshot": snap}
+	// Work the stash kept is told apart from a failure, so the UI can explain it.
+	var kept *gitpkg.StashKept
+	if errors.As(runErr, &kept) {
+		payload["stash"] = map[string]any{"label": kept.Label, "sha": kept.SHA, "files": kept.Files, "reason": kept.Reason}
+		runErr = kept.Err
+	}
+	payload["ok"] = runErr == nil
 	if runErr != nil {
 		payload["error"] = runErr.Error()
+	}
+	for _, add := range report {
+		add(payload)
 	}
 	fmt.Fprintf(w, "event: done\ndata: %s\n\n", mustJSON(payload))
 	flusher.Flush()

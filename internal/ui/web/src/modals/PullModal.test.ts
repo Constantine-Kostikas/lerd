@@ -1,13 +1,14 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { pullPlan, streamPull, closeModal, restoreSnapshot } = vi.hoisted(() => ({
+const { pullPlan, streamPull, streamPullUndo, closeModal, restoreSnapshot } = vi.hoisted(() => ({
   pullPlan: vi.fn(),
   streamPull: vi.fn(),
+  streamPullUndo: vi.fn(),
   closeModal: vi.fn(),
   restoreSnapshot: vi.fn()
 }));
-vi.mock('$stores/worktree', () => ({ pullPlan, streamPull }));
+vi.mock('$stores/worktree', () => ({ pullPlan, streamPull, streamPullUndo }));
 vi.mock('$stores/modals', () => ({ closeModal }));
 vi.mock('$stores/databases', () => ({ restoreSnapshot }));
 const { loadGitCommits, loadUptoFiles, loadUptoVersions } = vi.hoisted(() => ({
@@ -47,7 +48,7 @@ function finishWith(done: object) {
 
 describe('PullModal', () => {
   beforeEach(() => {
-    for (const f of [pullPlan, streamPull, closeModal, restoreSnapshot]) f.mockReset();
+    for (const f of [pullPlan, streamPull, streamPullUndo, closeModal, restoreSnapshot]) f.mockReset();
     pullPlan.mockResolvedValue(plan);
     loadGitCommits.mockReset();
     loadGitCommits.mockResolvedValue({ commits: [], more: false });
@@ -180,5 +181,57 @@ describe('PullModal', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Restore snapshot' }));
     expect(restoreSnapshot).toHaveBeenCalledWith('mysql', 'acme', 'before-switch-feature');
     expect(await screen.findByText('Database restored from before-switch-feature.')).toBeInTheDocument();
+  });
+
+  // The pull went through; the clash is explained, not offered a database restore.
+  it('stays open to say the stash kept local changes', async () => {
+    finishWith({ ok: true, snapshot: 'before-switch-feature', stash: { label: 'lerd: local changes set aside', files: ['composer.lock'] } });
+    render(PullModal, { props });
+    await screen.findByRole('switch', { name: 'composer install' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+
+    expect(await screen.findByText(/clash with composer\.lock, so they stay in the stash as "lerd: local changes set aside"/)).toBeInTheDocument();
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Restore snapshot' })).toBeNull();
+  });
+
+  // Back to where the pull started, the kept work with it; the database stays
+  // when no migration ran, so no snapshot is sent.
+  it('undoes a pull whose stash was kept', async () => {
+    finishWith({ ok: true, moved: true, snapshot: 'branch-main-1', stash: { label: 'lerd: local changes set aside', sha: 'c0ffee', files: ['composer.lock'] } });
+    streamPullUndo.mockImplementation(async (_d: string, _b: string, _l: object, _s: object, on: (e: object) => void) => on({ done: true, ok: true }));
+    pullPlan.mockResolvedValue({ ...plan, migrate: { label: 'php artisan migrate --force', needed: false }, migrations_added: 0 });
+    render(PullModal, { props });
+    await screen.findByRole('switch', { name: 'composer install' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Undo pull' }));
+
+    expect(streamPullUndo).toHaveBeenCalledWith('acme.test', 'feature', { branch: 'feature', head: 'abc123', target: 'f00d' }, { composer: true, js: false, migrate: false, restore: '', stash: 'c0ffee' }, expect.any(Function));
+    await waitFor(() => expect(closeModal).toHaveBeenCalled());
+  });
+
+  it('offers no undo when the pull failed before the code moved', async () => {
+    finishWith({ ok: false, moved: false, error: 'feature has moved since the review' });
+    render(PullModal, { props });
+    await screen.findByRole('switch', { name: 'composer install' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+
+    expect(await screen.findByText('feature has moved since the review')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo pull' })).toBeNull();
+  });
+
+  it('stays open when the undo had to keep work in the stash', async () => {
+    finishWith({ ok: true, moved: true, stash: { label: 'lerd: local changes set aside', sha: 'c0ffee', files: ['composer.lock'] } });
+    streamPullUndo.mockImplementation(async (_d: string, _b: string, _l: object, _s: object, on: (e: object) => void) =>
+      on({ done: true, ok: true, stash: { label: 'lerd: undoing the pull', sha: 'beef', files: ['.lerd.yaml'] } })
+    );
+    render(PullModal, { props });
+    await screen.findByRole('switch', { name: 'composer install' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Pull' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Undo pull' }));
+
+    expect(await screen.findByText(/clash with \.lerd\.yaml, so they stay in the stash as "lerd: undoing the pull"/)).toBeInTheDocument();
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Undo pull' })).toBeNull();
   });
 });

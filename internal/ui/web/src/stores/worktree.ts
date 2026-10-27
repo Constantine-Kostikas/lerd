@@ -170,6 +170,16 @@ export interface BranchSwitchEvent {
   error?: string;
   // The snapshot taken before switching, offered back if a later step failed.
   snapshot?: string;
+  // Local changes that clashed with the new code and stay in the stash.
+  stash?: StashKept;
+  // A pull's code moved, so it can be undone.
+  moved?: boolean;
+}
+
+export interface StashKept {
+  label: string;
+  sha: string;
+  files: string[] | null;
 }
 
 // streamBranchSwitch checks branch out in the site's main checkout and runs
@@ -210,6 +220,25 @@ export async function streamPull(
   await streamSteps('/api/sites/pull?' + qs.toString(), onEvent);
 }
 
+// streamPullUndo takes the checkout back from where the pull landed (head) to
+// where it started (target), puts back the work its stash kept (stash, the
+// entry's commit), then restores the snapshot and reruns the installs.
+export async function streamPullUndo(
+  domain: string,
+  branch: string,
+  landed: Pick<BranchPlan, 'branch' | 'head' | 'target'>,
+  steps: { composer: boolean; js: boolean; migrate: boolean; restore: string; stash: string },
+  onEvent: (e: BranchSwitchEvent) => void
+): Promise<void> {
+  const qs = stepsQuery(domain, branch, { composer: steps.composer, js: steps.js, migrate: steps.migrate, snapshot: false });
+  qs.set('from', landed.branch ?? '');
+  qs.set('head', landed.head ?? '');
+  qs.set('target', landed.target ?? '');
+  if (steps.restore) qs.set('restore', steps.restore);
+  if (steps.stash) qs.set('stash', steps.stash);
+  await streamSteps('/api/sites/pull-undo?' + qs.toString(), onEvent);
+}
+
 function stepsQuery(domain: string, branch: string, steps: Omit<BranchSteps, 'restore'>): URLSearchParams {
   const qs = new URLSearchParams({ domain, branch });
   for (const k of ['composer', 'js', 'migrate', 'snapshot', 'isolate', 'stash'] as const) if (steps[k]) qs.set(k, '1');
@@ -230,8 +259,8 @@ async function streamSteps(url: string, onEvent: (e: BranchSwitchEvent) => void)
       return;
     }
     try {
-      const r = JSON.parse(data) as { ok?: boolean; error?: string; snapshot?: string };
-      onEvent({ done: true, ok: Boolean(r.ok), error: r.error, snapshot: r.snapshot || undefined });
+      const r = JSON.parse(data) as { ok?: boolean; error?: string; snapshot?: string; stash?: StashKept; moved?: boolean };
+      onEvent({ done: true, ok: Boolean(r.ok), error: r.error, snapshot: r.snapshot || undefined, stash: r.stash, moved: r.moved });
     } catch {
       onEvent({ done: true, ok: false, error: 'bad done payload' });
     }

@@ -360,11 +360,29 @@ func TestHandleSitePull(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleSitePull(rec, httptest.NewRequest(http.MethodPost, "/api/sites/pull?domain=acme.test"+reviewedTarget(t, ""), nil))
 
-	if !strings.Contains(rec.Body.String(), "event: done") || !strings.Contains(rec.Body.String(), `"ok":true`) {
-		t.Fatalf("want a done event with ok, got %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "event: done") || !strings.Contains(rec.Body.String(), `"ok":true`) || !strings.Contains(rec.Body.String(), `"moved":true`) {
+		t.Fatalf("want a done event with ok and moved, got %s", rec.Body.String())
 	}
 	if runGitOutput(sitePath, "rev-parse", "HEAD") != runGitOutput(other, "rev-parse", "HEAD") {
 		t.Error("checkout not fast-forwarded")
+	}
+}
+
+// Undo takes the checkout back to the commit the pull started from.
+func TestHandleSitePullUndo(t *testing.T) {
+	sitePath, other := pullSite(t)
+	before := strings.TrimSpace(runGitOutput(sitePath, "rev-parse", "HEAD"))
+	handleSitePull(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/sites/pull?domain=acme.test"+reviewedTarget(t, ""), nil))
+	after := strings.TrimSpace(runGitOutput(other, "rev-parse", "HEAD"))
+
+	rec := httptest.NewRecorder()
+	handleSitePullUndo(rec, httptest.NewRequest(http.MethodPost, "/api/sites/pull-undo?domain=acme.test&from=main&head="+after+"&target="+before, nil))
+
+	if !strings.Contains(rec.Body.String(), `"ok":true`) {
+		t.Fatalf("want a done event with ok, got %s", rec.Body.String())
+	}
+	if strings.TrimSpace(runGitOutput(sitePath, "rev-parse", "HEAD")) != before {
+		t.Error("checkout not moved back")
 	}
 }
 
