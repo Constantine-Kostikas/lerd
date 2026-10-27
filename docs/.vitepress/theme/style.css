@@ -205,7 +205,13 @@ body {
   color: var(--lerd-label);
 }
 .VPDocAsideOutline .outline-link.active { color: var(--vp-c-text-1); }
-.VPDocAsideOutline .outline-marker { background-color: var(--vp-c-brand-2); }
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--vp-c-brand-2);
+  /* VitePress places the marker for a 32px title; ours is ~15px, so pull it back up. */
+  margin-top: -17px;
+}
+/* Wrap long headings instead of clipping them, so every section reads in full. */
+.VPDocAsideOutline .outline-link { white-space: normal; overflow: visible; line-height: 1.4; padding: 5px 0; }
 .VPDocFooter .pager-link { border-radius: 0; }
 .VPDocFooter .pager-link:hover { border-color: var(--vp-c-brand-2); }
 .VPDocFooter .pager-link .title { color: var(--vp-c-text-1); font-weight: 600; }

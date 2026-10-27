@@ -36,7 +36,7 @@ When the WSL features need a restart, it offers one and runs again by itself aft
 
 `lerd wsl:setup`, which the installer runs for you, puts these in place:
 
-- **`lerd` in any Windows terminal.** `lerd.exe` in `%LOCALAPPDATA%\lerd\bin`, on your PATH, runs lerd inside the distro from the folder you are in, including a project opened through `\\wsl.localhost\...`, or the drive letter cmd's `pushd` maps for one. Windows paths in its arguments, such as `C:\work\app` or `--configuration=\\wsl.localhost\Ubuntu\home\you\app\phpunit.xml`, are translated to the paths the distro sees.
+- **`lerd` in any Windows terminal.** `lerd.exe` in `%LOCALAPPDATA%\lerd\bin`, on your PATH, runs lerd inside the distro from the folder you are in, including a project opened through `\\wsl.localhost\...`, or the drive letter cmd's `pushd` maps for one. Windows paths in its arguments, such as `C:\work\app` or `--configuration=\\wsl.localhost\Ubuntu\home\you\app\phpunit.xml`, are translated to the paths the distro sees. It runs as the Linux user who ran `lerd wsl:setup`, not the distro's default user, so it always reaches that user's lerd and Podman state.
 - **`php`, `composer`, `node` and lerd's other shims.** `php.exe`, `composer.exe` and so on sit beside `lerd.exe` and run the same shim as inside the distro, so a Windows IDE can point its PHP interpreter, Composer or Node at them. A shim lerd adds later, such as `psql` or `redis-cli` when you install a service, gets its `.exe` within half a minute, and `lerd update` refreshes them all along with `lerd.exe`.
 - **lerd at login.** A background agent starts with Windows and boots the distro, so sites and the dashboard are up without a WSL window open. With the Lerd desktop app installed, the app starts the agent and starts it again if it stops; without it, a `lerd` entry under the user's Run key does. WSL's idle timeout is switched off in `%USERPROFILE%\.wslconfig`, which otherwise stops the distro, and every container with it, seconds after the last terminal closes. If the distro stops anyway, after a `wsl --shutdown`, a `wsl --update` or a crash, the agent boots it again the next time a Windows app looks up a site, so the page loads after a few seconds instead of failing to connect.
 - **`.test` in Windows browsers, wildcards included.** The agent answers DNS for your site TLD on `127.0.0.1`, and a Windows DNS rule (NRPT) sends the TLD there. It shares one administrator prompt with the LAN rule below. Answering DNS rather than writing hosts file lines is what keeps `*.branch.site.test` worktree domains working.
@@ -44,7 +44,7 @@ When the WSL features need a restart, it offers one and runs again by itself aft
 - **LAN sharing.** WSL's Hyper-V firewall drops every connection from another machine, so `lerd lan:share`, `lan:expose`, `lan:services` and remote control answered only on this PC. A rule named `lerd LAN` lets in your local subnet, with no port list since lerd's ports move when one is taken. Only what listens beyond loopback answers, which lerd does only with a LAN feature on.
 - **Mirrored networking**, so Windows reaches WSL's loopback, plus systemd, the Podman `events_logger` fix and the Linux tray turned off, covered below.
 
-It is idempotent, so run it again whenever something drifts. `lerd doctor` adds a `[WSL2]` section that re-checks the Linux side on demand.
+It is idempotent, so run it again whenever something drifts. After you turn lerd's DNS off, running it again takes the Windows DNS rule back. `lerd doctor` adds a `[WSL2]` section that re-checks the Linux side on demand.
 
 ## Working on your sites from Windows
 
@@ -64,7 +64,8 @@ Keep projects on the Linux side. A folder under `C:\` works through `/mnt/c`, bu
 ## 1. Enable systemd inside WSL2
 
 The whole architecture, Quadlet containers, watcher, UI, FPM, runs as systemd user units. Without systemd as PID 1, nothing starts.
-When systemd is off, `lerd install` turns it on in `/etc/wsl.conf` and restarts WSL, so reopen the distro and run `lerd install` again.
+
+When systemd is off, `lerd install` turns it on in `/etc/wsl.conf` and restarts WSL, so reopen the distro and run `lerd install` again. A distro without the systemd package is stopped with a message to install it first, since WSL would otherwise boot its own init again on every restart. Right after that package is installed WSL cannot be restarted from inside the distro, so lerd asks you to run `wsl --shutdown` from Windows instead. With `--unattended` it changes nothing and stops with the manual steps below.
 
 Inside the WSL distro, create or edit `/etc/wsl.conf`:
 
@@ -195,7 +196,7 @@ If you edit from VS Code on Windows, use the Remote-WSL extension and launch fro
 
 ## 6. `.test` DNS and HTTPS
 
-Inside the distro, WSL writes its own `/etc/resolv.conf` pointing straight at its DNS proxy, which bypasses systemd-resolved and so every `.test` route. lerd hands that file to systemd-resolved on install: it sets `generateResolvConf=false` in `/etc/wsl.conf`, keeps WSL's proxy as resolved's upstream in `/etc/systemd/resolved.conf.d/wsl-upstream.conf`, and from there takes the same path as on any Ubuntu machine. That drop-in is deliberately not removed by an uninstall, since the distro would be left with no upstream DNS.
+Inside the distro, WSL writes its own `/etc/resolv.conf` pointing straight at its DNS proxy, which bypasses systemd-resolved and so every `.test` route. lerd hands that file to systemd-resolved on install: it sets `generateResolvConf=false` in `/etc/wsl.conf`, keeps WSL's proxy as resolved's upstream in `/etc/systemd/resolved.conf.d/wsl-upstream.conf`, and from there takes the same path as on any Ubuntu machine. That drop-in is deliberately not removed by an uninstall, since the distro would be left with no upstream DNS. lerd only does this while it manages DNS and systemd is running: with `.localhost` domains, or a resolver your own system configuration owns, `/etc/resolv.conf` is left as it is.
 
 A distro without systemd-resolved, such as Debian's WSL image, gets it installed by `lerd install` (through `apt-get`), and one that ships it switched off, such as Arch, gets it started. Installing the package relinks `resolv.conf` to resolved's stub with no upstream, so lerd reads WSL's nameservers from `/mnt/wsl/resolv.conf` and sets them as resolved's upstream before it downloads anything. On a distro with neither resolved nor `apt-get`, install systemd-resolved yourself and run `lerd install` again; until then `lerd doctor` warns under `[WSL2]`, and `.test` resolves from Windows but not inside the distro.
 
@@ -232,6 +233,12 @@ getent hosts lerd.localhost                        # ::1 / 127.0.0.1
 ```
 
 If all of those come back green, `cd ~/projects/myapp && lerd link` behaves exactly the same as on native Linux.
+
+## Uninstalling
+
+`lerd uninstall` inside the distro also cleans up the Windows side: `lerd.exe` and its shims with their PATH entry, the agent's start at login, the Quick access pins, the notification entry, and the Lerd desktop app's start at sign-in, Start menu shortcut and `lerd://` handler. The Windows DNS rule and the `lerd LAN` firewall rule go in one administrator prompt.
+
+Two things stay. lerd's CA remains in your Windows trust store, because removing it raises a dialog a script cannot answer; delete it under **Trusted Root Certification Authorities** in `certmgr.msc`. The desktop app's files under `C:\Program Files\Lerd` need administrator rights to remove: with `Install-Lerd.exe` that is its entry in Add/Remove Programs, after an `install.ps1` install delete the folder yourself.
 
 ## Known WSL2 quirks
 
