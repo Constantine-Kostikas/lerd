@@ -332,3 +332,111 @@ func TestFPMConfigLetsIdlePoolsFallToZero(t *testing.T) {
 		t.Error("a pool with no ceiling can fork without bound")
 	}
 }
+
+// Native PHP reads the system roots, which lack the lerd CA, so a request to
+// another .test site fails with cURL error 60. The bundle must carry both, or
+// pointing PHP at the lerd CA alone would break every public HTTPS call.
+func TestWriteOverridesTrustsLerdCAAlongsideSystemRoots(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", filepath.Join(tmp, "ca"))
+	system := filepath.Join(tmp, "cert.pem")
+	if err := os.WriteFile(system, []byte("SYSTEM ROOTS\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	orig := systemCABundle
+	systemCABundle = system
+	t.Cleanup(func() { systemCABundle = orig })
+	if err := os.MkdirAll(filepath.Join(tmp, "ca"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "ca", "rootCA.pem"), []byte("LERD CA\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteOverrides("8.4"); err != nil {
+		t.Fatalf("WriteOverrides: %v", err)
+	}
+	bundle, err := os.ReadFile(CABundlePath())
+	if err != nil {
+		t.Fatalf("reading bundle: %v", err)
+	}
+	if string(bundle) != "SYSTEM ROOTS\nLERD CA\n" {
+		t.Errorf("bundle = %q, want system roots then the lerd CA", bundle)
+	}
+	ini, _ := os.ReadFile(filepath.Join(OverrideDir("8.4"), "zz-native.ini"))
+	for _, want := range []string{"curl.cainfo=" + CABundlePath() + "\n", "openssl.cafile=" + CABundlePath() + "\n"} {
+		if !strings.Contains(string(ini), want) {
+			t.Errorf("override missing %q:\n%s", want, ini)
+		}
+	}
+}
+
+// Before mkcert has made a CA there is nothing to add, and naming a missing
+// bundle would break public HTTPS too, so PHP keeps its own defaults.
+func TestWriteOverridesLeavesCADefaultsWithoutLerdCA(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", filepath.Join(tmp, "missing"))
+
+	if err := WriteOverrides("8.4"); err != nil {
+		t.Fatalf("WriteOverrides: %v", err)
+	}
+	ini, _ := os.ReadFile(filepath.Join(OverrideDir("8.4"), "zz-native.ini"))
+	if strings.Contains(string(ini), "cainfo") || strings.Contains(string(ini), "cafile") {
+		t.Errorf("no lerd CA, so the CA settings must be left alone:\n%s", ini)
+	}
+	if _, err := os.Stat(CABundlePath()); !os.IsNotExist(err) {
+		t.Errorf("no bundle should be written without a lerd CA, stat err = %v", err)
+	}
+}
+
+// Running FPM pools keep pointing at the bundle they loaded, so a command that
+// cannot see the CA must leave the bundle in place rather than pull it away.
+func TestWriteOverridesKeepsBundleWhenCAGoesMissing(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", filepath.Join(tmp, "missing"))
+	if err := os.MkdirAll(filepath.Dir(CABundlePath()), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(CABundlePath(), []byte("EARLIER BUNDLE\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteOverrides("8.4"); err != nil {
+		t.Fatalf("WriteOverrides: %v", err)
+	}
+	if got, _ := os.ReadFile(CABundlePath()); string(got) != "EARLIER BUNDLE\n" {
+		t.Errorf("bundle = %q, want the earlier one left in place", got)
+	}
+}
+
+// Two native commands starting together both refresh the bundle; a shared
+// temp name would let one rename it away from under the other.
+func TestWriteCABundleSurvivesConcurrentWriters(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	t.Setenv("CAROOT", tmp)
+	system := filepath.Join(tmp, "cert.pem")
+	if err := os.WriteFile(system, []byte("SYSTEM ROOTS\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "rootCA.pem"), []byte("LERD CA\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	orig := systemCABundle
+	systemCABundle = system
+	t.Cleanup(func() { systemCABundle = orig })
+
+	const writers = 32
+	errs := make(chan error, writers)
+	for range writers {
+		go func() { errs <- writeCABundle() }()
+	}
+	for range writers {
+		if err := <-errs; err != nil {
+			t.Errorf("concurrent writeCABundle: %v", err)
+		}
+	}
+}

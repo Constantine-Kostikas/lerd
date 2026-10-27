@@ -79,7 +79,7 @@ func OverrideDir(version string) string {
 // The capture socket is reached over loopback rather than the container's host
 // gateway, since here PHP is already on the host.
 func overrideIni(version string) string {
-	return overrideIniWith(DevtoolsExtensionPath(version))
+	return overrideIniWith(DevtoolsExtensionPath(version)) + caLines(CABundlePath())
 }
 
 // DevtoolsExtensionPath is where a native build's query-capture extension lives
@@ -144,12 +144,83 @@ func devtoolsLine(path string) string {
 	return "extension=" + path + "\n"
 }
 
+// systemCABundle is the macOS root store the native build's OpenSSL reads by
+// default. A var so tests can point it at a fixture.
+var systemCABundle = "/etc/ssl/cert.pem"
+
+// CABundlePath is the system roots plus the lerd CA, shared by every version.
+func CABundlePath() string {
+	return filepath.Join(config.RunDir(), "native", "ca-bundle.pem")
+}
+
+// caLines points curl and the openssl stream wrapper at the bundle when one was
+// written. Naming a missing file would fail every HTTPS call, public ones too.
+func caLines(bundle string) string {
+	if _, err := os.Stat(bundle); err != nil {
+		return ""
+	}
+	return "curl.cainfo=" + bundle + "\n" + "openssl.cafile=" + bundle + "\n"
+}
+
+// writeCABundle joins the system roots and the lerd CA, as update-ca-certificates
+// does in the containers. A missing half leaves any earlier bundle alone, since
+// running FPM pools still read it; the rename keeps readers off a partial file.
+func writeCABundle() error {
+	path := CABundlePath()
+	config.GuardRealWrite(path)
+	caRoot, err := config.CARootDir()
+	if err != nil {
+		return err
+	}
+	lerdCA, err := os.ReadFile(filepath.Join(caRoot, "rootCA.pem"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	system, err := os.ReadFile(systemCABundle)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	body := strings.TrimRight(string(system), "\n") + "\n" + string(lerdCA)
+	if existing, err := os.ReadFile(path); err == nil && string(existing) == body {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	// A temp file per writer: two native commands starting together both land here.
+	tmp, err := os.CreateTemp(filepath.Dir(path), "ca-bundle-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(body); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
 // WriteOverrides materialises the override fragment for a version.
 func WriteOverrides(version string) error {
 	dir := OverrideDir(version)
 	config.GuardRealWrite(dir)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
+	}
+	if err := writeCABundle(); err != nil {
+		return fmt.Errorf("writing the native CA bundle: %w", err)
 	}
 	return os.WriteFile(filepath.Join(dir, "zz-native.ini"), []byte(overrideIni(version)), 0644)
 }
