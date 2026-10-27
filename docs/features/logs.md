@@ -1,4 +1,9 @@
-# Logs
+---
+title: "Site logs for AI assistants"
+description: "Lerd's logs MCP tool gives Claude Code, Cursor and other AI assistants one filtered view over a site's application, PHP-FPM, worker, nginx and service logs."
+---
+
+# Site logs for AI assistants
 
 lerd gives AI assistants a single, filtered view over every log it can reach, so debugging a broken site doesn't mean opening files by hand. It is exposed as the `logs` MCP tool with two actions: `sources` and `fetch`.
 

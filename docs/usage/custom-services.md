@@ -1,8 +1,11 @@
+---
+title: "Custom services"
+description: "Add any OCI container image, such as MongoDB, RabbitMQ or Soketi, as a Lerd service with one YAML file, wired into lerd service, lerd env and the dashboard."
+---
+
 # Custom services
 
-Custom services let you define any OCI-based service (MongoDB, RabbitMQ, Soketi, Stripe Mock, etc.) that integrates with `lerd service`, `lerd env`, and the dashboard. Related: [Service presets](service-presets.md) for ready-made installers, [Services](services.md) for the built-in list.
-
-Lerd lets you define arbitrary OCI-based services that integrate seamlessly with `lerd service`, `lerd start`/`stop`, and `lerd env`, without recompiling.
+Custom services let you define any OCI-based service (MongoDB, RabbitMQ, Soketi, Stripe Mock, etc.) that integrates with `lerd service`, `lerd start`/`stop`, `lerd env` and the dashboard, without recompiling. Related: [Service presets](service-presets.md) for ready-made installers, [Services](services.md) for the built-in list.
 
 Custom service configs live at `~/.config/lerd/services/<name>.yaml`.
 

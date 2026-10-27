@@ -1,4 +1,11 @@
+---
+title: Install Lerd on Linux, macOS and Windows
+description: "Install Lerd with one command: curl -fsSL https://lerd.sh/install.sh | bash on Linux, Homebrew on macOS, Install-Lerd.exe on Windows. Packages for apt, dnf and Homebrew too."
+---
+
 # Installation
+
+To install Lerd on Linux, run `curl -fsSL https://lerd.sh/install.sh | bash`, then `lerd link` inside a project to serve it at `https://<name>.test`. On macOS use Homebrew (`brew install lerd-env/lerd/lerd`, then `lerd install`), and on Windows run [Install-Lerd.exe](/getting-started/windows). Lerd needs Podman and, on Linux, a systemd distro, see [Requirements](/getting-started/requirements).
 
 ## Linux
 
@@ -229,7 +236,7 @@ If lerd came from apt, dnf or Homebrew, the teardown is the same but the binary 
 
 On Omarchy `lerd uninstall` also takes the Lerd Glance plugin off the bar.
 
-The installer's `--uninstall` runs `lerd uninstall`, so it does exactly the same teardown.
+The installer's `--uninstall` runs `lerd uninstall`, so it does exactly the same teardown. [Uninstall Lerd](/getting-started/uninstall) covers every platform in one place.
 
 ---
 
@@ -312,11 +319,11 @@ The install registers the app with LaunchServices, so it appears in Launchpad an
 lerd uninstall
 ```
 
-Tears down the launchd agents, the DNS resolver and the containers, then removes the binary. The Podman machine stays, remove it with `podman machine rm` if nothing else uses it. If you installed via Homebrew, finish with `brew uninstall lerd`.
+Tears down the launchd agents, the DNS resolver and the containers, then removes the binary. The Podman machine stays, remove it with `podman machine rm` if nothing else uses it. If you installed via Homebrew, finish with `brew uninstall lerd`. See [Uninstall Lerd](/getting-started/uninstall) for the full cleanup.
 
 ## Windows
 
-There is no native Windows build. Lerd runs on Windows through WSL2, where the standard Linux build works unchanged once systemd and rootless Podman are set up. See the [Windows (WSL2) guide](./wsl2) for the full walkthrough, including the `events_logger` Podman tweak and the mkcert root CA export to the Windows trust store.
+Lerd runs on Windows through WSL2, where the standard Linux build works unchanged once systemd and rootless Podman are set up. [Lerd for Windows](./windows) covers the one-click installer, and the [Windows (WSL2) guide](./wsl2) has the full walkthrough, including the `events_logger` Podman tweak and the mkcert root CA export to the Windows trust store.
 
 ## NixOS
 

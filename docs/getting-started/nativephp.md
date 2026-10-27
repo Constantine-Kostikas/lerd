@@ -1,4 +1,9 @@
-# NativePHP walkthrough
+---
+title: "NativePHP with Lerd: desktop and mobile apps"
+description: "Build a NativePHP desktop app, or an Android and iOS app, from a Laravel project while Lerd keeps serving the same code at a .test domain with HTTPS."
+---
+
+# NativePHP with Lerd: desktop and mobile apps
 
 End-to-end: a Laravel app that opens as a desktop window on your machine, or installs onto an Android emulator or an iOS simulator, while lerd keeps serving the same codebase at `https://myapp.test`.
 

@@ -1,4 +1,9 @@
-# Nginx Overrides
+---
+title: "Nginx overrides per site"
+description: "Add per-site nginx directives in Lerd that survive every config regeneration, from a snippet file or the dashboard, with examples for common overrides."
+---
+
+# Nginx overrides per site
 
 Lerd generates one nginx config per site under `~/.local/share/lerd/nginx/conf.d/{domain}.conf`. These files are fully managed: `lerd link`, `lerd secure`, `lerd site rebuild`, and every `lerd install` (including the one that runs at the end of `lerd update`) regenerate them from the built-in templates. Any edits made directly to those files are overwritten.
 

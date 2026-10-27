@@ -1,4 +1,9 @@
-# Yii walkthrough
+---
+title: "Yii 2 local development with Lerd"
+description: "Run a Yii 2 app locally with Lerd on Linux or macOS: create the basic template, serve it on a .test domain over HTTPS and connect it to MySQL."
+---
+
+# Yii 2 local development with Lerd
 
 End-to-end: from `lerd install` to a [Yii 2](https://www.yiiframework.com/) basic app running on `https://yiiapp.test` against MySQL.
 

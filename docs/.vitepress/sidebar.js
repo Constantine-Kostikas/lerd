@@ -9,6 +9,8 @@ const DOCS = [
       { text: 'Installation', link: '/getting-started/installation' },
       { text: 'Quick Start', link: '/getting-started/quick-start' },
       { text: 'Updating from before 1.26', link: '/getting-started/updating-from-pre-1.26' },
+      { text: 'Troubleshooting', link: '/troubleshooting' },
+      { text: 'Uninstall', link: '/getting-started/uninstall' },
     ],
   },
   {
@@ -16,7 +18,8 @@ const DOCS = [
     items: [
       { text: 'Omarchy', link: '/getting-started/omarchy' },
       { text: 'NixOS', link: '/getting-started/nixos' },
-      { text: 'Windows (WSL2)', link: '/getting-started/wsl2' },
+      { text: 'Windows', link: '/getting-started/windows' },
+      { text: 'Windows (WSL2) in depth', link: '/getting-started/wsl2' },
     ],
   },
   {
@@ -26,8 +29,11 @@ const DOCS = [
       { text: 'Laravel Herd for Linux', link: '/getting-started/herd-linux' },
       { text: 'Laragon for Linux', link: '/getting-started/laragon-linux' },
       { text: 'Moving from MAMP', link: '/getting-started/mamp' },
+      { text: 'XAMPP alternative', link: '/getting-started/xampp' },
       { text: 'Laradock alternative', link: '/getting-started/laradock' },
       { text: 'Laravel Sail alternative', link: '/getting-started/sail' },
+      { text: 'Lerd vs DDEV', link: '/getting-started/lerd-vs-ddev' },
+      { text: 'Lerd vs Lando', link: '/getting-started/lerd-vs-lando' },
     ],
   },
   {
@@ -52,6 +58,11 @@ const DOCS = [
       { text: 'Workspaces', link: '/usage/workspaces' },
       { text: 'Pausing Sites', link: '/usage/pausing' },
       { text: 'PHP', link: '/usage/php' },
+      { text: 'PHP versions', link: '/usage/php-versions' },
+      { text: 'PHP extensions', link: '/usage/php-extensions' },
+      { text: 'php.ini overrides', link: '/usage/php-ini' },
+      { text: 'Xdebug', link: '/usage/xdebug' },
+      { text: 'Composer', link: '/usage/composer' },
       { text: 'Node', link: '/usage/node' },
       { text: 'Custom Containers', link: '/usage/custom-containers' },
       { text: 'Host-Proxy Sites', link: '/usage/host-proxy' },
@@ -170,12 +181,6 @@ const REFERENCE = [
       { text: 'Architecture', link: '/reference/architecture' },
     ],
   },
-  {
-    text: 'Help',
-    items: [
-      { text: 'Troubleshooting', link: '/troubleshooting' },
-    ],
-  },
 ]
 
 export const SIDEBAR = {
@@ -192,11 +197,12 @@ export const SIDEBAR = {
     },
   ],
   '/reference/': REFERENCE,
-  '/troubleshooting': REFERENCE,
+  '/troubleshooting': DOCS,
   '/contributing/': [
     {
       text: 'Contributing',
       items: [
+        { text: 'Overview', link: '/contributing/' },
         { text: 'Building from Source', link: '/contributing/building' },
         { text: 'Pull Requests', link: '/contributing/pull-requests' },
         { text: 'Extending the Plugin System', link: '/contributing/plugins' },

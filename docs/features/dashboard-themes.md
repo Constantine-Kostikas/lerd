@@ -1,3 +1,8 @@
+---
+title: "Dashboard themes"
+description: "Lerd's web dashboard ships twelve themes and accepts your own. How to pick one, how the choice syncs across devices, and how to write a custom theme."
+---
+
 # Dashboard themes
 
 The dashboard ships twelve themes and takes as many of your own as you care to

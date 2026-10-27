@@ -1,6 +1,10 @@
+---
+description: Fixes for common Lerd problems, each under its exact error message, .test domains not resolving, port 80 in use, certificate warnings, rootless Podman errors, workers and macOS.
+---
+
 # Troubleshooting
 
-When something isn't working, start with the built-in diagnostics:
+When something isn't working, run `lerd doctor`: it checks Podman, systemd, DNS, ports, images and config, and prints a fix for each failure, and `lerd doctor --fix` applies the safe ones. Below, each common problem sits under its exact error message, grouped by area.
 
 ```bash
 lerd doctor   # full check: podman, systemd, DNS, ports, images, config
@@ -99,7 +103,10 @@ Remove the marker when you are done. While it exists, anyone who can reach the m
 
 ---
 
-::: details `.test` domains not resolving
+## DNS and `.test` domains
+
+### `.test` domains not resolving (DNS_PROBE_FINISHED_NXDOMAIN, systemd-resolved)
+
 First, confirm DNS is actually meant to be managed by lerd. If `lerd dns:check` reports `DNS managed externally`, you opted out of lerd-managed DNS during install and your sites should be on `*.localhost` rather than `*.test`. See [DNS](features/dns.md) for switching modes.
 
 Otherwise, the fastest way to find the broken rung is `lerd doctor`. The DNS section walks the chain top to bottom and surfaces exactly where it breaks, with a hint per failure:
@@ -135,17 +142,17 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"diag","arg
 ```
 
 The response includes a `steps` array with a `status` (`ok` / `fail` / `warn` / `skip`) and `hint` per rung, plus a `first_failure` index so an LLM can jump straight to the broken layer.
-:::
 
-::: details `.test` domains stop resolving when offline (no internet)
+### `.test` domains stop resolving when offline (no internet)
+
 On systemd-resolved systems, `.test` used to reach lerd-dns only through a route that depended on your real network being up: per interface (`resolvectl domain <iface> ~test`) when NetworkManager manages resolved, or a global drop-in otherwise. Either way, systemd-resolved refuses to resolve anything at all, over both `resolvectl` and the glibc/NSS path a browser uses, once no real link is routable, so a fresh `.test` lookup failed even though lerd-dns kept answering on `127.0.0.1:5300`. A common symptom was a page that still worked while the browser stayed open (cached DNS) but failed the moment you closed and reopened it.
 
 Lerd now keeps an always-up dummy interface, `lerd0`, that carries the `~test` route. Because that link never goes down, systemd-resolved keeps forwarding `.test` to lerd-dns with no network connection at all. It is created by a small system service, `lerd-dns-link.service`, which starts on every boot, so the fix survives reboots and applies automatically on your next `lerd start`, nothing to run by hand. This applies to both systemd-resolved setups: with NetworkManager (Ubuntu, Fedora, CachyOS) and without it (Arch, omarchy).
 
 If you also saw a stall of up to twenty seconds on `.test` while offline, that was an AAAA (IPv6) lookup. lerd's DNS config answers both `address=/.test/127.0.0.1` and `address=/.test/::1`, but the NetworkManager dispatcher used to regenerate that file from a v4-only template whenever an interface came up, dropping the AAAA record. dnsmasq then forwarded `.test` AAAA queries to your upstream, which times out once that upstream is unreachable. The dispatcher now leaves the address records alone, so AAAA is answered locally and returns instantly.
-:::
 
-::: details What is the `lerd0` network interface?
+### What is the `lerd0` network interface?
+
 `lerd0` is a dummy (virtual) network interface lerd creates on Linux so that `.test` domains keep resolving when you have no network at all. It carries no traffic and connects to nothing; it exists purely to give systemd-resolved a link that is always up to hang the `.test` route on. See the offline entry above for why that is necessary.
 
 It is deliberately marked unmanaged in NetworkManager (`/etc/NetworkManager/conf.d/lerd-dns-link.conf`), so it does not appear as a connection in your desktop's network menu and cannot be switched off by accident. Its only address is `192.0.2.1/32`, from the range RFC 5737 reserves for documentation and which never appears on a real network, so it cannot conflict with anything you connect to.
@@ -159,9 +166,9 @@ sudo systemctl restart lerd-dns-link.service
 ```
 
 `lerd uninstall` removes the interface, its service, and the NetworkManager rule. To remove it without uninstalling lerd, use `lerd dns:disable`, which turns off lerd's DNS management entirely.
-:::
 
-::: details DNS shows "Degraded" while connected to a VPN
+### DNS shows "Degraded" while connected to a VPN
+
 VPN clients such as Cisco AnyConnect, ProtonVPN, Mullvad, and WireGuard take over the system resolver when they connect, rewriting systemd-resolved so `.test` no longer routes to lerd-dns through the normal path. lerd-dns itself keeps running and answering, so the dashboard shows a yellow **Degraded** pill rather than a red **Failed** one, and `lerd doctor` reports the `system DNS lookup` rung as a warning instead of a failure. Sites still resolve, because lerd-dns answers directly on `127.0.0.1:5300`.
 
 The watcher subscribes to kernel rtnetlink link and address events on Linux, so it reacts to a VPN connect or disconnect within a second of the interface coming up or going down (a poll every 30 seconds covers the rare case of a missed kernel event). When the host resolver environment changes, it re-points the lerd network's aardvark-dns at the current host resolvers and reloads the network so containers pick them up with a fresh cache. This is what previously required a manual `lerd restart` after connecting the VPN before PHP could reach VPN-internal API endpoints. The re-sync briefly (about a second) interrupts DNS for lerd containers while aardvark-dns restarts.
@@ -173,9 +180,9 @@ hosts: mymachines mdns_minimal [NOTFOUND=return] files myhostname dns resolve
 ```
 
 This makes glibc consult the plain `dns` module before systemd-resolved's `nss-resolve`, which the VPN client no longer shadows.
-:::
 
-::: details `php artisan` fails with "could not translate host name lerd-postgres" while the site works in the browser
+### `php artisan` fails with "could not translate host name lerd-postgres" while the site works in the browser
+
 The site's `.env` names the service container and its internal port, `lerd-postgres:5432`, which is correct: that is how nginx and PHP-FPM reach the database, and it is why the browser is fine. The name exists only on the lerd network, so a PHP that runs on the host cannot look it up, and every console command fails on the name while nothing else does. Pointing the `.env` at `127.0.0.1` swaps the symptom rather than fixing it, the CLI starts working and the site stops.
 
 The command is meant to run inside the container, and normally does: `lerd install` puts a `php` shim in `~/.local/share/lerd/bin/` ahead of your PATH, and `php artisan migrate` routes through the project's PHP-FPM container. What breaks it is another PHP arriving in front of the shim. lerd writes its PATH line to your shell rc once, at install, so anything appended below it later, Herd, a Homebrew `shellenv`, mise, asdf or phpenv, takes `php` back, and so does an install that wrote to a different rc than your terminal reads.
@@ -188,22 +195,9 @@ lerd doctor      # the Configuration section reports what leads
 ```
 
 Doctor's `php on PATH` line names the binary in front when it is not lerd's. Move lerd's `export PATH` line to the end of your shell rc and open a new shell, and if the entry is missing entirely, `lerd path:enable` writes it back. To keep your own PHP in front deliberately, run `lerd path:disable` and type `lerd artisan migrate` instead, which always runs in the container whatever your PATH says.
-:::
 
-::: details `npm run build` fails on a Node version you never chose
-lerd pins a Node default and puts `node`, `npm` and `npx` shims in `~/.local/share/lerd/bin/` ahead of your PATH, so a project builds under the version lerd drives through mise. A Node version manager takes them back two ways: its rc line sits below lerd's, or you ran something like `nvm use 16` in that terminal, which prepends its bin for the rest of the session. The build then runs on whatever that manager had active and fails on an API the project assumed, `structuredClone is not defined` on Node 16 being the usual one.
+### composer or npm fails with "could not resolve host" inside a container
 
-Check which one you have:
-
-```bash
-which node       # expect ~/.local/share/lerd/bin/node
-lerd doctor      # the Configuration section reports what leads
-```
-
-Doctor's `node on PATH` line names the binary in front when it is not lerd's. If you switched by hand, a new shell is enough. If a manager's rc line is the cause, move lerd's `export PATH` line to the end of your shell rc, and `lerd path:enable` writes the entry back when it is missing entirely. To keep your own Node in front deliberately, run `lerd path:disable`.
-:::
-
-::: details composer or npm fails with "could not resolve host" inside a container
 Composer, npm and the framework store all run inside the container, not on the host, so they use the resolver the lerd network hands aardvark-dns rather than yours. Those two can differ: `.test` domains and container names are answered by aardvark-dns from its own records and keep working regardless, so a broken forwarder shows up only as downloads that fail with `could not resolve host` or `curl error 28 while downloading`, with nothing else complaining.
 
 `lerd doctor` checks this directly. In the DNS section, the `internet DNS from containers` line asks the running nginx container to resolve the framework store's hostname, which is an ordinary internet name and the same lookup composer makes:
@@ -223,9 +217,117 @@ podman network inspect lerd --format '{{.NetworkDNSServers}}'
 An address that is valid on the host but not routable from a rootless network namespace is the usual cause. This is worth checking on WSL2 in particular, where the Windows-side resolver address the WSL VM is given is not always reachable from inside the namespace.
 
 The other cause is a boot where lerd's containers started before the host network was really up. NetworkManager can report the network online while only a link-down bridge such as Docker's `docker0` has an address, and pasta then builds podman's rootless network on that bridge, with no route out, and never revisits it. Doctor reports this as `container network route`, and `lerd start` detects it and rebuilds the network by restarting the lerd containers. If a container outside lerd is still on a podman bridge network, the old network survives the restart and `lerd start` says so; stop that container and run `lerd start` again.
-:::
 
-::: details "Secure Connection Failed" after the host wakes from suspend or hibernate
+### Containers can resolve `.test` over IPv4 but not over IPv6
+
+Lerd 1.18+ creates the lerd podman network as dual-stack (v4 + v6) and writes both A and AAAA records for `.test` domains. If you upgraded from an older version, the existing v4-only `lerd` network is migrated automatically the next time you run `lerd install`: attached containers stop, the network is recreated with the `fd00:1e7d::/64` ULA prefix, the previous DNS server list is restored, and the containers restart. Quick check:
+
+```bash
+podman network inspect lerd --format '{{.Subnets}}'
+# expect both an IPv4 subnet and one starting with fd00:1e7d::
+```
+
+If the v6 subnet is missing, run `lerd install` once to migrate. To verify resolution from inside a container:
+
+```bash
+podman run --rm --network lerd alpine sh -c 'nslookup laravel.test; nslookup -type=AAAA laravel.test'
+```
+
+### Every DNS lookup inside a lerd container stalls ~5 seconds
+
+Symptom: pages that hit the database or any container-to-container hostname feel slow, and `time dig <anything> @<container>` takes roughly five seconds before returning an answer. The network looks fine in `podman network inspect lerd` (both IPv4 and IPv6 subnets present), but aardvark-dns's on-disk config has the v6 gateway absent from its listen-ips line.
+
+Cause: `podman network rm` doesn't clean up `$XDG_RUNTIME_DIR/containers/networks/aardvark-dns/<name>` between rm and recreate, so a network that was originally v4-only can leave aardvark with a v4-only listen header even after the network is recreated dual-stack. The container's `/etc/resolv.conf` still lists the v6 gateway as the primary nameserver, queries to it time out (~5s), then glibc falls back to the v4 gateway.
+
+Lerd 1.18+ detects this drift on `lerd install` (aardvark listen line is v4-only despite the network being dual-stack) and self-heals by recreating the network with the stale aardvark state wiped. If you're on an earlier 1.18 build or the heal didn't fire, force it:
+
+```bash
+lerd install
+```
+
+Manual verification:
+
+```bash
+cat "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks/aardvark-dns/lerd" | head -1
+# expect both gateways, e.g.: fd00:1e7d::1,10.89.7.1 169.254.1.1
+# if only 10.89.7.1 is present, the drift fix didn't run — re-run lerd install
+```
+
+## Ports 80 and 443
+
+### Port 80 already in use: "bind: address already in use"
+
+Another web server, often a distro Apache or nginx, or XAMPP, already holds port 80 or 443, so lerd's nginx cannot start and Podman reports `listen tcp 0.0.0.0:80: bind: address already in use`.
+
+`lerd start` checks for port conflicts before starting containers. If another process is already using a required port, you'll see a warning:
+
+```
+Port conflicts detected:
+  WARN: port 80 (nginx HTTP) already in use, may fail to start (check: ss -tlnp sport = :80)
+```
+
+Common culprits are Apache, another nginx instance, or a previously running lerd that wasn't stopped cleanly. Find and stop the conflicting process:
+
+```bash
+# Linux
+ss -tlnp sport = :80
+
+# macOS
+lsof -nP -iTCP:80 -sTCP:LISTEN
+```
+
+The exact command lerd suggests in `lerd doctor` and `lerd start` output is already platform-correct, so you can copy it from there.
+
+`lerd doctor` also checks for port conflicts as part of its full diagnostic, and adds a dedicated **[Stopped service ports]** section that flags installed services whose host port is already bound by another process. The same warning is shown next to the inactive status pill in the web UI, so you can spot the conflict without running anything: most often this is a system-installed service (Postgres, MySQL, Redis) listening on the default port. Stop the conflicting process and the warning clears on the next snapshot refresh.
+
+### Error: rootlessport cannot expose privileged port 80
+
+```
+Error: rootlessport cannot expose privileged port 80, you can add 'net.ipv4.ip_unprivileged_port_start=80' to /etc/sysctl.conf (currently 1024), or choose a larger port number (>= 1024)
+```
+
+Rootless Podman cannot bind to ports below 1024 by default. Allow it:
+
+```bash
+sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+# Make permanent:
+echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/99-lerd.conf
+```
+
+`lerd install` sets this automatically, but it may need to be re-applied after a kernel update.
+
+### Every service fails with "rootlessport listen tcp [::1]:80: bind: cannot assign requested address"
+
+
+Symptom: nothing starts. nginx, mysql, redis, mailpit and every other service exit with status 126, and the journal shows a bind failure on an IPv6 loopback address:
+
+```
+Error: rootlessport listen tcp [::1]:3306: bind: cannot assign requested address
+lerd-mysql.service: Main process exited, code=exited, status=126/n/a
+```
+
+Cause: the host no longer has `::1`. IPv6 was turned off kernel-wide, either at boot with `ipv6.disable=1` or at runtime by a VPN client doing leak prevention (the NordVPN Linux client sets `net.ipv6.conf.{all,default,lo}.disable_ipv6=1` while connected). Lerd published each service on both `127.0.0.1` and `[::1]`, and podman treats a publish it cannot bind as fatal rather than falling back to the address that would have worked.
+
+Lerd now checks for `::1` before writing a unit and publishes on IPv4 alone when it is gone, so a host in this state comes up normally. Existing units written by an older build are repaired on the next `lerd start`, which rewrites them and restarts whatever was already running. If IPv6 comes back later, the following start restores the dual-stack publish.
+
+Note that this is a different check from the one the network schema uses. That one wants a routable address; the publish only needs loopback, so a VM with just `::1` and `fe80::` still gets its `[::1]` binds while the network stays v4-only.
+
+## HTTPS and certificates
+
+### NET::ERR_CERT_AUTHORITY_INVALID or SEC_ERROR_UNKNOWN_ISSUER (certificate warning)
+
+The lerd CA must be installed in your browser's trust store. Ensure `certutil` / `nss-tools` is installed, then re-run `lerd install`:
+
+- Arch: `sudo pacman -S nss`
+- Debian/Ubuntu: `sudo apt install libnss3-tools`
+- Fedora: `sudo dnf install nss-tools`
+
+After installing the package, run `lerd install` again to register the CA.
+
+On macOS, this can also show up after a reinstall even though everything worked the first time: a macOS update can drop a certificate's trust settings while leaving the certificate itself in the keychain. `lerd install` asks whether the keychain still trusts the CA now, rather than only whether the certificate is there, and repairs it (with the usual admin authorization prompt) when it finds that drifted state. Just re-run `lerd install`.
+
+### "Secure Connection Failed" after the host wakes from suspend or hibernate
+
 After a long suspend or hibernate, rootless podman networking can come back in a bad state: the lerd-nginx container loses its host port forward (or stops), so nothing listens on 443 and the browser shows a generic "Secure Connection Failed" for your `.test` sites, or lerd-dns stops and names no longer resolve.
 
 On Linux the watcher now restarts nginx automatically. It notices the host has resumed from a real wall-clock gap in its tick loop (the timer is frozen while the machine is suspended), and on that one tick it checks whether lerd-nginx is accepting on its HTTPS port and restarts it if the listener died. Keying off the resume event rather than a continuous poll means it acts exactly once and can never fight a `lerd start` you ran yourself, since a start does not suspend the machine. DNS resolution is repaired by the same watcher's existing path, so `.test` names come back on their own too.
@@ -233,39 +335,44 @@ On Linux the watcher now restarts nginx automatically. It notices the host has r
 A stopped lerd-dns is healed too. Whenever the watcher finds `.test` broken it now asks lerd-dns directly on port 5300 whether it is alive, and restarts it when it is not, instead of only rewriting the host resolver config, which can never bring back a server that is gone. Waking is not the only way to lose it: the NetworkManager dispatcher restarts lerd-dns on every interface change, and a wake that brings wifi, ethernet and a VPN back at once used to fire enough restarts in a few seconds to exhaust systemd's start rate limit, which parks the unit in `failed` permanently. That limit is now lifted for lerd-dns, and the watcher clears any leftover failed state before it restarts.
 
 One case it still leaves for `lerd start` rather than acting from a background timer: a host whose IPv6 support changed across the wake, since the lerd network must be recreated and that rebuilds every container. The same applies in the rare case the watcher itself was not running at the moment of resume.
-:::
 
-::: details Nginx not serving a site
-Check that nginx and the PHP-FPM container are running, then inspect the generated vhost:
+### Nginx fails to start (missing certificates)
 
-```bash
-lerd status                         # check nginx and FPM are running
-podman logs lerd-nginx              # nginx error log
-cat ~/.local/share/lerd/nginx/conf.d/my-app.test.conf   # check generated vhost
+`lerd start` automatically detects SSL vhosts that reference missing certificate files and repairs them before starting nginx:
+
+- **Registered sites**: the site is switched back to HTTP and the vhost is regenerated. The registry is updated (`Secured = false`).
+- **Orphan SSL vhosts**: configs left behind by unlinked sites with missing certs are removed.
+
+Repaired items are printed as warnings during startup:
+
 ```
-:::
-
-::: details My custom nginx directive disappeared after an update
-Don't edit `~/.local/share/lerd/nginx/conf.d/*.conf` directly. Lerd regenerates those files on `lerd link`, `lerd secure`, `lerd site rebuild`, and every `lerd install` (which `lerd update` re-execs). Drop your snippet in `~/.local/share/lerd/nginx/custom.d/{domain}.conf` instead, the generated vhost ends with an `include` for that file, and lerd never writes into `custom.d/`. See [Nginx Overrides](./usage/nginx-overrides.md) for examples.
-:::
-
-::: details PHP-FPM container not running
-Check the systemd unit status and logs:
-
-```bash
-systemctl --user status lerd-php84-fpm
-systemctl --user start lerd-php84-fpm
-podman logs lerd-php84-fpm
+  WARN: missing TLS certificate for myapp.test, switched to HTTP
 ```
 
-If the image is missing (e.g. after `podman rmi`):
+To re-enable HTTPS after the automatic repair, run `lerd secure <name>`.
+
+If nginx still fails to start, check the logs:
 
 ```bash
-lerd php:rebuild
+journalctl --user -u lerd-nginx -n 30 --no-pager
 ```
-:::
 
-::: details `podman exec` fails with "chdir: No such file or directory"
+## Rootless Podman and container networking
+
+### Image builds fail with "Operation not permitted" (rootless Podman)
+
+A rootless Podman needs a subordinate uid and gid range for your user. Without one, building lerd's PHP images fails partway through extracting a layer, with a tar error ending in `Operation not permitted`. `lerd doctor` checks for it and names the fix:
+
+```bash
+echo "$USER:100000:65536" | sudo tee -a /etc/subuid
+echo "$USER:100000:65536" | sudo tee -a /etc/subgid
+podman system migrate
+```
+
+A missing `fuse-overlayfs` can fail the same way, so install it too if `lerd doctor` warns about it. A related start failure, `failed to mount runtime directory for rootless netns`, means the rootless network helpers are missing: `lerd doctor` lists which of netavark, aardvark-dns and pasta or slirp4netns to install.
+
+### `podman exec` fails with "chdir: No such file or directory"
+
 This happens when your project is outside your home directory (e.g. `/var/www/`, `/opt/projects/`). The PHP-FPM and nginx containers only mount `$HOME` by default.
 
 Lerd handles this automatically: when you `lerd link`, `lerd park`, or run any exec command (`lerd php`, `composer`, `laravel new`) from an outside path, lerd adds the volume mount and restarts the affected containers.
@@ -292,219 +399,9 @@ podman inspect lerd-php84-fpm --format '{{range .Mounts}}{{.Source}}
 ```
 
 If the path is in the quadlet but not in that output, `lerd restart` picks it up.
-:::
 
-::: details nginx fails to start with "statfs /path: no such file or directory"
-Podman refuses to start a container whose bind-mount source is gone, so a directory outside `$HOME` that lerd mounted while it existed, and that has since disappeared, stops the container dead. A Git branch checkout that removes a project subdirectory is the usual cause, and because nginx serves every site, one missing directory takes the whole stack down.
+### Error: NetworkUpdate is not supported for backend CNI: invalid argument
 
-`lerd start` repairs this for you: it drops the stale mounts before starting anything and tells you which path and site was responsible.
-
-```
-WARN: /var/www/erp/Modules/Accounts no longer exists (site erp), removed from lerd-nginx
-```
-
-The mount comes back on its own once the directory is there again and you run any command from it, or after `lerd restart`.
-:::
-
-::: details Permission denied on port 80/443
-Rootless Podman cannot bind to ports below 1024 by default. Allow it:
-
-```bash
-sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
-# Make permanent:
-echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/99-lerd.conf
-```
-
-`lerd install` sets this automatically, but it may need to be re-applied after a kernel update.
-:::
-
-::: details Watcher service not running
-The watcher monitors parked directories, site config files, git worktrees, and DNS health. If sites aren't being auto-registered or queue workers aren't restarting on `.env` changes:
-
-```bash
-lerd status                            # shows watcher running/stopped
-systemctl --user start lerd-watcher   # start it from the terminal
-# or use the Start button in the UI under System > Watcher
-```
-
-The watcher reports itself ready as soon as its watch loops are live and does its boot reconciliation (registering parked projects, provisioning worktrees) after that, in the background. A worktree install that takes minutes therefore delays only that worktree; it can't hold the unit below its start timeout and put systemd in a restart loop.
-
-To see what the watcher is doing:
-
-```bash
-journalctl --user -u lerd-watcher -f
-# or open the live log stream in the UI under System > Watcher
-```
-
-For verbose output (DEBUG level), set `LERD_DEBUG=1` in the service environment:
-
-```bash
-systemctl --user edit lerd-watcher
-# Add:
-# [Service]
-# Environment=LERD_DEBUG=1
-systemctl --user restart lerd-watcher
-```
-:::
-
-::: details HTTPS certificate warning in browser
-The lerd CA must be installed in your browser's trust store. Ensure `certutil` / `nss-tools` is installed, then re-run `lerd install`:
-
-- Arch: `sudo pacman -S nss`
-- Debian/Ubuntu: `sudo apt install libnss3-tools`
-- Fedora: `sudo dnf install nss-tools`
-
-After installing the package, run `lerd install` again to register the CA.
-
-On macOS, this can also show up after a reinstall even though everything worked the first time: a macOS update can drop a certificate's trust settings while leaving the certificate itself in the keychain. `lerd install` asks whether the keychain still trusts the CA now, rather than only whether the certificate is there, and repairs it (with the usual admin authorization prompt) when it finds that drifted state. Just re-run `lerd install`.
-:::
-
-::: details PHP image build is slow on first run
-lerd normally pulls a pre-built base image from ghcr.io and finishes in ~30 seconds. If you see it fall back to a local build instead, the most common cause is being logged into ghcr.io with expired or unrelated credentials; the registry rejects the authenticated request even though the image is public.
-
-lerd handles this automatically since v1.3.4 by always pulling anonymously. If you are on an older version, running `podman logout ghcr.io` before the build will fix it.
-:::
-
-::: details Nginx fails to start (missing certificates)
-`lerd start` automatically detects SSL vhosts that reference missing certificate files and repairs them before starting nginx:
-
-- **Registered sites**: the site is switched back to HTTP and the vhost is regenerated. The registry is updated (`Secured = false`).
-- **Orphan SSL vhosts**: configs left behind by unlinked sites with missing certs are removed.
-
-Repaired items are printed as warnings during startup:
-
-```
-  WARN: missing TLS certificate for myapp.test, switched to HTTP
-```
-
-To re-enable HTTPS after the automatic repair, run `lerd secure <name>`.
-
-If nginx still fails to start, check the logs:
-
-```bash
-journalctl --user -u lerd-nginx -n 30 --no-pager
-```
-:::
-
-::: details Port conflicts on `lerd start`
-`lerd start` checks for port conflicts before starting containers. If another process is already using a required port, you'll see a warning:
-
-```
-Port conflicts detected:
-  WARN: port 80 (nginx HTTP) already in use, may fail to start (check: ss -tlnp sport = :80)
-```
-
-Common culprits are Apache, another nginx instance, or a previously running lerd that wasn't stopped cleanly. Find and stop the conflicting process:
-
-```bash
-# Linux
-ss -tlnp sport = :80
-
-# macOS
-lsof -nP -iTCP:80 -sTCP:LISTEN
-```
-
-The exact command lerd suggests in `lerd doctor` and `lerd start` output is already platform-correct, so you can copy it from there.
-
-`lerd doctor` also checks for port conflicts as part of its full diagnostic, and adds a dedicated **[Stopped service ports]** section that flags installed services whose host port is already bound by another process. The same warning is shown next to the inactive status pill in the web UI, so you can spot the conflict without running anything: most often this is a system-installed service (Postgres, MySQL, Redis) listening on the default port. Stop the conflicting process and the warning clears on the next snapshot refresh.
-:::
-
-::: details Uninstall leaves the data directory behind
-Services write their files as a subuid inside the rootless user namespace, so MySQL, Postgres, MongoDB, Redis and RabbitMQ all leave trees under `~/.local/share/lerd` that your own user cannot delete. Both `lerd uninstall` and the installer's `--uninstall` remove them through `podman unshare`, which enters that namespace, so this normally happens without you noticing.
-
-If podman is already gone by then, the uninstall finishes and tells you what survived. Remove it yourself with:
-
-```bash
-podman unshare rm -rf ~/.local/share/lerd
-```
-
-If podman is no longer installed either, `sudo rm -rf ~/.local/share/lerd` is the last resort.
-
-An uninstall also takes `~/.cache/lerd`, the `lerd-tray` binary alongside `lerd`, both PATH entries lerd ever wrote into your shell rc, and the images it built itself (`lerd-php*-fpm`, `lerd-custom-*`, and `lerd-dnsmasq` if an install before 1.37 left it) when you accept the purge. Images it only pulled, your databases and your project files are never touched.
-:::
-
-::: details macOS keeps asking for access to Documents, Desktop or Downloads
-Symptom: on macOS, "fnm would like to access files in your Documents folder" comes back for a project that never moved, most often right after lerd bumps the Node version manager it downloads. Allowing it does not make it stop.
-
-Cause: macOS remembers a Files and Folders grant against the signing identity of the binary that asked. Tooling lerd runs for a site reads the project, macOS attributes that to the Node version manager rather than to lerd, and the fnm builds published upstream carry no signature at all. On Apple Silicon the system ad-hoc signs such a binary the first time it runs, and that identity is derived from the bytes, so the next pinned version is a stranger and the folder is asked for again. This is how macOS treats any unsigned tool; it is not specific to fnm.
-
-The fix is a version manager the system can recognise again after an update, which is why new installs use mise:
-
-```bash
-lerd node:manager mise
-```
-
-mise is signed and notarized under a Developer ID that stays the same from release to release, so the answer you give keeps matching and the prompt does not come back. lerd drives whichever mise you already have, and installs one to `~/.local/bin/mise` only if you have none. The switch carries your installed Node versions across to mise and then removes lerd's fnm; `lerd node:manager fnm` switches back and downloads fnm again. While a site in one of these folders still runs under fnm, `lerd site:doctor` flags it with a macOS folder access warning that points here.
-
-Your own nvm avoids it too, being a shell function inside a terminal you have already granted:
-
-```bash
-lerd node:manager nvm
-```
-
-Keeping the project outside the folders macOS guards, `~/Documents`, `~/Desktop` and `~/Downloads`, works as well. A symlink from one of them does not help, the grant follows the real files.
-:::
-
-::: details Workers missing after reinstall
-If you ran `lerd uninstall` and then reinstalled, worker units and service quadlets are deleted during uninstall. Running `lerd start` after reinstalling automatically restores them from the `workers` list saved in each site's `.lerd.yaml`. If `.lerd.yaml` does not exist or was not committed, you will need to start workers again manually (`lerd queue:start`, etc.).
-
-To check what was restored:
-```bash
-lerd status   # shows all active workers and services
-```
-:::
-
-::: details Workers failing or crash-looping
-Check `lerd status`, the Workers section lists all active, restarting, or failed workers. In the web UI, failing workers show a pulsing red toggle and a **!** on their log tab.
-
-To inspect the error:
-
-```bash
-journalctl --user -u lerd-queue-my-app -f    # or lerd-horizon-my-app, lerd-schedule-my-app
-```
-
-Common causes:
-- Missing Redis when `QUEUE_CONNECTION=redis`, start it with `lerd service start redis`
-- Missing dependencies after a fresh clone, run `lerd setup` to install them
-- Bad `.env` values, run `lerd env` to reset service connection settings
-
-When you unlink a site, crash-looping workers are automatically detected and stopped.
-:::
-
-::: details Error: could not fetch latest version: unexpected release URL format
-Symptom: `lerd update` fails with `unexpected release URL format: https://github.com/lerd-env/lerd/releases/latest`.
-
-Cause: your binary predates lerd 1.26 and still asks GitHub for releases under the old `geodro/lerd` path. Since the project moved to the `lerd-env` organisation, GitHub answers that path with a rename redirect to the new `/releases/latest` URL instead of the release itself, and older binaries only read the first redirect. The update command is the broken part, so no release can repair it remotely.
-
-Fix: reinstall once. This only replaces the binary; your sites, services, and config are untouched:
-
-```bash
-curl -fsSL https://lerd.sh/install.sh | bash
-```
-
-Everything from 1.26 onwards resolves the organisation move on its own, so this is a one-time step.
-
-On Homebrew, apt, dnf, or if you'd rather not pipe a script anywhere, [Updating from a version before 1.26](getting-started/updating-from-pre-1.26.md) has the route for each.
-:::
-
-::: details Error: could not fetch latest pre-release: GitHub API rate limit exhausted
-Symptom: `lerd update --beta` stops with `GitHub API rate limit exhausted for https://api.github.com/repos/lerd-env/lerd/releases, it resets in 46 min`.
-
-Cause: pre-releases are not covered by the `/releases/latest` redirect the stable channel follows, so the beta check asks the GitHub API instead. An anonymous API call is charged to a bucket of 60 requests an hour shared by everything on your IP, and any other tooling on the machine can empty it before lerd gets there. The stable channel is unaffected.
-
-Fix: wait for the reset the message names, or authenticate the call. Lerd sends `GITHUB_TOKEN` or `GH_TOKEN` if either is set in the environment, which raises the ceiling to 5,000 requests an hour:
-
-```bash
-export GITHUB_TOKEN=$(gh auth token)
-lerd update --beta
-```
-
-The token needs no scopes, public release metadata is all lerd reads, and it is only ever sent to `api.github.com` over https, never to a mirror configured through `LERD_RELEASES_API_URL`.
-
-A token that has expired or been revoked costs you nothing: GitHub answers it with a 401, and lerd drops the token and asks again anonymously, so the check still works on the 60 requests an hour every IP gets.
-:::
-
-::: details Error: NetworkUpdate is not supported for backend CNI: invalid argument
 Your system is likely configured to use the older CNI backend, which lacks support for the requested network operation. Edit or create the Podman configuration file at `/etc/containers/containers.conf` and add or modify the `network_backend` setting to `netavark`:
 
 ```toml
@@ -517,48 +414,33 @@ To ensure a clean switch and recreate the networks with the new backend, reset t
 ```bash
 podman system reset
 ```
-:::
 
-::: details Error: unknown flag: --dns (during `lerd install`)
+### Error: unknown flag: --dns (during `lerd install`)
+
 Symptom: `lerd install` aborts at the `podman network create` step with `Error: unknown flag: --dns`.
 
 Cause: your podman is older than 4.5. The `--dns` flag on `podman network create` was added in podman 4.5 (April 2023), and lerd needs it to write upstream DNS servers into netavark's per-network JSON atomically (otherwise the post-create `network update --dns-add` path crashes on Ubuntu 24.04's netavark <1.11). Distributions that ship podman older than 4.5: Ubuntu 22.04 / Zorin 17 (3.4.4), Debian 12 (4.3.1), Debian 11 (3.0.1).
 
 Fix: upgrade podman to 4.5 or newer. On Ubuntu 22.04 and Zorin 17 the main archive doesn't ship a new enough podman, but the [Kubic libcontainers OBS repo](https://podman.io/docs/installation#ubuntu-2204-2104-2010-2004) does (it's the path podman's own docs recommend). On Debian 12 enable bookworm-backports and run `sudo apt install -t bookworm-backports podman`. See the [requirements page](getting-started/requirements.md#podman-4-5-minimum) for the full distro/version table.
-:::
 
-::: details A site answers 502 for up to 30 seconds after a service starts or stops (Ubuntu 24.04, WSL)
+### A site answers 502 for up to 30 seconds after a service starts or stops (Ubuntu 24.04, WSL)
+
 Symptom: right after a service container starts or stops (a pause, an unpause, a service toggled), a site stalls and returns 502, and nginx logs `could not be resolved (110: Operation timed out)` for the PHP container.
 
 Cause: netavark older than 1.9, which Ubuntu 24.04 and the WSL distro ship (1.4.0), lets the lerd bridge take the lowest MAC address among its containers, so the address changes as containers come and go. Containers that cached the old one cannot reach the bridge, and with it aardvark-dns, until their cache expires.
 
 Fix: on netavark older than 1.9, `lerd start` and `lerd install` pin the bridge to its current address once the containers are up, so it no longer moves. Newer netavark pins it itself and lerd leaves it alone. If it still happens, run `lerd stop && lerd start` and check `lerd start` printed no `pin the lerd bridge address` warning.
-:::
 
-::: details Error: unable to parse ip fe80::...%18 specified in AddDNSServer: invalid argument
+### Error: unable to parse ip fe80::...%18 specified in AddDNSServer: invalid argument
+
 Your host's DNS configuration includes a zoned link-local IPv6 nameserver, typically advertised by your router via SLAAC + RDNSS. The zone identifier (`%18` is a kernel interface index) is meaningless inside a container's network namespace, and netavark refuses to accept it.
 
 Lerd 1.18+ filters these addresses automatically before handing them to podman. If you're still on 1.17 or older, upgrade with `lerd update` and rerun `lerd install`. The filter is conservative: only zoned link-local (`fe80::...%iface`) addresses are dropped; globally routable IPv6 nameservers (e.g. `2606:4700:4700::1111`) are preserved.
 
 When filtering empties the entire DNS list, lerd falls back to pasta's standard forwarder (`169.254.1.1`), which bridges into the host's resolver and preserves `.test` routing.
-:::
 
-::: details Containers can resolve `.test` over IPv4 but not over IPv6
-Lerd 1.18+ creates the lerd podman network as dual-stack (v4 + v6) and writes both A and AAAA records for `.test` domains. If you upgraded from an older version, the existing v4-only `lerd` network is migrated automatically the next time you run `lerd install`: attached containers stop, the network is recreated with the `fd00:1e7d::/64` ULA prefix, the previous DNS server list is restored, and the containers restart. Quick check:
+### Services fail to start with "aardvark-dns failed to bind [fd00:1e7d::1]:53"
 
-```bash
-podman network inspect lerd --format '{{.Subnets}}'
-# expect both an IPv4 subnet and one starting with fd00:1e7d::
-```
-
-If the v6 subnet is missing, run `lerd install` once to migrate. To verify resolution from inside a container:
-
-```bash
-podman run --rm --network lerd alpine sh -c 'nslookup laravel.test; nslookup -type=AAAA laravel.test'
-```
-:::
-
-::: details Services fail to start with "aardvark-dns failed to bind [fd00:1e7d::1]:53"
 
 Symptom: after `lerd install`, a subset of service containers (commonly `lerd-nginx`, `lerd-postgres`, `lerd-meilisearch`) fail to start. Journal shows:
 
@@ -588,45 +470,182 @@ export LERD_DISABLE_IPV6=1
 ```
 
 Either path writes `~/.local/share/lerd/ipv6-probe-failed-lerd`, which `EnsureNetwork` honors on every code path (initial create, migration, recreate). To re-enable dual-stack, delete that marker file and re-run `lerd install`.
-:::
 
-::: details Every service fails with "rootlessport listen tcp [::1]:80: bind: cannot assign requested address"
+## Nginx, PHP and Node
 
-Symptom: nothing starts. nginx, mysql, redis, mailpit and every other service exit with status 126, and the journal shows a bind failure on an IPv6 loopback address:
+### Nginx not serving a site
 
-```
-Error: rootlessport listen tcp [::1]:3306: bind: cannot assign requested address
-lerd-mysql.service: Main process exited, code=exited, status=126/n/a
-```
-
-Cause: the host no longer has `::1`. IPv6 was turned off kernel-wide, either at boot with `ipv6.disable=1` or at runtime by a VPN client doing leak prevention (the NordVPN Linux client sets `net.ipv6.conf.{all,default,lo}.disable_ipv6=1` while connected). Lerd published each service on both `127.0.0.1` and `[::1]`, and podman treats a publish it cannot bind as fatal rather than falling back to the address that would have worked.
-
-Lerd now checks for `::1` before writing a unit and publishes on IPv4 alone when it is gone, so a host in this state comes up normally. Existing units written by an older build are repaired on the next `lerd start`, which rewrites them and restarts whatever was already running. If IPv6 comes back later, the following start restores the dual-stack publish.
-
-Note that this is a different check from the one the network schema uses. That one wants a routable address; the publish only needs loopback, so a VM with just `::1` and `fe80::` still gets its `[::1]` binds while the network stays v4-only.
-:::
-
-::: details Every DNS lookup inside a lerd container stalls ~5 seconds
-Symptom: pages that hit the database or any container-to-container hostname feel slow, and `time dig <anything> @<container>` takes roughly five seconds before returning an answer. The network looks fine in `podman network inspect lerd` (both IPv4 and IPv6 subnets present), but aardvark-dns's on-disk config has the v6 gateway absent from its listen-ips line.
-
-Cause: `podman network rm` doesn't clean up `$XDG_RUNTIME_DIR/containers/networks/aardvark-dns/<name>` between rm and recreate, so a network that was originally v4-only can leave aardvark with a v4-only listen header even after the network is recreated dual-stack. The container's `/etc/resolv.conf` still lists the v6 gateway as the primary nameserver, queries to it time out (~5s), then glibc falls back to the v4 gateway.
-
-Lerd 1.18+ detects this drift on `lerd install` (aardvark listen line is v4-only despite the network being dual-stack) and self-heals by recreating the network with the stale aardvark state wiped. If you're on an earlier 1.18 build or the heal didn't fire, force it:
+Check that nginx and the PHP-FPM container are running, then inspect the generated vhost:
 
 ```bash
-lerd install
+lerd status                         # check nginx and FPM are running
+podman logs lerd-nginx              # nginx error log
+cat ~/.local/share/lerd/nginx/conf.d/my-app.test.conf   # check generated vhost
 ```
 
-Manual verification:
+### My custom nginx directive disappeared after an update
+
+Don't edit `~/.local/share/lerd/nginx/conf.d/*.conf` directly. Lerd regenerates those files on `lerd link`, `lerd secure`, `lerd site rebuild`, and every `lerd install` (which `lerd update` re-execs). Drop your snippet in `~/.local/share/lerd/nginx/custom.d/{domain}.conf` instead, the generated vhost ends with an `include` for that file, and lerd never writes into `custom.d/`. See [Nginx Overrides](./usage/nginx-overrides.md) for examples.
+
+### nginx fails to start with "statfs /path: no such file or directory"
+
+Podman refuses to start a container whose bind-mount source is gone, so a directory outside `$HOME` that lerd mounted while it existed, and that has since disappeared, stops the container dead. A Git branch checkout that removes a project subdirectory is the usual cause, and because nginx serves every site, one missing directory takes the whole stack down.
+
+`lerd start` repairs this for you: it drops the stale mounts before starting anything and tells you which path and site was responsible.
+
+```
+WARN: /var/www/erp/Modules/Accounts no longer exists (site erp), removed from lerd-nginx
+```
+
+The mount comes back on its own once the directory is there again and you run any command from it, or after `lerd restart`.
+
+### PHP-FPM container not running
+
+Check the systemd unit status and logs:
 
 ```bash
-cat "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks/aardvark-dns/lerd" | head -1
-# expect both gateways, e.g.: fd00:1e7d::1,10.89.7.1 169.254.1.1
-# if only 10.89.7.1 is present, the drift fix didn't run — re-run lerd install
+systemctl --user status lerd-php84-fpm
+systemctl --user start lerd-php84-fpm
+podman logs lerd-php84-fpm
 ```
-:::
 
-::: details Every container takes 90 seconds to start (Fedora Silverblue and other atomic images)
+If the image is missing (e.g. after `podman rmi`):
+
+```bash
+lerd php:rebuild
+```
+
+### PHP image build is slow on first run
+
+lerd normally pulls a pre-built base image from ghcr.io and finishes in ~30 seconds. If you see it fall back to a local build instead, the most common cause is being logged into ghcr.io with expired or unrelated credentials; the registry rejects the authenticated request even though the image is public.
+
+lerd handles this automatically since v1.3.4 by always pulling anonymously. If you are on an older version, running `podman logout ghcr.io` before the build will fix it.
+
+### `npm run build` fails on a Node version you never chose
+
+lerd pins a Node default and puts `node`, `npm` and `npx` shims in `~/.local/share/lerd/bin/` ahead of your PATH, so a project builds under the version lerd drives through mise. A Node version manager takes them back two ways: its rc line sits below lerd's, or you ran something like `nvm use 16` in that terminal, which prepends its bin for the rest of the session. The build then runs on whatever that manager had active and fails on an API the project assumed, `structuredClone is not defined` on Node 16 being the usual one.
+
+Check which one you have:
+
+```bash
+which node       # expect ~/.local/share/lerd/bin/node
+lerd doctor      # the Configuration section reports what leads
+```
+
+Doctor's `node on PATH` line names the binary in front when it is not lerd's. If you switched by hand, a new shell is enough. If a manager's rc line is the cause, move lerd's `export PATH` line to the end of your shell rc, and `lerd path:enable` writes the entry back when it is missing entirely. To keep your own Node in front deliberately, run `lerd path:disable`.
+
+## Workers and the watcher
+
+### Watcher service not running
+
+The watcher monitors parked directories, site config files, git worktrees, and DNS health. If sites aren't being auto-registered or queue workers aren't restarting on `.env` changes:
+
+```bash
+lerd status                            # shows watcher running/stopped
+systemctl --user start lerd-watcher   # start it from the terminal
+# or use the Start button in the UI under System > Watcher
+```
+
+The watcher reports itself ready as soon as its watch loops are live and does its boot reconciliation (registering parked projects, provisioning worktrees) after that, in the background. A worktree install that takes minutes therefore delays only that worktree; it can't hold the unit below its start timeout and put systemd in a restart loop.
+
+To see what the watcher is doing:
+
+```bash
+journalctl --user -u lerd-watcher -f
+# or open the live log stream in the UI under System > Watcher
+```
+
+For verbose output (DEBUG level), set `LERD_DEBUG=1` in the service environment:
+
+```bash
+systemctl --user edit lerd-watcher
+# Add:
+# [Service]
+# Environment=LERD_DEBUG=1
+systemctl --user restart lerd-watcher
+```
+
+### Workers missing after reinstall
+
+If you ran `lerd uninstall` and then reinstalled, worker units and service quadlets are deleted during uninstall. Running `lerd start` after reinstalling automatically restores them from the `workers` list saved in each site's `.lerd.yaml`. If `.lerd.yaml` does not exist or was not committed, you will need to start workers again manually (`lerd queue:start`, etc.).
+
+To check what was restored:
+```bash
+lerd status   # shows all active workers and services
+```
+
+### Workers failing or crash-looping
+
+Check `lerd status`, the Workers section lists all active, restarting, or failed workers. In the web UI, failing workers show a pulsing red toggle and a **!** on their log tab.
+
+To inspect the error:
+
+```bash
+journalctl --user -u lerd-queue-my-app -f    # or lerd-horizon-my-app, lerd-schedule-my-app
+```
+
+Common causes:
+- Missing Redis when `QUEUE_CONNECTION=redis`, start it with `lerd service start redis`
+- Missing dependencies after a fresh clone, run `lerd setup` to install them
+- Bad `.env` values, run `lerd env` to reset service connection settings
+
+When you unlink a site, crash-looping workers are automatically detected and stopped.
+
+## Install, update and uninstall
+
+### Error: could not fetch latest version: unexpected release URL format
+
+Symptom: `lerd update` fails with `unexpected release URL format: https://github.com/lerd-env/lerd/releases/latest`.
+
+Cause: your binary predates lerd 1.26 and still asks GitHub for releases under the old `geodro/lerd` path. Since the project moved to the `lerd-env` organisation, GitHub answers that path with a rename redirect to the new `/releases/latest` URL instead of the release itself, and older binaries only read the first redirect. The update command is the broken part, so no release can repair it remotely.
+
+Fix: reinstall once. This only replaces the binary; your sites, services, and config are untouched:
+
+```bash
+curl -fsSL https://lerd.sh/install.sh | bash
+```
+
+Everything from 1.26 onwards resolves the organisation move on its own, so this is a one-time step.
+
+On Homebrew, apt, dnf, or if you'd rather not pipe a script anywhere, [Updating from a version before 1.26](getting-started/updating-from-pre-1.26.md) has the route for each.
+
+### Error: could not fetch latest pre-release: GitHub API rate limit exhausted
+
+Symptom: `lerd update --beta` stops with `GitHub API rate limit exhausted for https://api.github.com/repos/lerd-env/lerd/releases, it resets in 46 min`.
+
+Cause: pre-releases are not covered by the `/releases/latest` redirect the stable channel follows, so the beta check asks the GitHub API instead. An anonymous API call is charged to a bucket of 60 requests an hour shared by everything on your IP, and any other tooling on the machine can empty it before lerd gets there. The stable channel is unaffected.
+
+Fix: wait for the reset the message names, or authenticate the call. Lerd sends `GITHUB_TOKEN` or `GH_TOKEN` if either is set in the environment, which raises the ceiling to 5,000 requests an hour:
+
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+lerd update --beta
+```
+
+The token needs no scopes, public release metadata is all lerd reads, and it is only ever sent to `api.github.com` over https, never to a mirror configured through `LERD_RELEASES_API_URL`.
+
+A token that has expired or been revoked costs you nothing: GitHub answers it with a 401, and lerd drops the token and asks again anonymously, so the check still works on the 60 requests an hour every IP gets.
+
+### Uninstall leaves the data directory behind
+
+The full uninstall for each platform is in [Uninstall Lerd](/getting-started/uninstall).
+
+Services write their files as a subuid inside the rootless user namespace, so MySQL, Postgres, MongoDB, Redis and RabbitMQ all leave trees under `~/.local/share/lerd` that your own user cannot delete. Both `lerd uninstall` and the installer's `--uninstall` remove them through `podman unshare`, which enters that namespace, so this normally happens without you noticing.
+
+If podman is already gone by then, the uninstall finishes and tells you what survived. Remove it yourself with:
+
+```bash
+podman unshare rm -rf ~/.local/share/lerd
+```
+
+If podman is no longer installed either, `sudo rm -rf ~/.local/share/lerd` is the last resort.
+
+An uninstall also takes `~/.cache/lerd`, the `lerd-tray` binary alongside `lerd`, both PATH entries lerd ever wrote into your shell rc, and the images it built itself (`lerd-php*-fpm`, `lerd-custom-*`, and `lerd-dnsmasq` if an install before 1.37 left it) when you accept the purge. Images it only pulled, your databases and your project files are never touched.
+
+## Fedora Silverblue and atomic images
+
+### Every container takes 90 seconds to start (Fedora Silverblue and other atomic images)
+
 Symptom: `lerd start` sits there for a minute and a half per container, and after a reboot nothing is serving until well over a minute in. `systemctl --user list-units --state=failed` shows `podman-user-wait-network-online.service` failed with a timeout, and `lerd doctor` reports the `podman network-online wait` check as a warning.
 
 Cause: podman's quadlet generator makes every rootless container `Wants=` and `After=podman-user-wait-network-online.service`, a unit that polls the system's `network-online.target` until it gives up after 90 seconds. That target is only reached when some unit pulls it in, and on atomic images (Silverblue, Kinoite, Bazzite, CoreOS) nothing does, so the wait can never succeed. Every container start, and the boot itself, pays the full timeout.
@@ -644,9 +663,9 @@ systemctl is-active network-online.target   # "inactive" here means every quadle
 ```
 
 To go back to podman's stock behaviour, delete the drop-in and run `systemctl --user daemon-reload`.
-:::
 
-::: details System tray missing on Fedora Silverblue and other atomic images
+### System tray missing on Fedora Silverblue and other atomic images
+
 Symptom: no tray icon, and `systemctl --user is-system-running` reports `degraded` because `lerd-tray.service` failed with status 127.
 
 Cause: `lerd-tray` links `libayatana-appindicator3.so.1`, which these images don't ship, and an immutable OS can't just install it into `/usr` on demand.
@@ -660,9 +679,33 @@ rpm-ostree install libayatana-appindicator-gtk3
 systemctl reboot
 lerd install   # re-enables the tray now that the library resolves
 ```
-:::
 
-::: details Podman Machine overlay-storage error (macOS)
+## macOS
+
+### macOS keeps asking for access to Documents, Desktop or Downloads
+
+Symptom: on macOS, "fnm would like to access files in your Documents folder" comes back for a project that never moved, most often right after lerd bumps the Node version manager it downloads. Allowing it does not make it stop.
+
+Cause: macOS remembers a Files and Folders grant against the signing identity of the binary that asked. Tooling lerd runs for a site reads the project, macOS attributes that to the Node version manager rather than to lerd, and the fnm builds published upstream carry no signature at all. On Apple Silicon the system ad-hoc signs such a binary the first time it runs, and that identity is derived from the bytes, so the next pinned version is a stranger and the folder is asked for again. This is how macOS treats any unsigned tool; it is not specific to fnm.
+
+The fix is a version manager the system can recognise again after an update, which is why new installs use mise:
+
+```bash
+lerd node:manager mise
+```
+
+mise is signed and notarized under a Developer ID that stays the same from release to release, so the answer you give keeps matching and the prompt does not come back. lerd drives whichever mise you already have, and installs one to `~/.local/bin/mise` only if you have none. The switch carries your installed Node versions across to mise and then removes lerd's fnm; `lerd node:manager fnm` switches back and downloads fnm again. While a site in one of these folders still runs under fnm, `lerd site:doctor` flags it with a macOS folder access warning that points here.
+
+Your own nvm avoids it too, being a shell function inside a terminal you have already granted:
+
+```bash
+lerd node:manager nvm
+```
+
+Keeping the project outside the folders macOS guards, `~/Documents`, `~/Desktop` and `~/Downloads`, works as well. A symlink from one of them does not help, the grant follows the real files.
+
+### Podman Machine overlay-storage error (macOS)
+
 Symptom: on macOS, `lerd start` fails and **every** container start reports a graph-driver / overlay error:
 
 ```
@@ -681,9 +724,9 @@ lerd machine reset
 ```
 
 This stops the VM, removes it, and re-initialises it. Databases and site data are preserved (they live on the host); container images are rebuilt automatically on the next `lerd start`. See [Start, Stop & Autostart → `lerd machine reset`](usage/lifecycle.md#lerd-machine-reset-macos).
-:::
 
-::: details A project on an external drive is created inside the VM (macOS)
+### A project on an external drive is created inside the VM (macOS)
+
 Symptom: on macOS, `lerd new` on a path outside your home directory reports the project as created, then the run warns `chdir /Volumes/<drive>/<project>: no such file or directory` and the folder is nowhere on the drive.
 
 Cause: on macOS every bind mount is resolved inside the Podman Machine VM, and the VM only sees the host trees it was given when it was created. A drive mounted under `/Volumes` is often not among them, so the container sees an empty directory at that path, composer writes the whole project into the VM, and it never lands on the disk.
@@ -697,9 +740,9 @@ lerd machine reset
 ```
 
 `lerd start` points this out on its own when something is already served from outside your home directory. If the drive is still invisible after a reset, macOS is withholding access to it from the VM process rather than lerd failing to ask; keep the project under your home directory.
-:::
 
-::: details An external drive will not eject while lerd is running (macOS)
+### An external drive will not eject while lerd is running (macOS)
+
 Symptom: `diskutil unmount` or the eject button refuses with `dissented by PID ... com.apple.Virtualization.VirtualMachine`.
 
 Cause: the Podman Machine VM shares `/Volumes` for as long as it runs, so macOS treats every drive under it as in use. Stopping the containers is not enough, the VM itself has to go down:
@@ -712,4 +755,3 @@ podman machine stop
 The drive ejects after that, and `lerd start` brings the VM and your other sites back. Plugging the drive in again is picked up by a running VM on its own, no restart needed.
 
 While the drive is away, lerd starts normally and every other site is unaffected: the missing path is dropped from the container mounts and the site on the drive stops being served. Your files are untouched, but the site is removed from `lerd sites`, so bring it back with `lerd link` and, if it was on HTTPS, `lerd secure` from the project directory.
-:::

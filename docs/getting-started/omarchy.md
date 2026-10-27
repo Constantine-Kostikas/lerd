@@ -181,7 +181,7 @@ Once, at install, to point the system resolver at the `.test` domains. Everythin
 Yes, provided `loginctl enable-linger $USER` is set, which the installer handles. The DNS route is re-created by `lerd-dns-link.service` on every boot.
 
 **Does it theme with Omarchy?**
-The bar widget follows the Quattro shell's own styling. The [web dashboard](/features/web-ui) has its own light and dark themes and follows your browser.
+The bar widget follows the Quattro shell's own styling. The [web dashboard](/features/web-ui) has its own light and dark modes and twelve [dashboard themes](/features/dashboard-themes) to choose from.
 
 ## Next steps
 

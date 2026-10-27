@@ -118,4 +118,5 @@ Some `.htaccess` features have no clean nginx counterpart. Password protection w
 
 - [Nginx overrides](/usage/nginx-overrides), the full reference for the per-site editor
 - [Quick start](/getting-started/quick-start), a project served in two commands
+- [XAMPP alternative for Linux](/getting-started/xampp), the same move from XAMPP
 - [Full comparison](/getting-started/comparison) against Laravel Herd, Laragon, DDEV and Lando

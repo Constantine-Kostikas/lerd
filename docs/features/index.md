@@ -8,10 +8,11 @@ Beyond serving PHP sites, lerd ships a set of tools for working with them. Every
 
 ## Interfaces
 
-- [Web UI](/features/web-ui) is the browser dashboard at `lerd.localhost`, for sites, services, logs, databases and workers.
+- [Web UI](/features/web-ui) is the browser dashboard at `lerd.localhost`, for sites, services, logs, databases and workers, in any of twelve [dashboard themes](/features/dashboard-themes) or your own.
 - [TUI](/features/tui) is the terminal dashboard, informative with reversible quick actions.
 - [Framework Commands](/usage/framework-commands) covers the per-framework admin actions and custom commands.
 - [System tray](/features/system-tray) puts start, stop and site shortcuts in your desktop tray.
+- [PhpStorm plugin](/features/phpstorm-plugin) brings the open project's site, logs, workers, services, queries and dumps into the IDE.
 - [MCP server](/features/mcp) exposes lerd to AI assistants so they can inspect and drive your environment.
 
 ## Serving sites

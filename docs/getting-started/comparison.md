@@ -1,193 +1,44 @@
-# Lerd vs Other Tools
+---
+title: Lerd compared with Herd, Laragon, DDEV, Lando and Sail
+description: 'How Lerd compares with Laravel Herd, Laragon, Laravel Sail, DDEV, Lando and Laradock on OS support, licence, isolation and reproducibility, with a page per tool.'
+---
+
+# Lerd vs other tools
+
+Lerd is a shared local stack: one nginx, PHP-FPM per PHP version and one instance of each service, run as rootless Podman containers, that every project drops into. Each tool below takes a different route, and each has its own page with the full comparison.
+
+| Tool | OS support | Licence | How it runs | Project config in the repo |
+|---|---|---|---|---|
+| **Lerd** | Linux, macOS, Windows (WSL2) | MIT | Shared stack, rootless Podman | `.lerd.yaml`, optional |
+| [Laravel Herd](#lerd-vs-laravel-herd) | macOS, Windows | Proprietary, paid Pro tier | Shared stack, native binaries | `herd.yml`, optional |
+| [Laragon](#lerd-vs-laragon) | Windows | Proprietary, paid licence | Shared stack, native binaries | None |
+| [Laravel Sail](#lerd-vs-laravel-sail) | Linux, macOS, Windows | MIT | Per-project Docker Compose | `docker-compose.yml`, required |
+| [DDEV](#lerd-vs-ddev) | Linux, macOS, Windows | Apache 2.0 | Per-project containers | `.ddev/config.yaml`, required |
+| [Lando](#lerd-vs-lando) | Linux, macOS, Windows | GPL-3.0 | Per-project containers | `.lando.yml`, required |
+| [Laradock](#lerd-vs-laradock) | Linux, macOS, Windows | MIT | Per-project Docker Compose | `laradock/` folder, required |
 
 ## Lerd vs Laravel Herd
 
-[Laravel Herd](https://herd.laravel.com/) is a zero-config shared stack with automatic `.test` domains, one-click HTTPS, and per-site PHP versions, built on native binaries for macOS and Windows. Lerd takes the same shared-stack approach as open source on Linux and macOS, built on rootless Podman.
-
-|  | Lerd | Laravel Herd |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | macOS, Windows |
-| License | Open source (MIT) | Proprietary, freemium (Herd Pro subscription) |
-| PHP runtime | Rootless Podman containers | Native binaries on macOS and Windows |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | 7.4 through 8.5 (native) |
-| FrankenPHP / Octane | Built in: `lerd runtime frankenphp [--worker]` per site, free | Not built in; Octane runs manually alongside Herd |
-| `.test` domains | Automatic via lerd's built-in DNS server | Automatic via native dnsmasq resolver |
-| HTTPS | `lerd secure` + mkcert, trusted system-wide | Built-in "Secure Site" toggle |
-| Xdebug | `lerd xdebug:on`, tray toggle | Per-site toggle (Herd Pro) |
-| Services | Free: MySQL, Postgres, Redis, Meilisearch, RustFS (S3) and Mailpit built in, MongoDB and more as add-ons from a service store that updates without a release, custom services via YAML presets | MySQL, MariaDB, PostgreSQL, Redis, Typesense, Meilisearch, MinIO, Reverb and mail, all in Herd Pro, along with the dumps window and log viewer |
-| Non-PHP projects | First-class via `Containerfile.lerd` (Node, Python, Go, Rails, ...) | Not directly supported, Herd focuses on PHP |
-| Per-project config | `.lerd.yaml` committed to the repo; covers PHP, Node, framework, services, workers, and custom containers; applied by `lerd link` / `lerd init` | [`herd.yml`](https://herd.laravel.com/docs/macos/sites/herd-yaml) committed to the repo; covers name, PHP, TLS, aliases on the free tier; services require Herd Pro; applied by `herd init` |
-| Queue + scheduler workers | `lerd worker start queue` / `schedule` as systemd user services | Not built in; run Horizon or supervisor yourself |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, and an installable PWA at `lerd.localhost` | Native desktop app |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Supported |
-| AI / MCP | Built-in MCP server; `lerd mcp:enable-global` registers it for Claude Code, Cursor, Junie, and Windsurf | Built-in MCP server for Claude Code, Cursor, Junie, and Windsurf |
-| Cost | Free | Free tier + paid Pro subscription |
-
-**Choose Herd when:** you work on macOS or Windows, want the performance of native PHP binaries (no container overhead), are already in the Laravel Forge and Envoyer ecosystem, or are happy paying for Pro features.
-
-**Choose Lerd when:** you work on Linux (Herd has no Linux build), prefer open source, want reproducible project setup checked into git via `.lerd.yaml`, need first-class non-PHP containers, or want a single tool that covers PHP, Node, Python, and Go behind the same `.test` routing.
-
-See [Laravel Herd for Linux](/getting-started/herd-linux) for the command-by-command mapping, what Herd Pro gates that Lerd does not, and a migration walkthrough.
-
----
+Herd is a shared stack of native binaries for macOS and Windows, free with a paid Pro tier for databases, mail and other services. Herd's own FAQ says Linux support is being worked on but is not ready. Lerd covers the same workflow on Linux and macOS, open source, with every service free. See [Laravel Herd for Linux](/getting-started/herd-linux#lerd-vs-laravel-herd), which also covers Herd 2.0.
 
 ## Lerd vs Laragon
 
-[Laragon](https://laragon.org/) is the Windows counterpart to this idea: a portable, zero-config stack with pretty `.test` URLs, auto-generated virtual hosts, one-click SSL and bundled databases. It runs on Windows only and a Linux build is not planned, which is why "Laragon for Linux" is a question people keep asking. Lerd is the answer to it, the same shared-stack model built on rootless Podman.
-
-|  | Lerd | Laragon |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | Windows only |
-| License | Open source (MIT), free for commercial use | Proprietary, a licence is required from Laragon 7 onwards |
-| Cost | Free | Free unlicenced tier with a reminder popup and no auto-updates; paid non-commercial and commercial licences |
-| Stack | Nginx, PHP-FPM and services as rootless Podman containers | Apache or Nginx and services as native Windows binaries in a portable folder |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | Multiple versions downloaded into the Laragon folder |
-| `.test` domains | Automatic via lerd's built-in DNS server, no hosts file edits | Automatic via hosts file entries written by the tray app |
-| HTTPS | `lerd secure` + mkcert, trusted system-wide | One-click self-signed certificate, trusted manually |
-| Scaffolding | `lerd new` runs the framework's own installer | Quick app, one-click Laravel, WordPress, Symfony |
-| Services | MySQL, Postgres, Redis, Meilisearch, RustFS (S3) and Mailpit built in, MongoDB and more as add-ons from the service store, shared across sites | MySQL, PostgreSQL, Redis, Memcached, per-install |
-| Non-PHP projects | First-class via `Containerfile.lerd` (Node, Python, Go, Rails) | Node, Python and Go bundled as tools, not served as projects |
-| Per-project config | `.lerd.yaml` committed to the repo | None, configuration lives in the Laragon install |
-| Queue + scheduler workers | `lerd worker start queue` / `schedule` as systemd user services | Not built in |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, installable PWA | Native tray application |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
-| AI / MCP | Built-in MCP server | Not built in |
-
-**Choose Laragon when:** you work on Windows and want native binaries with no container layer, and the portable folder suits how you move between machines.
-
-**Choose Lerd when:** you have moved to Linux or macOS, want the same zero-config experience without a Docker daemon, or want the environment described in a file you can commit.
-
-See [Laragon for Linux](/getting-started/laragon-linux) for the feature-by-feature mapping and a migration walkthrough.
-
----
+Laragon is a portable Windows stack with `.test` URLs, auto virtual hosts and bundled databases, and needs a licence from version 7. It has no Linux build. Lerd gives the same workflow on Linux and macOS, and on Windows through WSL2. See [Laragon for Linux](/getting-started/laragon-linux#lerd-vs-laragon), with a migration guide.
 
 ## Lerd vs Laravel Sail
 
-[Laravel Sail](https://laravel.com/docs/sail) is the official per-project Docker Compose solution. Lerd is a shared infrastructure approach: one stack that every project drops into. Both are valid; they solve slightly different problems.
-
-|  | Lerd | Laravel Sail |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
-| License | Open source (MIT) | Open source (MIT) |
-| Container runtime | Rootless Podman | Docker Desktop / Orbstack / Colima |
-| Architecture | One shared nginx + PHP-FPM + services across every site | Per-project Docker Compose stack |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | Per-project Sail image (8.2, 8.3, 8.4) |
-| Services (MySQL, Redis…) | One shared instance | Per-project (or manually shared) |
-| `.test` domains | Automatic, zero config | Manual `/etc/hosts` or `localhost:${APP_PORT}` per project |
-| HTTPS | `lerd secure` for trusted mkcert cert instantly | Manual or roll your own mkcert |
-| Non-PHP projects | First-class via `Containerfile.lerd` (Node, Python, Go, Rails) | Add your own container to the Compose stack |
-| Per-project config | `.lerd.yaml` (PHP + Node + services + workers) | `docker-compose.yml` + `Dockerfile` |
-| RAM with 5 projects running | ~200 MB | ~1–2 GB (5× full stacks) |
-| Requires changes to project files | No | Yes, needs `docker-compose.yml` committed |
-| Works on legacy / client repos | Yes, just `lerd link` | Only if you can add Sail |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, installable PWA at `lerd.localhost` | CLI + Docker Desktop |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
-| Cost | Free | Free |
-
-**Choose Sail when:** your team uses it, you need per-project service versions, or you want infrastructure defined in the repo.
-
-**Choose Lerd when:** you work across many projects at once and don't want a separate stack per repo, you can't modify project files, or you want instant `.test` routing on Linux and macOS.
-
-### Migrating from Sail to Lerd
-
-The **sail** plugin imports a Sail project's database and S3/MinIO files into lerd in one command, no manual dump/restore needed. It starts Sail temporarily with remapped ports (so there are no conflicts with lerd's running services), dumps the database, mirrors storage files, then tears Sail back down.
-
-```bash
-lerd plugin install sail
-cd ~/Projects/myapp
-lerd link && lerd env
-lerd sail:import
-```
-
-See [Laravel Sail alternative](/getting-started/sail) for the full migration guide, and [Importing from Laravel Sail](/usage/import-sail) for the options.
-
----
+Sail is Laravel's official per-project Docker Compose setup, each project with its own containers and services. Lerd runs one shared stack instead, and its sail plugin moves a Sail project across, database and S3 files included, in one command. See [Laravel Sail alternative](/getting-started/sail).
 
 ## Lerd vs ddev
 
-[ddev](https://ddev.com/) is a popular open-source local development tool that spins up per-project Docker containers with a shared Traefik router. It supports many frameworks (Laravel, WordPress, Drupal, etc.) and runs on macOS, Windows, and Linux. Lerd takes the shared-infrastructure route instead: one rootless Podman stack that every project drops into.
-
-|  | Lerd | ddev |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
-| License | Open source (MIT) | Open source (Apache 2.0) |
-| Container runtime | Rootless Podman | Docker / Podman / Orbstack / Colima |
-| Architecture | Shared nginx + PHP-FPM across all projects | Per-project containers behind a shared reverse proxy |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | 5.6 through 8.4+ (per-project Docker image) |
-| Services (MySQL, Redis…) | One shared instance | Per-project (isolated by default) |
-| Domains | `.test`, automatic | `.ddev.site` or custom, automatic via the built-in proxy |
-| HTTPS | `lerd secure` for trusted mkcert cert instantly | Built-in via mkcert |
-| Non-PHP projects | First-class via `Containerfile.lerd` (Node, Python, Go, Rails) | `nodejs` and `generic` project types |
-| Per-project config | `.lerd.yaml` committed to the repo | `.ddev/config.yaml` committed to the repo |
-| RAM with 5 projects running | ~200 MB | ~500 MB–1 GB (5× app containers + proxy) |
-| Requires changes to project files | No | Yes, needs `.ddev/config.yaml` committed |
-| Works on legacy / client repos | Yes, just `lerd link` | Only if you can add ddev config |
-| Framework support | Laravel, Symfony, WordPress, Drupal, Magento, Statamic and more from the framework store; any other PHP framework via a YAML definition | Laravel, WordPress, Drupal, TYPO3, and many more |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, installable PWA at `lerd.localhost` | CLI + optional per-project web UI |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
-| Cost | Free | Free |
-
-**Choose ddev when:** your team is cross-platform, you work with multiple frameworks, you want per-project service isolation, or your workflow already depends on Docker or Podman.
-
-**Choose Lerd when:** you want a zero-config shared stack you can drop any project into without touching its files, or prefer a lighter footprint on rootless Podman.
-
----
+DDEV runs containers per project behind a shared router, configured by `.ddev/config.yaml` in the repo, which gives strong isolation between projects. Lerd shares one stack and needs nothing committed. See [Lerd vs DDEV](/getting-started/lerd-vs-ddev).
 
 ## Lerd vs Lando
 
-[Lando](https://lando.dev/) is a long-running open-source local development tool built on Docker. Like ddev it spins up a per-project container stack behind a shared proxy, configured through a `.lando.yml` file committed to the repo, and it leans on "recipes" that bundle a service stack and its tooling for a given platform. Lerd takes the shared-infrastructure route instead.
-
-|  | Lerd | Lando |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
-| License | Open source (MIT) | Open source (GPL-3.0) |
-| Container runtime | Rootless Podman | Docker |
-| Architecture | Shared nginx + PHP-FPM across all projects | Per-project containers behind a shared proxy |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers) | Per-project, set in the recipe or `.lando.yml` |
-| Services (MySQL, Redis…) | One shared instance | Per-project (isolated by default) |
-| Domains | `.test`, automatic | `*.lndo.site`, automatic via the proxy |
-| HTTPS | `lerd secure` for a trusted mkcert cert instantly | Built-in, per-project certificate |
-| Non-PHP projects | First-class via `Containerfile.lerd` (Node, Python, Go, Rails) | First-class via recipes and services (Node, Python, Ruby, Go, .NET) |
-| Per-project config | `.lerd.yaml` committed to the repo | `.lando.yml` committed to the repo |
-| RAM with 5 projects running | ~200 MB | ~500 MB–1 GB+ (5× project stacks) |
-| Requires changes to project files | No | Yes, needs `.lando.yml` committed |
-| Works on legacy / client repos | Yes, just `lerd link` | Only if you can add a Landofile |
-| Framework support | Laravel, Symfony, WordPress, Drupal, Magento, Statamic and more from the framework store; any other PHP framework via a YAML definition | Recipes for Drupal, WordPress, Laravel, Symfony, and many more |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, installable PWA at `lerd.localhost` | CLI only |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
-| Cost | Free | Free |
-
-**Choose Lando when:** your team is cross-platform, you want per-project service isolation defined in the repo, you work with hosting platforms like Pantheon, Platform.sh, or Lagoon and want their `lando pull` / `lando push` workflow, or your workflow already depends on Docker.
-
-**Choose Lerd when:** you want a zero-config shared stack you can drop any project into without committing a config file, prefer rootless Podman with a lighter footprint, or want a built-in web UI and terminal dashboard on Linux or macOS.
-
----
+Lando builds a per-project stack from a `.lando.yml` and platform recipes, with integrations for hosts such as Pantheon and Platform.sh. See [Lerd vs Lando](/getting-started/lerd-vs-lando).
 
 ## Lerd vs Laradock
 
-[Laradock](https://laradock.io) is a collection of prebuilt Docker images behind one `docker-compose.yml`, checked into the repo as a `laradock/` folder, with a `workspace` container you shell into to run PHP tooling. Lerd replaces the whole arrangement with one shared, rootless stack and no files in the repo.
+Laradock is a set of Docker images behind a `docker-compose.yml` kept in a `laradock/` folder, with a workspace container for tooling. See [Laradock alternative](/getting-started/laradock) for the comparison and migration path.
 
-|  | Lerd | Laradock |
-|---|---|---|
-| Platforms | Linux (systemd), macOS, Windows via WSL2 | Linux, macOS, Windows |
-| License | Open source (MIT) | Open source (MIT) |
-| Container runtime | Rootless Podman, no daemon | Docker, root daemon or Docker Desktop |
-| Architecture | Shared nginx + PHP-FPM across all projects | Per-project Compose stack, one container per service |
-| PHP versions | 8.1, 8.2, 8.3, 8.4, 8.5, the 8.6 prerelease, plus legacy 7.4 and 8.0 (shared FPM containers), per project, no rebuild | Set in `laradock/.env`, rebuild the image to change |
-| Services (MySQL, Redis…) | One shared instance | Per-project, uncommented in the Compose file |
-| Domains | `.test`, automatic | Manual `/etc/hosts` plus a site conf per project |
-| HTTPS | `lerd secure` for a trusted mkcert cert instantly | Bring your own certificate |
-| Running tooling | `lerd artisan` / `lerd composer` from your own shell | `docker compose exec workspace` first |
-| Per-project config | `.lerd.yaml`, optional | `laradock/` submodule + `docker-compose.yml` + its `.env` |
-| RAM with 5 projects running | ~200 MB | Several GB (5× full stacks) |
-| First run | Pulls prebuilt images | Builds images from source |
-| Works on legacy / client repos | Yes, just `lerd link` | Only if you can add Laradock to it |
-| Dashboard | Web UI at `127.0.0.1:7073`, terminal dashboard, system tray, PhpStorm plugin, installable PWA | CLI + Docker Desktop |
-| Git worktrees | Each worktree served at its own branch domain, sharing the parent's database or [getting its own](/features/git-worktrees#per-worktree-database) | Not built in |
-| Cost | Free | Free |
-
-**Choose Laradock when:** two projects need different major versions of the same database at the same time, or your team wants the environment fully described inside the repo.
-
-**Choose Lerd when:** you juggle several projects at once, you are tired of rebuilding images to change a PHP version, or you want `.test` URLs and HTTPS without wiring them by hand.
-
-See [Laradock alternative](/getting-started/laradock) for the full migration path.
+Moving from an all-in-one stack instead? See [XAMPP alternative for Linux](/getting-started/xampp) and [Moving from MAMP](/getting-started/mamp).

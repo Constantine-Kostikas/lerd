@@ -17,7 +17,7 @@ head:
             "name": "Is there a Laravel Herd for Linux?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. Laravel Herd ships for macOS and Windows only. There is no Linux build, no .deb or .rpm package, and no announced plan for one. To get the Herd workflow on Linux you need a different tool. Lerd is the closest equivalent: automatic .test domains, one-click HTTPS, per-site PHP versions, shared databases and queue workers, on Linux and macOS."
+              "text": "No. Laravel Herd ships for macOS and Windows only. There is no Linux build yet, and Herd's own FAQ says Linux support is in progress but not ready to ship. To get the Herd workflow on Linux you need a different tool. Lerd is the closest equivalent: automatic .test domains, one-click HTTPS, per-site PHP versions, shared databases and queue workers, on Linux and macOS."
             }
           },
           {
@@ -58,7 +58,7 @@ head:
 
 # Laravel Herd for Linux
 
-**Laravel Herd does not run on Linux.** It ships as a macOS application and a Windows application, both built around native platform binaries and a native desktop app. There is no Linux build, no `.deb`, no `.rpm`, no AppImage, and no announced plan for one, which is why "Laravel Herd for Linux" is a question that keeps coming up.
+**Laravel Herd does not run on Linux.** It ships as a macOS application and a Windows application, both built around native platform binaries and a native desktop app. There is no Linux build, no `.deb`, no `.rpm` and no AppImage today. Herd's FAQ says Linux support is being worked on but is not ready to ship, which is why "Laravel Herd for Linux" is a question that keeps coming up.
 
 If you have moved to Linux, or your team is on Herd and you are not, **Lerd is the closest equivalent**. Same idea: one tool that gives every project a `.test` URL, HTTPS, a PHP version and the services it needs, with nothing to configure per project. MIT licensed, free for commercial use, on Linux and macOS.
 
@@ -104,7 +104,7 @@ Unlike Herd, lerd also ships as real distro packages: install it through an [apt
 | HTTPS | `lerd secure` and mkcert, trusted system-wide | Built-in Secure Site toggle |
 | FrankenPHP / Octane | Built in, `lerd runtime frankenphp [--worker]` per site, free | Not built in, Octane runs manually alongside Herd |
 | Xdebug | `lerd xdebug:on`, tray toggle | Per-site toggle in Herd Pro |
-| Services | Built in and free, with add-ons fetched from a store that updates without a new release | Some in the free tier, most advanced services and UIs behind Herd Pro |
+| Services | Built in and free, with add-ons fetched from a store that updates without a new release | MySQL, PostgreSQL, Redis and mail in Herd Pro ($99 a year) |
 | Queue and scheduler workers | `lerd worker start queue` / `schedule`, systemd user services | Not built in, run Horizon or supervisor yourself |
 | Per-project config | `.lerd.yaml`, covering PHP, Node, framework, services, workers and custom containers | `herd.yml`, covering name, PHP, TLS and aliases on the free tier, services need Pro |
 | Non-PHP projects | First-class through `Containerfile.lerd` or a [host-proxy site](/usage/host-proxy) | Not directly supported, Herd focuses on PHP |
@@ -162,6 +162,20 @@ lerd db:import myapp.sql
 
 Full detail lives in the [quick start](/getting-started/quick-start) and the [site management](/usage/sites) guide.
 
+## Lerd vs Herd 2.0
+
+Herd 2.0 adds two headline features. Here is how each maps onto Lerd.
+
+| Herd 2.0 | Lerd |
+|---|---|
+| **Workspaces**: every branch gets its own copy of the app, a domain and a database, created from the app or with `herd workspace` | **[Git worktrees](/features/git-worktrees)**: `lerd worktree add` checks a branch out, serves it at `<branch>.<site>.test` with HTTPS, installs dependencies, and either shares the site's database or [gives the branch its own](/features/git-worktrees#per-worktree-database) |
+| **Herd Studio**: a site's live preview, console, logs, terminal and code context in one place, for agents such as Claude Code, Codex and Cursor | The [MCP server](/features/mcp) gives the same agents a site's [logs](/features/logs), [browser errors](/features/browser-logs), queries, dumps and request timings, and lets them run console commands, composer and workers |
+| Free tier: PHP, nginx, DNS, Node and Herd Studio | Everything free, services included |
+| Herd Pro, $99 a year: MySQL, PostgreSQL, Redis, mail, Insights, Tinker | No paid tier |
+| macOS and Windows; Linux in progress | Linux, macOS, and Windows through WSL2 |
+
+Note the naming: what Herd calls a workspace is a per-branch copy of one site, which Lerd calls a worktree. A Lerd [workspace](/usage/workspaces) is something else, a named group of sites.
+
 ## What is genuinely different
 
 Worth knowing before you switch, these are the places where the mental model changes:
@@ -178,7 +192,7 @@ Herd is a good tool on macOS and this page is not an argument against it. Lerd a
 ## Frequently asked questions
 
 **Is there a Laravel Herd for Linux?**
-No. Herd ships for macOS and Windows only, and no Linux build has been announced.
+Not yet. Herd ships for macOS and Windows, and its FAQ says Linux support is in progress but not ready to ship.
 
 **Can I install Herd on Ubuntu?**
 No. Both builds are native desktop applications wrapped around platform binaries, so there is no package for any distribution.

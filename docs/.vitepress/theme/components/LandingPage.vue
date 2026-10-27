@@ -11,6 +11,9 @@ const pad = (n) => String(n).padStart(2, '0')
 const { isDark } = useData()
 // Each lineup capture has a -light twin taken from the demo in the light theme.
 const shot = (c, light) => withBase(`/assets/${c.shot}${light ? '-light' : ''}.png`)
+// The cards show the capture at most ~620px wide, so they load WebP copies; the zoom keeps the PNG.
+const shotSet = (c, light) => [640, 1280].map((w) => `${withBase(`/assets/${c.shot}${light ? '-light' : ''}-${w}.webp`)} ${w}w`).join(', ')
+const SHOT_SIZES = '(max-width: 760px) calc(100vw - 56px), 620px'
 
 const stars = starData.stars
 const starLabel = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n))
@@ -169,12 +172,12 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
         </div>
         <a class="sponsor" href="https://www.jetbrains.com/phpstorm/" target="_blank" rel="noopener">
           <span class="label">Sponsored by</span>
-          <img class="on-light" :src="withBase('/assets/sponsors/phpstorm.svg')" alt="JetBrains PhpStorm" height="36">
-          <img class="on-dark" :src="withBase('/assets/sponsors/phpstorm-dark.svg')" alt="JetBrains PhpStorm" height="36">
+          <img class="on-light" :src="withBase('/assets/sponsors/phpstorm.svg')" alt="JetBrains PhpStorm" width="125" height="36">
+          <img class="on-dark" :src="withBase('/assets/sponsors/phpstorm-dark.svg')" alt="JetBrains PhpStorm" width="125" height="36">
         </a>
         </div>
       </div>
-        <div class="hero-art"><div class="win"><div class="win-bar"><i></i><i></i><i></i></div><img class="on-light" :src="withBase('/assets/landing/dashboard-light.png')" alt="Lerd web dashboard with sites, services and workers" loading="lazy"><img class="on-dark" :src="withBase('/assets/landing/dashboard.png')" alt="Lerd web dashboard with sites, services and workers" loading="lazy"></div></div>
+        <div class="hero-art"><div class="win"><div class="win-bar"><i></i><i></i><i></i></div><img class="on-light" :src="withBase('/assets/landing/dashboard-light.png')" :srcset="shotSet({ shot: 'landing/dashboard' }, true)" sizes="min(1000px, 62vw)" width="1280" height="800" alt="Lerd web dashboard with sites, services and workers" loading="lazy"><img class="on-dark" :src="withBase('/assets/landing/dashboard.png')" :srcset="shotSet({ shot: 'landing/dashboard' }, false)" sizes="min(1000px, 62vw)" width="1280" height="800" alt="Lerd web dashboard with sites, services and workers" loading="lazy"></div></div>
       </section>
 
       <section class="sec" id="lineup" ref="lineup"><div class="wrap">
@@ -190,7 +193,7 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
             </button>
           </div>
           <div class="cards">
-          <article v-for="(c, i) in D.LINEUP" :key="c.id" class="card" :class="{ on: i === slide }" role="tabpanel" :aria-hidden="i !== slide" :inert="i !== slide">
+          <div v-for="(c, i) in D.LINEUP" :key="c.id" class="card" :class="{ on: i === slide }" role="tabpanel" :aria-hidden="i !== slide" :inert="i !== slide">
             <div class="card-body">
               <div class="card-top"><span class="num">{{ pad(i + 1) }} / {{ c.title }}</span><span class="badge ok">{{ c.status || 'STABLE' }}</span></div>
               <h3>{{ c.h }}</h3>
@@ -202,8 +205,8 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
               <div class="cli"><i>$</i> {{ c.cli }}</div>
               <a class="explore" :href="withBase(c.href)">{{ c.more }} →</a>
             </div>
-            <button class="shot" type="button" :aria-label="`Enlarge the ${c.title} screenshot`" @click="zoom = shot(c, !isDark)"><img class="on-light" :src="shot(c, true)" :alt="c.alt" loading="lazy"><img class="on-dark" :src="shot(c, false)" :alt="c.alt" loading="lazy"></button>
-          </article>
+            <button class="shot" type="button" :aria-label="`Enlarge the ${c.title} screenshot`" @click="zoom = shot(c, !isDark)"><img class="on-light" :src="shot(c, true)" :srcset="shotSet(c, true)" :sizes="SHOT_SIZES" width="1280" height="800" :alt="c.alt" loading="lazy"><img class="on-dark" :src="shot(c, false)" :srcset="shotSet(c, false)" :sizes="SHOT_SIZES" width="1280" height="800" :alt="c.alt" loading="lazy"></button>
+          </div>
           </div>
         </div>
       </div></section>
@@ -393,22 +396,23 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
               <a href="https://reddit.com/r/lerd" target="_blank" rel="noopener" aria-label="Reddit"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg></a>
             </div>
         </div>
-        <div><h5>Product</h5><ul>
+        <div><h2>Product</h2><ul>
           <li><a href="#lineup">Features</a></li>
           <li><a :href="withBase('/features/web-ui')">Web UI</a></li>
           <li><a :href="withBase('/features/mcp')">MCP server</a></li>
           <li><a :href="withBase('/features/tui')">Terminal dashboard</a></li>
           <li><a href="#compare">Comparison</a></li>
         </ul></div>
-        <div><h5>Resources</h5><ul>
+        <div><h2>Resources</h2><ul>
           <li><a :href="withBase('/getting-started/installation')">Installation</a></li>
           <li><a :href="withBase('/getting-started/requirements')">Documentation</a></li>
           <li><a :href="withBase('/usage/sites')">Site management</a></li>
-          <li><a :href="withBase('/getting-started/laravel')">Laravel walkthrough</a></li>
+          <li><a :href="withBase('/getting-started/laravel')">Laravel on Linux without Docker</a></li>
           <li><a :href="withBase('/getting-started/herd-linux')">Laravel Herd for Linux</a></li>
           <li><a :href="withBase('/getting-started/laragon-linux')">Laragon for Linux</a></li>
+          <li><a :href="withBase('/getting-started/windows')">Lerd for Windows</a></li>
         </ul></div>
-        <div><h5>Community</h5><ul>
+        <div><h2>Community</h2><ul>
           <li><a :href="GITHUB" target="_blank" rel="noopener">GitHub</a></li>
           <li><a :href="DISCORD" target="_blank" rel="noopener">Discord</a></li>
           <li><a :href="withBase('/changelog')">Changelog</a></li>

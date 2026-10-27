@@ -1,4 +1,9 @@
-# PhpStorm plugin
+---
+title: "Lerd PhpStorm plugin"
+description: "The Lerd plugin for PhpStorm shows the open project's site inside the IDE: its PHP version, logs, workers, services, queries and dumps, with no browser tab."
+---
+
+# Lerd PhpStorm plugin
 
 [Lerd for PhpStorm](https://plugins.jetbrains.com/plugin/34420-lerd) puts the site you are
 editing into the IDE you are editing it in: its logs, its PHP version, its workers, its

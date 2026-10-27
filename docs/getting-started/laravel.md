@@ -1,6 +1,13 @@
-# Laravel walkthrough
+---
+title: "Laravel on Linux without Docker: local setup with Lerd"
+description: "Set up Laravel locally on Linux without Docker, on Ubuntu, Fedora, Arch or Omarchy: a .test domain with HTTPS, the right PHP version, MySQL or PostgreSQL, a queue worker and the scheduler."
+---
 
-End-to-end: from `lerd install` to a Laravel app running on `https://myapp.test` with a database, queue worker, and scheduler.
+# Laravel on Linux without Docker: local setup with Lerd
+
+To run Laravel locally on Linux without Docker, install Lerd, create or clone the app, and run `lerd link`: the project is served at `https://myapp.test` on the PHP version its `composer.json` asks for, with MySQL or PostgreSQL, a queue worker and the scheduler. Lerd runs on rootless Podman, so there is no Docker daemon and no `sudo` after install. The steps are the same on Ubuntu, Debian, Fedora, Arch and [Omarchy](/getting-started/omarchy), and on macOS.
+
+This walkthrough goes end to end, from `lerd install` to a Laravel app with a database, queue worker and scheduler.
 
 ::: info Prerequisites
 You've already run `lerd install` once on this machine. If not, see [Installation](installation.md).
@@ -181,8 +188,11 @@ Worker mode needs `composer require laravel/octane` in the project. FrankenPHP i
 ## Next steps
 
 - [Frameworks & Workers](../usage/frameworks.md): add Horizon, Pulse, or other custom workers
+- [Framework commands](../usage/framework-commands.md): cache clears, migrations and login links from the dashboard or `lerd run`
 - [Database](../usage/database.md): `lerd db:import`, `lerd db:shell`, switching engines
 - [Services](../usage/services.md): start Meilisearch, RustFS (S3), Postgres, custom services
 - [Browser Testing](../usage/browser-testing.md): run Laravel Dusk with Selenium, no local Chrome needed
 - [HTTPS](../features/https.md): wildcard certs for git worktrees
 - [AI Integration (MCP)](../features/mcp.md): drive lerd from Claude Code, Cursor, etc.
+- [NativePHP](./nativephp.md): build a desktop or mobile app from the same Laravel project
+- [PhpStorm plugin](../features/phpstorm-plugin.md): the site's logs, workers and queries inside the IDE
