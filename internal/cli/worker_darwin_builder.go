@@ -82,16 +82,9 @@ WantedBy=default.target
 `, restart, scriptPath)
 }
 
-// lerdBinDir is prepended to PATH so the php/composer/laravel/node
-// shims are reachable from npm-spawned subprocesses (e.g. Inertia's
-// wayfinder Vite plugin shelling out to `php artisan`) — issue #375.
-//
-// execPrefix is the active version manager's ExecPrefix for the resolved Node
-// version, or empty to run the command directly (bun / non-Node / unmanaged).
-// extraBinDirs is a ":"-joined set of dirs to lead PATH: the bun bin dir, or
-// where an unmanaged system node/npm was resolved to — issue #1143.
-// phpIniScanDir is exported for a native site's php, which has no lerd ini
-// paths of its own; empty leaves the variable unset.
+// lerdBinDir leads PATH so npm-spawned `php artisan` finds lerd's shims (#375);
+// extraBinDirs go ahead of it for bun or an unmanaged node (#1143). An empty
+// execPrefix or phpIniScanDir leaves the command unwrapped or the variable unset.
 func buildDarwinHostWorkerGuardScript(execPrefix, lerdBinDir, sitePath, command, extraBinDirs, pidFile, phpIniScanDir string) string {
 	escapedPath := strings.ReplaceAll(sitePath, "'", `'"'"'`)
 	escapedCmd := strings.ReplaceAll(command, "'", `'"'"'`)

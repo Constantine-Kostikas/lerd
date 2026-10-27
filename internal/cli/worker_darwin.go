@@ -89,16 +89,9 @@ func writeWorkerUnitFile(unitName, label, siteName, sitePath, phpVersion, comman
 	}
 }
 
-// writeWorkerHostUnit is the `host: true` path: write a guard script
-// that resolves the node version via fnm and exec's the worker command
-// in the site/worktree directory. The launchd plist supervises the
-// outer /bin/sh; KeepAlive=true (from Restart=always|on-failure)
-// restarts it on exit.
-//
-// Lives under run/workers alongside the exec-mode guard scripts so
-// removeWorkerExecArtifacts cleans both up on stop.
-//
-// nativePHPVersion is set for a native site and empty otherwise.
+// writeWorkerHostUnit runs a worker on the host via a guard script in run/workers,
+// beside the exec-mode ones so stop cleans both. nativePHPVersion is set for a
+// native site, putting its php on PATH with lerd's ini files; empty otherwise.
 func writeWorkerHostUnit(unitName, sitePath, command, restart, nativePHPVersion string) (bool, error) {
 	workersDir := filepath.Join(config.RunDir(), "workers")
 	if err := os.MkdirAll(workersDir, 0755); err != nil {
