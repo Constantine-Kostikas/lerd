@@ -24,6 +24,8 @@
   import { groupByCategory, categoryOf, CATEGORY_LABELS, CATEGORY_ORDER, asCategory } from '$lib/presetCategories';
   import { m } from '../../paraglide/messages.js';
 
+  const DISCOVER = '_discover';
+
   onMount(() => {
     loadPresets();
   });
@@ -38,13 +40,14 @@
     groupByCategory($coreServices).map((g) => ({ ...g, items: [...g.items.filter((s) => s.update_available), ...g.items.filter((s) => !s.update_available)] }))
   );
 
-  // #services is the installed list, #services/discover the presets to add.
-  const discovering = $derived($routeRest === 'discover');
+  // #services is the installed list, #services/_discover the presets to add;
+  // a service name never holds an underscore, so no service can take the route.
+  const discovering = $derived($routeRest === DISCOVER);
   let query = $state('');
   let category = $state('');
   const views = $derived([
     { title: m.services_dash_installed(), icon: 'grid' as const, active: !discovering, onclick: () => goToTab('services') },
-    { title: m.services_dash_discover(), icon: 'download' as const, active: discovering, onclick: () => goToTab('services', 'discover') }
+    { title: m.services_dash_discover(), icon: 'download' as const, active: discovering, onclick: () => goToTab('services', DISCOVER) }
   ]);
 
   // A snapshot of what was outdated when the dialog opened, null while it is closed.
@@ -70,6 +73,10 @@
     );
   });
   const groups = $derived(groupByCategory(shownPresets));
+  // A category whose last preset went away drops its chip, so drop the filter too.
+  $effect(() => {
+    if (category && !categories.some((c) => c.key === category)) category = '';
+  });
   const categories = $derived([
     { key: '', label: m.services_cat_all() },
     ...CATEGORY_ORDER.filter((k) => $installablePresets.some((p) => asCategory(p.category) === k)).map((k) => ({ key: k, label: CATEGORY_LABELS[k]() }))
@@ -120,7 +127,7 @@
         {#if $accessMode.localControl}
           <DashboardSection>
             <ServiceCardShell suggested>
-              <button type="button" onclick={() => goToTab('services', 'discover')} class="flex min-w-0 flex-1 items-center gap-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-lerd-red">
+              <button type="button" onclick={() => goToTab('services', DISCOVER)} class="flex min-w-0 flex-1 items-center gap-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-lerd-red">
                 <span class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-lerd-red/10 text-lerd-red"><Icon name="plus" class="w-4 h-4" /></span>
                 {m.services_dash_addService()}
               </button>

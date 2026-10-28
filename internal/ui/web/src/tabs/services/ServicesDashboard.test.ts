@@ -1,5 +1,6 @@
 import { render, fireEvent, within } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { tick } from 'svelte';
 import ServicesDashboard from './ServicesDashboard.svelte';
 import { services, servicesLoaded, type Service } from '$stores/services';
 import { accessMode } from '$stores/accessMode';
@@ -97,7 +98,7 @@ describe('ServicesDashboard', () => {
     expect(getByText('MySQL')).toBeTruthy();
     expect(queryByText('Valkey')).toBeNull();
     await fireEvent.click(getByRole('button', { name: 'Add a service' }));
-    expect(location.hash).toBe('#services/discover');
+    expect(location.hash).toBe('#services/_discover');
   });
 
   // A preset already run stays on offer while it has versions left to add.
@@ -107,14 +108,26 @@ describe('ServicesDashboard', () => {
       { name: 'mysql', category: 'databases', installed: true, installed_tags: ['8.4'], versions: [{ tag: '8.4' }, { tag: '8.0' }] },
       { name: 'redis', category: 'cache', installed: true }
     ] as never);
-    routeRest.set('discover');
+    routeRest.set('_discover');
     const { getByText, queryByText } = render(ServicesDashboard);
     expect(getByText('MySQL')).toBeTruthy();
     expect(queryByText('Redis')).toBeNull();
   });
 
+  // A chip whose last preset went away must not leave the list filtered by a
+  // type with no chip left to clear it.
+  it('falls back to every type when the picked one runs out of presets', async () => {
+    routeRest.set('_discover');
+    const { getByRole, getByText } = render(ServicesDashboard);
+    await fireEvent.click(getByRole('button', { name: 'Cache' }));
+    presets.update((list) => list.filter((p) => p.name !== 'valkey'));
+    await tick();
+    expect(getByText('Kafka')).toBeTruthy();
+    expect(getByText('MongoDB')).toBeTruthy();
+  });
+
   it('finds a preset in Discover by search or by type', async () => {
-    routeRest.set('discover');
+    routeRest.set('_discover');
     const { getByText, queryByText, getByLabelText, getByRole } = render(ServicesDashboard);
     expect(queryByText('MySQL')).toBeNull();
     expect(getByText('Valkey')).toBeTruthy();
