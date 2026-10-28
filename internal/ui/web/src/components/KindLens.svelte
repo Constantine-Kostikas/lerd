@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { LensRows, localTime } from '$lib/lensRows.svelte';
+  import { LensRows, localTime, revealOrLoad } from '$lib/lensRows.svelte';
   import LensSearch from '$components/LensSearch.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { get } from 'svelte/store';
-  import { debugSearch, showTests } from '$stores/debugLens';
+  import { debugSearch, showTests, revealEvent } from '$stores/debugLens';
   import { clearDumps } from '$stores/dumps';
   import {
     queryFilterSite,
@@ -20,6 +20,7 @@
   import LensToggle from '$components/LensToggle.svelte';
   import TestEventsToggle from '$components/TestEventsToggle.svelte';
   import TraceBlock from '$components/TraceBlock.svelte';
+  import HttpDetail from '$components/HttpDetail.svelte';
   import SourcePath from '$components/SourcePath.svelte';
   import LensList from '$components/LensList.svelte';
   import LensGroupLabel from '$components/LensGroupLabel.svelte';
@@ -149,6 +150,13 @@
   const rows = new LensRows();
   const toggleRow = (id: string) => rows.toggle(id);
   $effect(() => rows.keepOnly($lensGroups));
+  const lensLoading = lens.loading;
+  const lensMore = lens.hasMore;
+  $effect(() => {
+    const id = $revealEvent;
+    if (!id || $lensLoading) return;
+    if (revealOrLoad(rows, lens, $lensGroups, $lensMore, id) !== 'loading') revealEvent.set('');
+  });
 
   const fmtMs = (n: number) => (n < 10 ? n.toFixed(2) : n.toFixed(1));
 
@@ -266,7 +274,7 @@
           {#each g.rows as row (row.event.id)}
             {@const ev = row.event}
             {@const d = (ev.data ?? {}) as Record<string, any>}
-            <div class="rounded-sm border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card mb-1.5 overflow-hidden">
+            <div data-event-id={ev.id} class="rounded-sm border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card mb-1.5 overflow-hidden">
               <button type="button" class="w-full text-left px-2.5 py-1.5 flex items-start gap-2 hover:bg-gray-50 dark:hover:bg-white/5" onclick={() => toggleRow(ev.id)}>
                 <span class="flex-1 break-all text-xs text-gray-800 dark:text-gray-200">
                   {#if wireKind === 'job'}{d.class}
@@ -362,6 +370,10 @@
                       <div class="text-gray-400 break-all">{m.debug_mail_renderedFrom()} {d.views.join(', ')}</div>
                     {/if}
                     {#if full.html}<iframe sandbox="" class="w-full h-64 bg-white rounded-sm border border-gray-200 dark:border-lerd-border" srcdoc={full.html} title={d.subject ?? 'mail'}></iframe>{/if}
+                  {/if}
+                  {#if wireKind === 'http'}
+                    <HttpDetail label={m.http_request()} detail={full.request} />
+                    <HttpDetail label={m.http_response()} detail={full.response} />
                   {/if}
                   {#if wireKind !== 'view'}<TraceBlock src={ev.src} trace={full.trace} />{/if}
                 </div>

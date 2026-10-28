@@ -2,8 +2,10 @@ package podman
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,5 +169,153 @@ echo 'ok';
 	}
 	if ended != 1 {
 		t.Errorf("connection still open after the request ended, with php still running")
+	}
+}
+
+// Every way PHP makes a request reaches the lens exactly once: curl easy and
+// multi handles (Guzzle, Stripe, Symfony's CurlHttpClient) and the http stream
+// wrapper (file_get_contents, fopen, Symfony's NativeHttpClient).
+func TestDevtoolsExt_CapturesEveryHTTPClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("X-Path", r.URL.Path)
+		w.Write([]byte("hi " + r.URL.Path + " " + string(body)))
+	}))
+	defer srv.Close()
+	php, args, dir, sink := devtoolsExtSetup(t, strings.ReplaceAll(`<?php
+if (!function_exists('curl_init')) { echo 'NOCURL'; exit; }
+echo defined('LERD_DEVTOOLS_HTTP') && LERD_DEVTOOLS_HTTP ? 'HTTP=1' : 'HTTP=0';
+if (PHP_VERSION_ID < 80200) { echo ' SKIP'; exit; }
+echo function_exists('http_get_last_response_headers') ? ' HEADERS=1' : '';
+$ch = curl_init(SRV.'/easy');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+if (curl_exec($ch) !== 'hi /easy ') { echo ' CLIENT-LOST-BODY'; }
+
+// Reused through curl_reset the way Guzzle does, with its own write callback.
+$got = '';
+$ch = curl_init();
+curl_setopt_array($ch, [CURLOPT_URL => SRV.'/write', CURLOPT_POSTFIELDS => 'token=t1&a=1', CURLOPT_WRITEFUNCTION => function ($h, $d) use (&$got) { $got .= $d; return strlen($d); }]);
+curl_exec($ch);
+curl_reset($ch);
+curl_setopt_array($ch, [CURLOPT_URL => SRV.'/reset', CURLOPT_RETURNTRANSFER => true]);
+if (curl_exec($ch) !== 'hi /reset ' || $got !== 'hi /write token=t1&a=1') { echo ' CLIENT-LOST-BODY'; }
+
+$mh = curl_multi_init();
+$ch = curl_init(SRV.'/multi');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_multi_add_handle($mh, $ch);
+do { curl_multi_exec($mh, $running); curl_multi_select($mh); } while ($running);
+while (curl_multi_info_read($mh)) {}
+
+file_get_contents(SRV.'/get');
+fclose(fopen(SRV.'/open', 'r'));
+file_get_contents(__FILE__);
+`, "SRV", phpQuote(srv.URL)), false)
+	collector, err := DevtoolsCollectorPHP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "devtools-collector.php"), []byte(collector), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	if strings.Contains(string(out), "NOCURL") {
+		t.Skip("php -n has no curl")
+	}
+	if strings.Contains(string(out), "SKIP") {
+		if !strings.Contains(string(out), "HTTP=0") {
+			t.Errorf("LERD_DEVTOOLS_HTTP set where the curl seam cannot fire, so Laravel's Http calls would vanish: %s", out)
+		}
+		t.Skip("observers only see built-in functions from PHP 8.2")
+	}
+	if strings.Contains(string(out), "CLIENT-LOST-BODY") {
+		t.Errorf("a client stopped receiving its own response body: %s", out)
+	}
+	if !strings.Contains(string(out), "HTTP=1") {
+		t.Errorf("LERD_DEVTOOLS_HTTP not set, so the Laravel adapter would report Http client calls twice: %s", out)
+	}
+
+	lines, _ := sink.result()
+	var paths []string
+	for _, l := range lines {
+		var e struct {
+			Kind string
+			Data struct {
+				URL      string
+				Status   int
+				Request  struct{ Body string }
+				Response struct {
+					Headers []string
+					Body    string
+				}
+			}
+		}
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatalf("bad JSON line %q: %v", l, err)
+		}
+		if e.Kind != "http" {
+			continue
+		}
+		// Before 8.4 file_get_contents leaves its headers where only the caller can read them.
+		if e.Data.Status != 200 && !(strings.HasSuffix(e.Data.URL, "/get") && !strings.Contains(string(out), "HEADERS=1")) {
+			t.Errorf("%s status = %d, want 200", e.Data.URL, e.Data.Status)
+		}
+		path := strings.TrimPrefix(e.Data.URL, srv.URL)
+		paths = append(paths, path)
+		if path == "/open" {
+			continue // fopen hands back a stream, not a body
+		}
+		if want := "hi " + path + " " + map[string]string{"/write": "token=t1&a=1"}[path]; e.Data.Response.Body != want {
+			t.Errorf("%s response body = %q, want %q", path, e.Data.Response.Body, want)
+		}
+		if path == "/write" && e.Data.Request.Body != "token=••••&a=1" {
+			t.Errorf("/write request body = %q, want the token masked", e.Data.Request.Body)
+		}
+		if path == "/reset" && e.Data.Request.Body != "" {
+			t.Errorf("/reset request body = %q, want nothing carried over from before curl_reset", e.Data.Request.Body)
+		}
+		if !slices.Contains(e.Data.Response.Headers, "X-Path: "+path) && path != "/get" {
+			t.Errorf("%s response headers = %v, want X-Path", path, e.Data.Response.Headers)
+		}
+	}
+	if want := []string{"/easy", "/write", "/reset", "/multi", "/get", "/open"}; !slices.Equal(paths, want) {
+		t.Errorf("http events = %v, want %v once each", paths, want)
+	}
+}
+
+// Symfony HttpClient keeps its own hook below PHP 8.2, where the curl seam
+// cannot fire, and drops it from 8.2, where the seam reports the request.
+func TestDevtoolsExt_SymfonyHookOnlyBelowPHP82(t *testing.T) {
+	php, args, dir, sink := devtoolsExtSetup(t, `<?php
+namespace Symfony\Component\HttpClient { class CurlHttpClient { function request($m, $u, $o = []) {} } }
+namespace { echo PHP_VERSION_ID; (new Symfony\Component\HttpClient\CurlHttpClient())->request('GET', 'https://api.test/x'); }
+`, false)
+	collector, err := DevtoolsCollectorPHP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "devtools-collector.php"), []byte(collector), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	lines, _ := sink.result()
+	n := 0
+	for _, l := range lines {
+		if strings.Contains(l, `"kind":"http"`) {
+			n++
+		}
+	}
+	want := 0
+	if v := strings.TrimSpace(string(out)); v < "80200" {
+		want = 1
+	}
+	if n != want {
+		t.Errorf("PHP %s: http events = %d, want %d", out, n, want)
 	}
 }

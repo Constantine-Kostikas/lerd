@@ -138,6 +138,10 @@ func withPayload(data, payload json.RawMessage) json.RawMessage {
 // rendered HTML. A lens lists rows without them and reads the event to open one.
 var detailFields = []string{"trace", "html"}
 
+// httpDetailFields are an http call's request and response. Only the http kind
+// drops them: a browser event's request is the url its row shows.
+var httpDetailFields = []string{"request", "response"}
+
 // brief is the event as a lens lists it, data being the whole event encoded.
 func brief(e Event, data []byte) []byte {
 	var d map[string]json.RawMessage
@@ -145,7 +149,11 @@ func brief(e Event, data []byte) []byte {
 		return data
 	}
 	cut := false
-	for _, f := range detailFields {
+	fields := detailFields
+	if e.Kind == KindHTTP {
+		fields = append(fields[:len(fields):len(fields)], httpDetailFields...)
+	}
+	for _, f := range fields {
 		if _, ok := d[f]; ok {
 			delete(d, f)
 			cut = true

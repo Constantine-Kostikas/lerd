@@ -1185,6 +1185,178 @@ static void lerd_seam_end(zend_execute_data *execute_data, zval *retval)
 	}
 }
 
+/* lerd_http_wanted gates the outgoing HTTP seams. They stay on in Laravel too:
+ * the adapter only sees its own Http client, and most SDKs bring their own. */
+static zend_bool lerd_http_wanted(void)
+{
+	return LERD_G(active) && (!lerd_is_worker || LERD_G(capture_workers));
+}
+
+/* lerd_curl_handle_call hands a curl handle seam its first argument, plus the
+ * second or the return value where the collector needs one. */
+static void lerd_curl_handle_call(zend_execute_data *execute_data, const char *fn, size_t fn_len, zval *extra)
+{
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 1) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 1);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
+		return;
+	}
+	zval args[2];
+	ZVAL_COPY(&args[0], ch);
+	if (extra) {
+		ZVAL_COPY(&args[1], extra);
+	}
+	lerd_call_collector(fn, fn_len, args, extra ? 2 : 1);
+}
+
+#define LERD_CURL_CALL(fn, extra) \
+	lerd_curl_handle_call(execute_data, (fn), sizeof(fn) - 1, (extra))
+
+/* The libcurl option numbers the collector reads, fixed by curl's ABI. Every
+ * other curl_setopt call is skipped here so a request's dozen options do not
+ * each cost a PHP call. */
+static zend_bool lerd_curl_opt_wanted(zend_long opt)
+{
+	switch (opt) {
+	case 10015: /* CURLOPT_POSTFIELDS */
+	case 20011: /* CURLOPT_WRITEFUNCTION */
+	case 20079: /* CURLOPT_HEADERFUNCTION */
+	case 19913: /* CURLOPT_RETURNTRANSFER, PHP's own */
+	case 10001: /* CURLOPT_FILE */
+	case 10029: /* CURLOPT_WRITEHEADER */
+		return 1;
+	}
+	return 0;
+}
+
+static void lerd_curl_setopt_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 3) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 1);
+	zval *opt = ZEND_CALL_ARG(execute_data, 2);
+	zval *value = ZEND_CALL_ARG(execute_data, 3);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT || !opt || Z_TYPE_P(opt) != IS_LONG || !lerd_curl_opt_wanted(Z_LVAL_P(opt))) {
+		return;
+	}
+	zval args[3];
+	ZVAL_COPY(&args[0], ch);
+	ZVAL_COPY(&args[1], opt);
+	ZVAL_COPY(&args[2], value);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl_opt", args, 3);
+}
+
+static void lerd_curl_setopt_array_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	LERD_CURL_CALL("Lerd\\Collector\\curl_opts", ZEND_CALL_NUM_ARGS(execute_data) >= 2 ? ZEND_CALL_ARG(execute_data, 2) : NULL);
+}
+
+static void lerd_curl_reset_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	LERD_CURL_CALL("Lerd\\Collector\\curl_forget", NULL);
+}
+
+static void lerd_curl_copy_end(zend_execute_data *execute_data, zval *retval)
+{
+	if (retval && Z_TYPE_P(retval) == IS_OBJECT) {
+		LERD_CURL_CALL("Lerd\\Collector\\curl_copied", retval);
+	}
+}
+
+static void lerd_curl_exec_begin(zend_execute_data *execute_data)
+{
+	LERD_CURL_CALL("Lerd\\Collector\\curl_begin", NULL);
+}
+
+/* lerd_curl_multi_add_begin readies a handle the way curl_exec's begin does;
+ * the handle is curl_multi_add_handle's second argument. */
+static void lerd_curl_multi_add_begin(zend_execute_data *execute_data)
+{
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 2) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 2);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
+		return;
+	}
+	zval args[1];
+	ZVAL_COPY(&args[0], ch);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl_begin", args, 1);
+}
+
+/* lerd_curl_exec_end reports one finished curl_exec. The collector reads the
+ * method, url, status and timing off the handle, and the body off the return
+ * value when the client asked curl to return it. */
+static void lerd_curl_exec_end(zend_execute_data *execute_data, zval *retval)
+{
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 1) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 1);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
+		return;
+	}
+	zval args[3];
+	ZVAL_COPY(&args[0], ch);
+	ZVAL_NULL(&args[1]);
+	if (retval) {
+		ZVAL_COPY(&args[2], retval);
+	} else {
+		ZVAL_NULL(&args[2]);
+	}
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl", args, 3);
+}
+
+/* lerd_curl_multi_end reports the transfer a curl_multi_info_read returned.
+ * Every multi client collects finished handles through it, so each transfer
+ * passes here exactly once. */
+static void lerd_curl_multi_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)execute_data;
+	if (!lerd_http_wanted() || !retval || Z_TYPE_P(retval) != IS_ARRAY) {
+		return;
+	}
+	zval args[1];
+	ZVAL_COPY(&args[0], retval);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl_multi_done", args, 1);
+}
+
+/* lerd_stream_end reports a file_get_contents or fopen of an http(s) url. */
+static void lerd_stream_end(zend_execute_data *execute_data, zval *retval)
+{
+	uint32_t n = ZEND_CALL_NUM_ARGS(execute_data);
+	if (!lerd_http_wanted() || n < 1) {
+		return;
+	}
+	zval *url = ZEND_CALL_ARG(execute_data, 1);
+	if (!url || Z_TYPE_P(url) != IS_STRING || strncasecmp(Z_STRVAL_P(url), "http", 4) != 0) {
+		return;
+	}
+	/* The context is file_get_contents' third argument and fopen's fourth. */
+	uint32_t at = zend_string_equals_literal_ci(execute_data->func->common.function_name, "fopen") ? 4 : 3;
+	zval *ctx = n >= at ? ZEND_CALL_ARG(execute_data, at) : NULL;
+	zval args[3];
+	ZVAL_COPY(&args[0], url);
+	if (ctx && Z_TYPE_P(ctx) != IS_UNDEF) {
+		ZVAL_COPY(&args[1], ctx);
+	} else {
+		ZVAL_NULL(&args[1]);
+	}
+	if (retval) {
+		ZVAL_COPY(&args[2], retval);
+	} else {
+		ZVAL_FALSE(&args[2]);
+	}
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\stream", args, 3);
+}
+
+#if PHP_VERSION_ID < 80200
 /* lerd_http_begin captures one outgoing Symfony HttpClient request. We hook the
  * begin (not the end) because request() rewrites its own $url argument via
  * prepareRequest(); at begin the original method and url are still intact. */
@@ -1206,12 +1378,42 @@ static void lerd_http_begin(zend_execute_data *execute_data)
 	ZVAL_COPY(&args[1], url);
 	LERD_CALL_COLLECTOR("Lerd\\Collector\\http", args, 2);
 }
+#endif
 
 static zend_observer_fcall_handlers lerd_observer_init(zend_execute_data *execute_data)
 {
 	zend_observer_fcall_handlers h = {NULL, NULL};
 	zend_function *fn = execute_data ? execute_data->func : NULL;
-	if (!fn || !fn->common.function_name || !fn->common.scope) {
+	if (!fn || !fn->common.function_name) {
+		return h;
+	}
+	/* Agnostic outgoing HTTP: every PHP client ends in curl or the http stream
+	 * wrapper, so these few built-ins see each request once, whatever library
+	 * (Guzzle, Symfony HttpClient, an SDK) made it. */
+	if (!fn->common.scope && fn->type == ZEND_INTERNAL_FUNCTION) {
+		zend_string *name = fn->common.function_name;
+		if (zend_string_equals_literal_ci(name, "curl_exec")) {
+			h.begin = lerd_curl_exec_begin;
+			h.end = lerd_curl_exec_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_multi_add_handle")) {
+			h.begin = lerd_curl_multi_add_begin;
+		} else if (zend_string_equals_literal_ci(name, "curl_setopt")) {
+			h.end = lerd_curl_setopt_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_setopt_array")) {
+			h.end = lerd_curl_setopt_array_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_reset")) {
+			h.end = lerd_curl_reset_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_copy_handle")) {
+			h.end = lerd_curl_copy_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_multi_info_read")) {
+			h.end = lerd_curl_multi_end;
+		} else if (zend_string_equals_literal_ci(name, "file_get_contents") ||
+				   zend_string_equals_literal_ci(name, "fopen")) {
+			h.end = lerd_stream_end;
+		}
+		return h;
+	}
+	if (!fn->common.scope) {
 		return h;
 	}
 	const char *fname = ZSTR_VAL(fn->common.function_name);
@@ -1257,15 +1459,16 @@ static zend_observer_fcall_handlers lerd_observer_init(zend_execute_data *execut
 		h.end = lerd_job_end;
 		return h;
 	}
-	/* Agnostic outgoing HTTP: the default Symfony HttpClient factory yields one
-	 * of these two concrete clients; decorators (traceable, retryable, scoping)
-	 * delegate down to them, so the real request is seen once. */
+#if PHP_VERSION_ID < 80200
+	/* Below 8.2 observers miss the curl seam, so Symfony HttpClient keeps its
+	 * own: the default factory yields one of these two concrete clients. */
 	if ((strcasecmp(ZSTR_VAL(scope->name), "Symfony\\Component\\HttpClient\\CurlHttpClient") == 0 ||
 		 strcasecmp(ZSTR_VAL(scope->name), "Symfony\\Component\\HttpClient\\NativeHttpClient") == 0) &&
 		strcasecmp(fname, "request") == 0) {
 		h.begin = lerd_http_begin;
 		return h;
 	}
+#endif
 	zend_bool match =
 		(zend_string_equals_literal_ci(scope->name, "PDOStatement") && strcasecmp(fname, "execute") == 0) ||
 		(zend_string_equals_literal_ci(scope->name, "PDO") &&
@@ -1370,6 +1573,12 @@ PHP_RINIT_FUNCTION(lerd_devtools)
 		zend_register_bool_constant("LERD_DEVTOOLS_JOBS", sizeof("LERD_DEVTOOLS_JOBS") - 1, jobs, 0, module_number);
 		zend_register_string_constant("LERD_DEVTOOLS_WORKER", sizeof("LERD_DEVTOOLS_WORKER") - 1, lerd_worker_cmd, 0, module_number);
 		/* The agnostic collector groups its events with this request's queries. */
+#if PHP_VERSION_ID >= 80200
+		/* Tells the Laravel adapter the curl seam reports its Http client calls.
+		 * Observers only see built-in functions from 8.2, so older PHP keeps the
+		 * adapter's own listener. */
+		zend_register_bool_constant("LERD_DEVTOOLS_HTTP", sizeof("LERD_DEVTOOLS_HTTP") - 1, 1, 0, module_number);
+#endif
 		zend_register_string_constant("LERD_DEVTOOLS_RID", sizeof("LERD_DEVTOOLS_RID") - 1, LERD_G(rid), 0, module_number);
 	}
 #endif

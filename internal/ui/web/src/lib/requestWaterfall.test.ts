@@ -6,6 +6,23 @@ const e = (kind: string, ts: string, data: unknown, src = { file: '', line: 0 })
   ({ v: 1, id: ts + kind, ts, kind, ctx: { type: 'fpm', request: 'GET /cart' }, src, data }) as DumpEvent;
 
 describe('buildWaterfall', () => {
+  it('names the event and the lens that shows it, so a row can open there', () => {
+    const w = buildWaterfall(
+      [
+        e('http', '2026-10-07T10:00:00.010Z', { method: 'GET', url: 'https://api.test', failed: true }),
+        e('log', '2026-10-07T10:00:00.020Z', { level: 'error', message: 'boom' }),
+        e('dump', '2026-10-07T10:00:00.030Z', {})
+      ],
+      { label: 'GET /cart', start: Date.parse('2026-10-07T10:00:00.000Z'), millis: 100 }
+    );
+    expect(w.rows.map((r) => [r.layer, r.id, r.lens])).toEqual([
+      ['request', undefined, undefined],
+      ['error', '2026-10-07T10:00:00.010Zhttp', 'http'],
+      ['error', '2026-10-07T10:00:00.020Zlog', 'logs'],
+      ['dump', '2026-10-07T10:00:00.030Zdump', 'dumps']
+    ]);
+  });
+
   it('lays what a request did on the clock of the request nginx served', () => {
     const w = buildWaterfall(
       [

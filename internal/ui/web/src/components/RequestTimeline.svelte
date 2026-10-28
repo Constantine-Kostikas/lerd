@@ -1,5 +1,6 @@
 <script lang="ts">
   import { condense, type Waterfall, type WaterfallRow, type Layer } from '$lib/requestWaterfall';
+  import type { DebugLens } from '$stores/debugLens';
   import Icon, { type IconName } from './Icon.svelte';
   import SourcePath from './SourcePath.svelte';
   import { tooltip } from '$lib/tooltip';
@@ -11,8 +12,10 @@
 
   interface Props {
     waterfall: Waterfall;
+    // onopen shows a row's event in its own lens.
+    onopen?: (lens: DebugLens, id: string) => void;
   }
-  let { waterfall }: Props = $props();
+  let { waterfall, onopen }: Props = $props();
 
   const LAYERS: Array<{ id: Layer; label: () => string; bar: string; text: string; icon: IconName }> = [
     { id: 'request', label: m.timeline_layer_request, bar: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-300', icon: 'play' },
@@ -149,7 +152,13 @@
 {#if open}
   {@const s = styleOf[open.r.layer]}
   <div use:portal bind:this={pop} role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={close} class="fixed z-[9999] w-96 max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card shadow-xl text-xs" style="left: {open.x}px; top: {open.y}px">
-    <div class="flex items-center gap-1.5 px-3 py-2 font-semibold border-b border-gray-100 dark:border-lerd-border/60 {s.text}"><Icon name={s.icon} class="w-3.5 h-3.5" />{s.label()}</div>
+    <div class="flex items-center gap-1.5 px-3 py-2 font-semibold border-b border-gray-100 dark:border-lerd-border/60 {s.text}">
+      <Icon name={s.icon} class="w-3.5 h-3.5" />{s.label()}
+      {#if onopen && open.r.lens && open.r.id}
+        {@const { lens, id } = open.r}
+        <button type="button" class="ml-auto w-6 h-6 -my-1 -mr-1.5 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-white/10" use:tooltip={m.queries_details()} aria-label={m.queries_details()} onclick={() => { onopen(lens, id); open = null; }}><Icon name="external" class="w-3.5 h-3.5" /></button>
+      {/if}
+    </div>
     {#if open.r.code}
       <pre class="px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-words text-gray-700 dark:text-gray-200 max-h-40 overflow-y-auto">{open.r.code}</pre>
     {:else}

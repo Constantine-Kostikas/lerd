@@ -19,6 +19,10 @@ export type DebugLens =
   | 'messages'
   | 'browser';
 
+// revealEvent is the event a timeline row asked to see in its lens; the lens
+// that holds it opens the row and clears it.
+export const revealEvent = writable('');
+
 const KEY = 'lerd:debugLens';
 
 const VALID: DebugLens[] = [

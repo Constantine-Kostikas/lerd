@@ -1384,10 +1384,8 @@ function sentry_exception_bag($event): array
     return [];
 }
 
-// http captures one outgoing Symfony HttpClient request at call time. The
-// response is lazy (not sent until read), so no status code is available here;
-// the UI shows the request as "sent". Method and url are read at the begin
-// observer because request() rewrites its $url argument internally.
+// http reports a request by method and url alone. Below PHP 8.2, where the
+// curl seam cannot fire, the extension calls it from Symfony HttpClient.
 function http($method, $url): void
 {
     $u = is_string($url) ? $url : '';
@@ -1395,4 +1393,313 @@ function http($method, $url): void
         return;
     }
     emit('http', ['method' => is_string($method) ? $method : '', 'url' => $u]);
+}
+
+// HTTP_BODY_CAP is how much of a request or response body an http row keeps.
+const HTTP_BODY_CAP = 16384;
+
+// curl_state holds what the client told each curl handle, keyed by the handle
+// so it goes away with it.
+function curl_state(): \WeakMap
+{
+    static $map = null;
+    if ($map === null) {
+        $map = new \WeakMap();
+    }
+    return $map;
+}
+
+// curl_installing is set while the collector sets its own options, so the
+// setopt seam does not record them as the client's.
+function curl_installing(?bool $on = null): bool
+{
+    static $installing = false;
+    if ($on !== null) {
+        $installing = $on;
+    }
+    return $installing;
+}
+
+// curl_opt records the options the collector needs from a curl_setopt call.
+function curl_opt($ch, $opt, $value): void
+{
+    if (curl_installing() || !is_object($ch)) {
+        return;
+    }
+    $map = curl_state();
+    $st = $map[$ch] ?? [];
+    switch ($opt) {
+        case \CURLOPT_POSTFIELDS:
+            $st['post'] = $value;
+            break;
+        // The last write mode set wins, so a later RETURNTRANSFER or FILE
+        // means the client no longer reads the body through its callback.
+        case \CURLOPT_WRITEFUNCTION:
+            $st['write'] = $value;
+            break;
+        case \CURLOPT_RETURNTRANSFER:
+        case \CURLOPT_FILE:
+            $st['write'] = null;
+            break;
+        case \CURLOPT_HEADERFUNCTION:
+            $st['header'] = $value;
+            break;
+        case \CURLOPT_WRITEHEADER:
+            $st['header'] = false;
+            break;
+        default:
+            return;
+    }
+    $map[$ch] = $st;
+}
+
+function curl_opts($ch, $opts): void
+{
+    foreach (is_array($opts) ? $opts : [] as $opt => $value) {
+        curl_opt($ch, $opt, $value);
+    }
+}
+
+// curl_forget drops a handle's options when curl_reset clears them, so the
+// next request on it is not reported with the last one's body.
+function curl_forget($ch): void
+{
+    if (is_object($ch)) {
+        unset(curl_state()[$ch]);
+    }
+}
+
+function curl_copied($from, $to): void
+{
+    if (is_object($from) && is_object($to) && isset(curl_state()[$from])) {
+        curl_state()[$to] = curl_state()[$from];
+    }
+}
+
+// curl_begin keeps the request headers and puts a recorder in front of the
+// client's callbacks, which still get every byte. Only a body callback the
+// client set is wrapped, since installing one would break RETURNTRANSFER.
+function curl_begin($ch): void
+{
+    if (!is_object($ch)) {
+        return;
+    }
+    $map = curl_state();
+    $st = $map[$ch] ?? [];
+    $st['resp_headers'] = [];
+    $st['resp_body'] = '';
+    $map[$ch] = $st;
+    curl_installing(true);
+    try {
+        \curl_setopt($ch, \CURLINFO_HEADER_OUT, true);
+        $header = $st['header'] ?? null;
+        if ($header !== false) {
+            \curl_setopt($ch, \CURLOPT_HEADERFUNCTION, static function ($h, $line) use ($header) {
+                curl_record_header($h, $line);
+                return is_callable($header) ? $header($h, $line) : strlen($line);
+            });
+        }
+        $write = $st['write'] ?? null;
+        if (is_callable($write)) {
+            \curl_setopt($ch, \CURLOPT_WRITEFUNCTION, static function ($h, $data) use ($write) {
+                curl_record_body($h, $data);
+                return $write($h, $data);
+            });
+        }
+    } catch (\Throwable $_) {
+    } finally {
+        curl_installing(false);
+    }
+}
+
+function curl_record_header($ch, $line): void
+{
+    $map = curl_state();
+    $st = $map[$ch] ?? [];
+    $line = rtrim((string) $line, "\r\n");
+    // Each response after a redirect or a 100 Continue starts with its own
+    // status line; only the last response's headers belong to the row.
+    if (strncmp($line, 'HTTP/', 5) === 0) {
+        $st['resp_headers'] = [];
+    } elseif ($line !== '') {
+        $st['resp_headers'][] = $line;
+    }
+    $map[$ch] = $st;
+}
+
+function curl_record_body($ch, $data): void
+{
+    $map = curl_state();
+    $st = $map[$ch] ?? [];
+    $have = strlen($st['resp_body'] ?? '');
+    // One byte past the cap is kept so the row can say it was cut.
+    if ($have <= HTTP_BODY_CAP) {
+        $st['resp_body'] = ($st['resp_body'] ?? '') . substr((string) $data, 0, HTTP_BODY_CAP + 1 - $have);
+        $map[$ch] = $st;
+    }
+}
+
+// curl reports one finished curl transfer, whichever library ran it: Guzzle,
+// Laravel's Http client, Symfony's CurlHttpClient and SDKs like Stripe's all
+// end in curl, so this one seam covers them all.
+function curl($ch, ?int $errno = null, $result = null): void
+{
+    try {
+        $info = curl_getinfo($ch);
+        // curl also reads files and ftp; only http(s) is an outgoing request.
+        if (!is_array($info) || !preg_match('#^https?://#i', (string) ($info['url'] ?? ''))) {
+            return;
+        }
+        $st = curl_state()[$ch] ?? [];
+        $errno = $errno ?? curl_errno($ch);
+        // CURLINFO_EFFECTIVE_METHOD only exists on PHP 8.3+; older ones leave the row url-only.
+        $method = defined('CURLINFO_EFFECTIVE_METHOD') ? (string) curl_getinfo($ch, \CURLINFO_EFFECTIVE_METHOD) : '';
+        $data = [
+            'method'  => $method,
+            'url'     => (string) $info['url'],
+            'status'  => (int) ($info['http_code'] ?? 0),
+            'time_ms' => round((float) ($info['total_time'] ?? 0) * 1000, 2),
+        ];
+        if ($errno !== 0) {
+            $data['failed'] = true;
+        }
+        $sent = curl_getinfo($ch, \CURLINFO_HEADER_OUT);
+        $data['request'] = http_detail(is_string($sent) ? array_slice(explode("\r\n", trim($sent)), 1) : [], post_body($st['post'] ?? null));
+        // A multi transfer read through RETURNTRANSFER holds its body on the handle.
+        if ($result === null && !is_callable($st['write'] ?? null)) {
+            $result = curl_multi_getcontent($ch);
+        }
+        $data['response'] = http_detail($st['resp_headers'] ?? [], is_string($result) ? $result : ($st['resp_body'] ?? ''));
+        emit('http', $data);
+    } catch (\Throwable $_) {
+    }
+}
+
+// curl_multi_done reports the transfer a curl_multi_info_read() call returned.
+// Every multi client reads its finished handles through it, so each transfer is
+// reported once, with the result code the multi handle recorded for it.
+function curl_multi_done($msg): void
+{
+    if (!is_array($msg) || !isset($msg['handle'])) {
+        return;
+    }
+    curl($msg['handle'], (int) ($msg['result'] ?? 0));
+}
+
+// stream reports a file_get_contents() or fopen() of an http(s) url, which is
+// how PHP fetches without curl and what Symfony's NativeHttpClient runs on.
+function stream($url, $context, $result): void
+{
+    if (!is_string($url) || !preg_match('#^https?://#i', $url)) {
+        return;
+    }
+    $method = 'GET';
+    $sent = [];
+    $content = null;
+    // PHP falls back to the default context when the caller passes none.
+    if (!is_resource($context)) {
+        $context = stream_context_get_default();
+    }
+    if (is_resource($context)) {
+        $opts = stream_context_get_options($context);
+        $http = $opts['http'] ?? $opts['https'] ?? [];
+        $method = strtoupper((string) ($http['method'] ?? 'GET'));
+        $header = $http['header'] ?? [];
+        $sent = array_values(array_filter(is_array($header) ? $header : explode("\r\n", (string) $header), 'strlen'));
+        $content = $http['content'] ?? null;
+    }
+    $headers = null;
+    if (is_resource($result)) {
+        $meta = stream_get_meta_data($result);
+        $headers = $meta['wrapper_data'] ?? null;
+    } elseif (function_exists('http_get_last_response_headers')) {
+        $headers = http_get_last_response_headers();
+    }
+    $status = 0;
+    $received = [];
+    // A redirect leaves every hop's headers in the list; the last hop is the answer.
+    foreach (is_array($headers) ? $headers : [] as $h) {
+        if (!is_string($h)) {
+            continue;
+        }
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+            $status = (int) $m[1];
+            $received = [];
+        } else {
+            $received[] = $h;
+        }
+    }
+    $data = ['method' => $method, 'url' => $url, 'status' => $status];
+    if ($result === false) {
+        $data['failed'] = true;
+    }
+    $data['request'] = http_detail($sent, is_string($content) ? $content : '');
+    $data['response'] = http_detail($received, is_string($result) ? $result : '');
+    emit('http', $data);
+}
+
+// post_body renders CURLOPT_POSTFIELDS, which is a string or, for multipart,
+// an array whose files show by name.
+function post_body($post): string
+{
+    if (!is_array($post)) {
+        return is_string($post) ? $post : '';
+    }
+    $parts = [];
+    foreach ($post as $k => $v) {
+        $parts[] = $k . '=' . ($v instanceof \CURLFile ? '@' . basename($v->getFilename()) : (is_scalar($v) ? (string) $v : ''));
+    }
+    return implode('&', $parts);
+}
+
+// http_detail is one half of an http row: its headers and as much of its body
+// as the cap allows, with credentials masked. The debug buffer is saved to
+// disk, so a secret must never reach it.
+function http_detail(array $headers, string $body): array
+{
+    $d = ['headers' => array_map(__NAMESPACE__ . '\\mask_header', $headers)];
+    if ($body === '') {
+        return $d;
+    }
+    // Masked before the cut, so a secret the cap splits is hidden whole, and
+    // the cut is judged first, since masking can shorten a body past the cap.
+    $cut = strlen($body) > HTTP_BODY_CAP;
+    $body = mask_body($body);
+    if ($cut) {
+        $body = substr($body, 0, HTTP_BODY_CAP);
+        $d['truncated'] = true;
+    }
+    // The cap can split a multibyte character; drop its leftover bytes.
+    for ($i = 0; $i < 3 && !preg_match('//u', $body); $i++) {
+        $body = substr($body, 0, -1);
+    }
+    $d['body'] = preg_match('//u', $body) ? $body : sprintf('(binary, %d bytes)', strlen($body));
+    return $d;
+}
+
+function mask_header(string $line): string
+{
+    $p = strpos($line, ':');
+    if ($p === false) {
+        return $line;
+    }
+    $name = trim(substr($line, 0, $p));
+    if (!preg_match('/^(authorization|proxy-authorization|cookie|set-cookie)$|token|secret|api[-_]?key|password/i', $name)) {
+        return $line;
+    }
+    // The scheme stays so a wrong-key 401 still reads as a Bearer or Basic one.
+    if (preg_match('/^\s*(Bearer|Basic|Token|Digest)\s/i', substr($line, $p + 1), $m)) {
+        return $name . ': ' . $m[1] . ' ••••';
+    }
+    return $name . ': ••••';
+}
+
+// mask_body masks credential values in a JSON or form body. It works on text
+// rather than a parse, so a body recorded short, its last string unclosed, is
+// still masked.
+function mask_body(string $body): string
+{
+    $key = '[\\w.\\[\\]-]*(?:pass|secret|token|api[-_]?key)[\\w.\\[\\]-]*';
+    $body = preg_replace('/("' . $key . '"\s*:\s*)"(?:[^"\\\\]|\\\\.)*(?:"|$)/i', '$1"••••"', $body) ?? $body;
+    return preg_replace('/(^|&)(' . $key . ')=[^&]*/i', '$1$2=••••', $body) ?? $body;
 }
