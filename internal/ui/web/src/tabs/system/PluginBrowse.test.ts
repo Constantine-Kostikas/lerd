@@ -163,6 +163,15 @@ it('invites building and submitting a plugin from a card after the listed ones',
   expect(dialog.getByRole('link', { name: /submission guide/i }).getAttribute('href')).toContain('lerd-env/plugins/blob/main/SUBMITTING.md');
 });
 
+// A search that finds nothing is exactly when building one is the answer.
+it('keeps the build card when a search matches nothing', async () => {
+  const { findByText, getByLabelText, getByRole } = render(PluginBrowse);
+  await findByText('fresh');
+  await fireEvent.input(getByLabelText('Search plugins'), { target: { value: 'nothing-like-this' } });
+  await findByText('No plugin matches that');
+  expect(getByRole('button', { name: /^Build your own/ })).toBeTruthy();
+});
+
 // The approved commit's version, on its card and in its detail.
 it('shows each listed plugin its version', async () => {
   const { container, findByText, getByRole } = render(PluginBrowse);

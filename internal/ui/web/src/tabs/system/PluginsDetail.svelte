@@ -50,6 +50,10 @@
   const parts = $derived($routeRest.split('/'));
   const browsing = $derived(parts[0] === 'browse');
   const focus = $derived(browsing ? decodeURIComponent(parts[1] ?? '') : '');
+  // Browse unmounts the add dialog but not its flag, which would reopen it on return.
+  $effect(() => {
+    if (browsing) showMore = false;
+  });
 
   async function update(name: string) {
     updating = name;

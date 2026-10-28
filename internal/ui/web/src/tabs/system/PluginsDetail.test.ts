@@ -163,6 +163,18 @@ it('opens the catalog and build prompts from a tile after the installed plugins'
   expect(location.hash).toBe('#plugins/browse');
 });
 
+// Leaving through Browse closes the dialog for good, so Installed comes back clear.
+it('does not reopen the add dialog on returning from Browse', async () => {
+  const { findByText, getByRole, queryByRole } = render(PluginsDetail);
+  await findByText('hello');
+  await fireEvent.click(getByRole('button', { name: 'Add a plugin' }));
+  await fireEvent.click(within(getByRole('dialog')).getByRole('button', { name: /Browse plugins/ }));
+  await waitFor(() => expect(queryByRole('dialog')).toBeNull());
+  await fireEvent.click(getByRole('button', { name: 'Installed' }));
+  await findByText('hello');
+  expect(queryByRole('dialog')).toBeNull();
+});
+
 // The author links to the GitHub account that owns the plugin's repository.
 it("links an installed catalog plugin's author to their GitHub profile", async () => {
   installed = [{ name: 'hello', author: 'Acme Inc', repo: 'https://github.com/acme/hello', commit: 'a'.repeat(40) }];

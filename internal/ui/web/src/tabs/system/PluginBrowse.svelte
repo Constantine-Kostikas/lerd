@@ -32,6 +32,7 @@
   let category = $state('');
   let page = $state(0);
   let showMore = $state(false);
+  const GRID = 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]';
   let open = $state<CatalogEntry | null>(null);
   let confirm = $state<CatalogEntry | null>(null);
   let installing = $state('');
@@ -150,8 +151,9 @@
     <div class="flex-1 flex items-center justify-center"><CatalogEmpty /></div>
   {:else if loaded && shown.length === 0}
     <EmptyState title={m.system_plugins_noMatch()} size="sm" />
+    <div class={GRID}><BuildPluginCard onopen={() => (showMore = true)} /></div>
   {:else}
-    <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
+    <div class={GRID}>
       {#each paged as e (e.name)}
         <CatalogCard entry={e} focused={e.name === focus} onopen={() => (open = e)} />
       {/each}
