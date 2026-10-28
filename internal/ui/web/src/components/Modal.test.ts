@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect, vi } from 'vitest';
 import Harness from './Modal.test.svelte';
 
@@ -36,6 +36,20 @@ describe('Modal', () => {
     render(Harness, { props: { open: true, title: 'X', onclose } });
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onclose).toHaveBeenCalledOnce();
+  });
+
+  // Escape closes the innermost open thing: an open dropdown first, the
+  // dialog only on the next press.
+  it('leaves itself open when Escape only closes a dropdown inside it', async () => {
+    const onclose = vi.fn();
+    render(Harness, { props: { open: true, title: 'T', onclose, withDropdown: true } });
+    await fireEvent.click(screen.getByRole('button', { name: /Alpha/ }));
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    await fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(onclose).not.toHaveBeenCalled();
+    await fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onclose).toHaveBeenCalledTimes(1);
   });
 
   it('renders footer slot when provided', () => {
