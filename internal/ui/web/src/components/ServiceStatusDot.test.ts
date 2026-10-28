@@ -26,4 +26,14 @@ describe('ServiceStatusDot', () => {
     expect(queryByTestId('service-moon')).toBeNull();
     expect(container.querySelector('.bg-gray-300')).toBeTruthy();
   });
+
+  // jsdom has no layout, so the shared footprint is read off the outer box:
+  // the same width for both, or a sleeping row's name starts further right.
+  it('gives the dot the same footprint as the moon, at either size', () => {
+    for (const size of ['sm', 'xs'] as const) {
+      const box = (svc: { status: string; idle_suspended?: boolean }) =>
+        (render(ServiceStatusDot, { props: { svc, size } }).container.firstElementChild as HTMLElement).className.match(/\bw-\S+ h-\S+/)?.[0];
+      expect(box({ status: 'active' })).toBe(box({ status: 'inactive', idle_suspended: true }));
+    }
+  });
 });
