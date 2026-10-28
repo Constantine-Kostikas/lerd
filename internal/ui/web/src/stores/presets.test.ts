@@ -64,30 +64,6 @@ describe('presets store', () => {
     expect(get(installablePresets).map((p) => p.name)).toEqual(['part']);
   });
 
-  it('discoverablePresets hides any preset with an installed version', async () => {
-    const { presets, discoverablePresets } = await import('./presets');
-    presets.set([
-      // mysql already installed at 8.4 — must not be promoted for 5.7 / 9.7
-      { name: 'mysql', installed: true, versions: [{ tag: '8.4' }, { tag: '5.7' }], installed_tags: ['8.4'] } as never,
-      // mariadb installed — hidden too
-      { name: 'mariadb', installed: true, versions: [{ tag: '11' }], installed_tags: ['11'] } as never,
-      // mongo not installed yet — discoverable
-      { name: 'mongo', installed: false, versions: [{ tag: '7' }], installed_tags: [] } as never,
-      // single-version service, not installed — discoverable
-      { name: 'mailpit', installed: false } as never
-    ]);
-    expect(get(discoverablePresets).map((p) => p.name)).toEqual(['mongo', 'mailpit']);
-  });
-
-  it('discoverablePresets still hides presets with missing deps', async () => {
-    const { presets, discoverablePresets } = await import('./presets');
-    presets.set([
-      { name: 'pgadmin', installed: false, missing_deps: ['postgres'] } as never,
-      { name: 'redis', installed: false } as never
-    ]);
-    expect(get(discoverablePresets).map((p) => p.name)).toEqual(['redis']);
-  });
-
   it('matchesPresetQuery matches name, description, and image, ANDing terms', async () => {
     const { matchesPresetQuery } = await import('./presets');
     const redis = { name: 'redis', description: 'In-memory cache', image: 'docker.io/redis:7' } as never;

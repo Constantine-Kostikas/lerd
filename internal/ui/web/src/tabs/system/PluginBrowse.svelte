@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import Dropdown from '$components/Dropdown.svelte';
+  import CatalogFilter from '$components/CatalogFilter.svelte';
   import DetailButton from '$components/DetailButton.svelte';
   import ConfirmModal from '$components/ConfirmModal.svelte';
   import Modal from '$components/Modal.svelte';
@@ -117,30 +118,15 @@
 
 <div class="flex-1 flex flex-col gap-3">
   {#if loaded && !loadError && entries.length > 0}
-    <div class="flex flex-wrap items-center gap-2">
-      <input
-        type="search"
-        bind:value={query}
-        placeholder={m.system_plugins_search()}
-        aria-label={m.system_plugins_search()}
-        class="flex-1 min-w-48 h-7 text-xs bg-white dark:bg-lerd-card border border-gray-200 dark:border-lerd-border rounded-md px-2.5 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:outline-hidden focus:border-lerd-red/50"
-      />
-      <Dropdown value={sort} options={sortOptions} onchange={(v) => (sort = v)} align="right" />
-    </div>
-    {#if categories.length > 1}
-      <div class="flex flex-wrap gap-1.5" role="group" aria-label={m.system_plugins_category()}>
-        {#each ['', ...categories] as c (c)}
-          <button
-            type="button"
-            aria-pressed={category === c}
-            onclick={() => (category = c)}
-            class="h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors {category === c
-              ? 'border-lerd-red/50 text-lerd-red bg-lerd-red/5'
-              : 'border-gray-200 dark:border-lerd-border text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
-          >{c || m.system_plugins_allCategories()}</button>
-        {/each}
-      </div>
-    {/if}
+    <CatalogFilter
+      bind:query
+      bind:category
+      categories={[{ key: '', label: m.system_plugins_allCategories() }, ...categories.map((c) => ({ key: c, label: c }))]}
+      placeholder={m.system_plugins_search()}
+      groupLabel={m.system_plugins_category()}
+    >
+      {#snippet trailing()}<Dropdown value={sort} options={sortOptions} onchange={(v) => (sort = v)} align="right" />{/snippet}
+    </CatalogFilter>
   {/if}
 
   {#if loadError}

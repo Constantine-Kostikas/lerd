@@ -768,6 +768,11 @@ export function serviceLabel(name: string): string {
   return labelFallbacks[name] || labelFallbacks[family] || capitalize(family);
 }
 
+// "1 update" or "3 updates": the one/many pair is how these messages pluralise.
+export function updatesLabel(count: number): string {
+  return count === 1 ? m.dashboard_services_update({ count }) : m.dashboard_services_updates({ count });
+}
+
 function capitalize(s: string): string {
   return s
     .split('-')

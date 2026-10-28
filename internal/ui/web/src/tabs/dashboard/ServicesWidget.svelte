@@ -3,7 +3,9 @@
   import StatusPill from '$components/StatusPill.svelte';
   import Icon from '$components/Icon.svelte';
   import InstalledServiceTile from '$tabs/services/InstalledServiceTile.svelte';
-  import { coreServices, servicesLoaded, type Service } from '$stores/services';
+  import UpdateAllModal from '$tabs/services/UpdateAllModal.svelte';
+  import { coreServices, servicesLoaded, updatesLabel, serviceLabel, type Service, type ServiceUpdateResult } from '$stores/services';
+  import { notifyLocalFailure } from '$lib/notify';
   import { openPresetModal } from '$stores/modals';
   import { goToTab } from '$stores/route';
   import { accessMode } from '$stores/accessMode';
@@ -15,7 +17,15 @@
   // gets its own badge and does not turn the running count amber.
   const asleep = $derived($coreServices.filter((s) => s.status !== 'active' && s.idle_suspended).length);
   const awake = $derived(running + asleep);
-  const updates = $derived($coreServices.filter((s) => s.update_available).length);
+  const outdated = $derived($coreServices.filter((s) => s.update_available));
+  const updates = $derived(outdated.length);
+  // What was outdated when the dialog opened, null while it is closed.
+  let updateBatch = $state<Service[] | null>(null);
+  // The dialog closes when the batch ends and this card has no results line,
+  // so each failure goes out as a notification instead.
+  function reportFailures(results: ServiceUpdateResult[]) {
+    for (const r of results.filter((x) => !x.ok)) notifyLocalFailure('service_update', m.services_updateAll(), `${serviceLabel(r.name)}: ${r.error}`);
+  }
 
   // The card scrolls once the list outgrows it, so a service with an update
   // can sit below the fold. Float those to the top and the tile's own arrow
@@ -45,7 +55,12 @@
           <StatusPill size="sm" tone="asleep" label={m.dashboard_services_asleep({ count: asleep, total })} />
         {/if}
         {#if updates > 0}
-          <StatusPill size="sm" tone="warn" label={m.dashboard_services_updates({ count: updates })} />
+          <StatusPill
+            size="sm"
+            tone="warn"
+            label={updatesLabel(updates)}
+            onclick={$accessMode.localControl ? () => (updateBatch = [...outdated]) : undefined}
+          />
         {/if}
       </div>
     {/if}
@@ -79,3 +94,7 @@
     </div>
   {/snippet}
 </DashboardCard>
+
+{#if updateBatch}
+  <UpdateAllModal services={updateBatch} onclose={() => (updateBatch = null)} ondone={reportFailures} />
+{/if}

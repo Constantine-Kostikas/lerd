@@ -192,6 +192,8 @@
     switch (e.key) {
       case 'Escape':
         e.preventDefault();
+        // Kept from the window, where a modal around this menu would close too.
+        e.stopPropagation();
         closeMenu();
         triggerEl?.focus();
         break;

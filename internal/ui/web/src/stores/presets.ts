@@ -87,14 +87,6 @@ export const installablePresets = derived(presets, ($p) =>
   })
 );
 
-// Discovery promotes services you don't run at all yet. Unlike
-// installablePresets it hides any preset with an installed instance, so an
-// existing mysql / mariadb / postgres install never reappears here just to
-// offer its other versions — adding an alternate version stays in the modal.
-export const discoverablePresets = derived(presets, ($p) =>
-  $p.filter((p) => (p.missing_deps || []).length === 0 && !p.installed)
-);
-
 // presetsFillingRole lists the presets a site can take up for a suggested
 // role: the preset of that name and its drop-ins. Mirrors Go's Preset.FillsRole.
 export function presetsFillingRole(list: Preset[], role: string): Preset[] {

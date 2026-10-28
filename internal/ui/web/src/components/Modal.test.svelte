@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
+  import Dropdown from './Dropdown.svelte';
 
   interface Props {
     open: boolean;
@@ -9,11 +10,16 @@
     withActions?: boolean;
     size?: 'sm' | 'md' | 'lg' | 'xl';
     tall?: boolean;
+    withDropdown?: boolean;
   }
-  let { open, title, onclose, withFooter = false, withActions = false, size = 'md', tall = false }: Props = $props();
+  let { open, title, onclose, withFooter = false, withActions = false, size = 'md', tall = false, withDropdown = false }: Props = $props();
 </script>
 
-{#if withActions}
+{#if withDropdown}
+  <Modal {open} {title} {onclose} {size}>
+    <Dropdown value="a" options={[{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }]} onchange={() => {}} />
+  </Modal>
+{:else if withActions}
   {#snippet actions()}<span data-testid="actions">A</span>{/snippet}
   <Modal {open} {title} {onclose} {size} {actions}>
     <div data-testid="body">BODY</div>

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/svelte';
+import { render, fireEvent, within, waitFor } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import ServicesWidget from './ServicesWidget.svelte';
 import { services, servicesLoaded, type Service } from '$stores/services';
@@ -7,6 +7,16 @@ import { accessMode } from '$stores/accessMode';
 vi.mock('$stores/dashboard', () => ({
   openServiceDashboard: vi.fn()
 }));
+const updateServices = vi.fn();
+vi.mock('$stores/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$stores/services')>();
+  return { ...actual, updateServices: (...args: unknown[]) => updateServices(...args) };
+});
+const notifyLocalFailure = vi.fn();
+vi.mock('$lib/notify', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/notify')>();
+  return { ...actual, notifyLocalFailure: (...args: unknown[]) => notifyLocalFailure(...args) };
+});
 
 function svc(over: Partial<Service> = {}): Service {
   return {
@@ -100,7 +110,7 @@ describe('ServicesWidget', () => {
     services.set([svc({ update_available: true }), svc({ name: 'redis', status: 'inactive' })]);
     const { container, getByText, queryByText } = render(ServicesWidget);
     expect(getByText('1/2 active')).toBeTruthy();
-    expect(getByText('1 update(s)')).toBeTruthy();
+    expect(getByText('1 update')).toBeTruthy();
     expect(queryByText('↑')).toBeTruthy();
     expect(container.querySelector('.bg-yellow-50')).toBeNull();
   });
@@ -126,7 +136,27 @@ describe('ServicesWidget', () => {
   it('shows no update pill when everything is current', () => {
     services.set([svc()]);
     const { queryByText } = render(ServicesWidget);
-    expect(queryByText('0 update(s)')).toBeNull();
+    expect(queryByText(/update/)).toBeNull();
+  });
+
+  // The count is the shortest way to the update, so it opens the dialog that
+  // runs it, and says one update or several the way a person would.
+  it('opens the update dialog from its update count', async () => {
+    services.set([svc({ update_available: true, version: 'v8.4', latest_version: 'v8.4.2' }), svc({ name: 'redis', update_available: true })]);
+    const { getByRole } = render(ServicesWidget);
+    await fireEvent.click(getByRole('button', { name: '2 updates' }));
+    expect(within(getByRole('dialog')).getByText('v8.4 → v8.4.2')).toBeTruthy();
+  });
+
+  // The dialog closes once the batch ends and the card has no results line,
+  // so a failure has to reach the user some other way.
+  it('reports an update that failed from the card', async () => {
+    updateServices.mockResolvedValue([{ name: 'mysql', ok: false, error: 'pull failed' }]);
+    services.set([svc({ update_available: true })]);
+    const { getByRole } = render(ServicesWidget);
+    await fireEvent.click(getByRole('button', { name: '1 update' }));
+    await fireEvent.click(within(getByRole('dialog')).getByRole('button', { name: 'Update' }));
+    await waitFor(() => expect(notifyLocalFailure).toHaveBeenCalledWith('service_update', 'Update all', 'MySQL: pull failed'));
   });
 
   it('hides the add button without local control', () => {
