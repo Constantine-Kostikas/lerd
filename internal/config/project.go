@@ -455,6 +455,12 @@ func LoadProjectConfig(dir string) (*ProjectConfig, error) {
 			cfg.Stripe.Path = ""
 		}
 	}
+	if cfg.Stripe != nil {
+		if err := ValidateStripeProjectName(cfg.Stripe.ProjectName); err != nil {
+			fmt.Printf("[WARN] %s: %v, ignoring stripe project_name\n", path, err)
+			cfg.Stripe.ProjectName = ""
+		}
+	}
 
 	projectConfigCacheMu.Lock()
 	projectConfigCache[path] = projectConfigCacheEntry{cfg: &cfg, base: base, local: local}

@@ -124,3 +124,27 @@ func TestWorktreeCheckoutPath(t *testing.T) {
 		t.Fatalf("got %q want %q", got, want+"-2")
 	}
 }
+
+func TestExcludeLocalOverride_OnlyTouchesAGitCheckout(t *testing.T) {
+	plain := t.TempDir()
+	if err := ExcludeLocalOverride(plain); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(plain, ".git")); !os.IsNotExist(err) {
+		t.Errorf("a plain folder got a .git: %v", err)
+	}
+
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := ExcludeLocalOverride(repo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, _ := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude"))
+	if strings.Count(string(got), "/.lerd.local.yaml\n") != 1 {
+		t.Errorf("exclude file = %q, want /.lerd.local.yaml once", got)
+	}
+}

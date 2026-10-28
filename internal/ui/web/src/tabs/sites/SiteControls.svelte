@@ -469,8 +469,9 @@
           loading={isPending('stripe')}
           webhookPath={site.stripe_webhook_path}
           secretEnvKey={site.stripe_secret_env_key}
+          projectName={site.stripe_project_name}
           onToggle={() => transition('stripe', !site.stripe_running, () => toggleStripe(site))}
-          onSaveConfig={(path, key) => setStripeConfig(site, path, key)}
+          onSaveConfig={(path, key, project) => setStripeConfig(site, path, key, project)}
           onLogs={logsFor('stripe')}
         />
       {/if}

@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Stripe webhook",
   "sites_controls_stripePathHint": "Route mà các sự kiện Stripe chuyển tiếp tới ứng dụng của bạn, ví dụ /stripe/webhook cho Laravel hoặc route riêng của bạn cho bất kỳ framework nào khác.",
   "sites_controls_stripePathLabel": "Đường dẫn webhook",
+  "sites_controls_stripeProjectHint": "Tùy chọn. Đăng nhập bằng phiên đã lưu qua stripe login --project-name thay cho khóa trong .env. Để trống để dùng khóa trong .env.",
+  "sites_controls_stripeProjectLabel": "Dự án Stripe CLI",
   "sites_controls_stripeSecretKeyHint": "Khóa .env chứa secret Stripe của bạn, ví dụ STRIPE_SECRET cho Laravel hoặc STRIPE_SECRET_KEY cho Node.",
   "sites_controls_stripeSecretKeyLabel": "Khóa env của secret",
   "sites_controls_stripeToggle_off": "Khởi động Stripe listener",

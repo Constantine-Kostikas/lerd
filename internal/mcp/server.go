@@ -793,12 +793,12 @@ func execStripeListen(args map[string]any) (any, *rpcError) {
 		// or a systemd directive, the same vector the webhook path guards.
 		return toolErr("invalid api_key: must not contain whitespace"), nil
 	}
+	auth := config.StripeAuth{APIKey: apiKey}
 	if apiKey == "" {
-		_, apiKey = config.ResolveStripeSecret(site.Path)
-	}
-	if apiKey == "" {
-		return toolErr("Stripe API key required: pass api_key or set one of " +
-			strings.Join(config.StripeSecretEnvCandidates, ", ") + " in the site's .env"), nil
+		var err error
+		if auth, err = config.ResolveStripeAuth(site.Path); err != nil {
+			return toolErr(err.Error() + "; pass api_key or set project_name with stripe_config"), nil
+		}
 	}
 	webhookPath := strArg(args, "webhook_path")
 	if webhookPath == "" {
@@ -819,7 +819,7 @@ func execStripeListen(args map[string]any) (any, *rpcError) {
 	}
 	forwardTo := scheme + "://" + site.PrimaryDomain() + webhookPath
 	unitName := "lerd-stripe-" + siteName
-	unit := podman.StripeListenUnit(siteName, apiKey, forwardTo)
+	unit := podman.StripeListenUnit(siteName, auth, forwardTo)
 
 	if err := lerdSystemd.WriteService(unitName, unit); err != nil {
 		return toolErr("writing service unit: " + err.Error()), nil
@@ -857,15 +857,30 @@ func execStripeConfig(args map[string]any) (any, *rpcError) {
 	}
 	webhookPath := strArg(args, "webhook_path")
 	secretEnvKey := strArg(args, "secret_env_key")
+	// Presence, not value: an empty project_name clears it.
+	_, hasProject := args["project_name"]
 
 	// No fields: report current settings instead of writing.
-	if webhookPath == "" && secretEnvKey == "" {
+	if webhookPath == "" && secretEnvKey == "" && !hasProject {
 		key, _ := config.ResolveStripeSecret(site.Path)
 		if key == "" {
 			key = "(none found; looked for " + strings.Join(config.StripeSecretEnvCandidates, ", ") + ")"
 		}
-		return toolOK(fmt.Sprintf("Stripe config for %s\nWebhook path: %s\nSecret env key: %s",
-			siteName, config.StripeWebhookPath(site.Path), key)), nil
+		project := config.StripeProjectName(site.Path)
+		if project == "" {
+			project = "(none, the .env key is used)"
+		}
+		return toolOK(fmt.Sprintf("Stripe config for %s\nWebhook path: %s\nSecret env key: %s\nCLI project: %s",
+			siteName, config.StripeWebhookPath(site.Path), key, project)), nil
+	}
+
+	if hasProject {
+		if err := gitpkg.ExcludeLocalOverride(site.Path); err != nil {
+			return toolErr("excluding " + config.LocalOverrideFile + " from git: " + err.Error()), nil
+		}
+		if err := config.SetProjectStripeProjectName(site.Path, strArg(args, "project_name")); err != nil {
+			return toolErr("saving stripe config: " + err.Error()), nil
+		}
 	}
 
 	if err := config.SetProjectStripe(site.Path, webhookPath, secretEnvKey); err != nil {

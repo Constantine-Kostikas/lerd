@@ -341,7 +341,8 @@ Activity-driven worker suspension: lerd gracefully stops each site's suspendable
 |---|---|
 | `lerd stripe:listen` | Start a Stripe webhook listener for the current project as a background service |
 | `lerd stripe:listen stop` | Stop the Stripe webhook listener |
-| `lerd stripe:config` | Show or set the webhook path and secret env key in `.lerd.yaml` without starting the listener |
+| `lerd stripe:config` | Show or set the webhook path, secret env key and CLI project in `.lerd.yaml` without starting the listener |
+| `lerd stripe:login` | Log in to Stripe with lerd's Stripe CLI; inside a site the login is saved under the site's name and the site uses it |
 
 ## Authentication
 

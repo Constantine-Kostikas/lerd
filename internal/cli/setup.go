@@ -723,12 +723,11 @@ func detectBuildScript(pkgJSONPath string) string {
 	return ""
 }
 
-// siteHasStripeSecret returns true if a Stripe secret is present for the
-// project. The live .env is resolved through config.StripeSecretSet so a pinned
-// secret_env_key is honoured (matching what StripeStartForSite will read);
-// .env.example is probed against the candidate keys as a scaffold fallback.
+// siteHasStripeSecret reports whether the listener can sign in, resolved the
+// way StripeStartForSite reads it, with .env.example's candidate keys probed
+// as a scaffold fallback.
 func siteHasStripeSecret(cwd string) bool {
-	if config.StripeSecretSet(cwd) {
+	if config.StripeConfigured(cwd) {
 		return true
 	}
 	for _, key := range config.StripeSecretEnvCandidates {

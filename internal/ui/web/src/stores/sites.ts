@@ -133,6 +133,7 @@ export interface Site {
   stripe_secret_set?: boolean;
   stripe_webhook_path?: string;
   stripe_secret_env_key?: string;
+  stripe_project_name?: string;
   schedule_running?: boolean;
   schedule_failing?: boolean;
   reverb_running?: boolean;
@@ -768,13 +769,20 @@ export const toggleReverb = (s: Site) =>
   postAction(site(s.domain, s.reverb_running ? 'reverb:stop' : 'reverb:start'));
 export const toggleStripe = (s: Site) =>
   postAction(site(s.domain, s.stripe_running ? 'stripe:stop' : 'stripe:start'));
-export const setStripeConfig = (s: Site, path: string, secretEnvKey: string) =>
+export const setStripeConfig = (
+  s: Site,
+  path: string,
+  secretEnvKey: string,
+  projectName: string
+) =>
   postAction(
     site(s.domain, 'stripe:config') +
       '?path=' +
       encodeURIComponent(path) +
       '&secret_env_key=' +
-      encodeURIComponent(secretEnvKey)
+      encodeURIComponent(secretEnvKey) +
+      '&project_name=' +
+      encodeURIComponent(projectName)
   );
 // Saves the values for a worker's tunable options to the project's .lerd.yaml.
 // The backend drops what matches the framework default and restarts the worker

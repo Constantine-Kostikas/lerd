@@ -186,3 +186,120 @@ func TestRequireStripeSecretInEnv(t *testing.T) {
 		t.Errorf("missing key: got %v, want an error naming STRIPE_SECRET", err)
 	}
 }
+
+func TestResolveStripeAuth_ProjectNameWinsOverEnvKey(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	cfg := StripeCLIConfigPath()
+	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, cfg, "[acme]\n")
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".env"), "STRIPE_SECRET=sk_env\n")
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"), "stripe:\n  project_name: acme\n")
+
+	got, err := ResolveStripeAuth(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != (StripeAuth{ProjectName: "acme", ConfigDir: filepath.Dir(cfg)}) {
+		t.Errorf("ResolveStripeAuth = %+v, want project acme from %s", got, cfg)
+	}
+}
+
+func TestResolveStripeAuth_FallsBackToEnvKey(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".env"), "STRIPE_SECRET=sk_env\n")
+	got, err := ResolveStripeAuth(dir)
+	if err != nil || got != (StripeAuth{APIKey: "sk_env"}) {
+		t.Errorf("ResolveStripeAuth = (%+v, %v), want the .env key", got, err)
+	}
+	if _, err := ResolveStripeAuth(t.TempDir()); err == nil {
+		t.Error("ResolveStripeAuth with no key and no project should fail")
+	}
+}
+
+func TestResolveStripeAuth_MissingCLIConfigNamesTheLogin(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"), "stripe:\n  project_name: acme\n")
+	_, err := ResolveStripeAuth(dir)
+	if err == nil || !strings.Contains(err.Error(), "stripe login --project-name acme") {
+		t.Errorf("ResolveStripeAuth error = %v, want a stripe login hint", err)
+	}
+}
+
+func TestStripeProjectName_RejectsInjectableStoredName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"),
+		"stripe:\n  project_name: \"acme\\nExecStartPre=/bin/sh -c evil\"\n")
+	if got := StripeProjectName(dir); got != "" {
+		t.Errorf("StripeProjectName = %q, want empty for an unsafe stored name", got)
+	}
+	if StripeConfigured(dir) {
+		t.Error("StripeConfigured should be false with only an unsafe project name")
+	}
+}
+
+func TestSetProjectStripeProjectName_StaysOutOfTheCommittedFile(t *testing.T) {
+	dir := t.TempDir()
+	committed := "stripe:\n  path: /hooks/stripe\n"
+	writeFile(t, filepath.Join(dir, ".lerd.yaml"), committed)
+	if err := SetProjectStripeProjectName(dir, "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got := StripeProjectName(dir); got != "acme" {
+		t.Errorf("StripeProjectName = %q, want acme", got)
+	}
+	if got := StripeWebhookPath(dir); got != "/hooks/stripe" {
+		t.Errorf("the local project hid the committed webhook path: %q", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, ".lerd.yaml")); string(b) != committed {
+		t.Errorf(".lerd.yaml changed:\n%s", b)
+	}
+	if err := SetProjectStripeProjectName(dir, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := StripeProjectName(dir); got != "" {
+		t.Errorf("StripeProjectName after clear = %q, want empty", got)
+	}
+	if err := SetProjectStripeProjectName(dir, "bad name"); err == nil {
+		t.Error("SetProjectStripeProjectName accepted a name with a space")
+	}
+}
+
+// The stripe section merges field by field: a field the local file sets wins,
+// the rest keep the committed value, and a save writes only the committed ones.
+func TestStripeSection_MergesFieldByFieldWithTheLocalFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".lerd.yaml"), "stripe:\n  path: /hooks/stripe\n  secret_env_key: MY_STRIPE\n")
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"), "stripe:\n  project_name: acme\n")
+
+	cfg, err := LoadProjectConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := StripeConfig{Path: "/hooks/stripe", SecretEnvKey: "MY_STRIPE", ProjectName: "acme"}
+	if cfg.Stripe == nil || *cfg.Stripe != want {
+		t.Fatalf("merged stripe = %+v, want %+v", cfg.Stripe, want)
+	}
+
+	if err := SetProjectStripe(dir, "/new/hook", ""); err != nil {
+		t.Fatal(err)
+	}
+	committed, _ := os.ReadFile(filepath.Join(dir, ".lerd.yaml"))
+	if !strings.Contains(string(committed), "path: /new/hook") || strings.Contains(string(committed), "project_name") {
+		t.Errorf(".lerd.yaml after a path change:\n%s", committed)
+	}
+	if got := StripeProjectName(dir); got != "acme" {
+		t.Errorf("StripeProjectName after a save = %q, want acme", got)
+	}
+
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"), "stripe:\n  project_name: acme\n  path: /local/hook\n")
+	if got := StripeWebhookPath(dir); got != "/local/hook" {
+		t.Errorf("StripeWebhookPath = %q, want the local /local/hook", got)
+	}
+	if cfg, _ := LoadProjectConfig(dir); cfg.Stripe.SecretEnvKey != "MY_STRIPE" {
+		t.Errorf("secret_env_key = %q, want the committed MY_STRIPE", cfg.Stripe.SecretEnvKey)
+	}
+}

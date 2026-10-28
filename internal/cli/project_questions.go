@@ -467,7 +467,7 @@ func frameworkWorkerOptions(cwd, framework string, removedCustom map[string]bool
 		}
 		sort.Strings(options)
 	}
-	if StripeSecretSet(cwd) {
+	if StripeConfigured(cwd) {
 		options = append(options, "stripe")
 	}
 	return options

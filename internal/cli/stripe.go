@@ -3,10 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/geodro/lerd/internal/config"
 	"github.com/geodro/lerd/internal/feedback"
+	gitpkg "github.com/geodro/lerd/internal/git"
 	"github.com/geodro/lerd/internal/podman"
 	"github.com/geodro/lerd/internal/services"
 	"github.com/spf13/cobra"
@@ -17,16 +19,90 @@ func NewStripeCmds() []*cobra.Command {
 	return []*cobra.Command{
 		newStripeListenCmd(),
 		newStripeConfigCmd(),
+		newStripeLoginCmd(),
 	}
+}
+
+func newStripeLoginCmd() *cobra.Command {
+	var projectName string
+	cmd := &cobra.Command{
+		Use:   "stripe:login",
+		Short: "Log in to Stripe with lerd's Stripe CLI and save the login under a project name",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Without a terminal the Stripe CLI switches to a two-step device
+			// flow and exits before the login is saved.
+			if !containerTTY() {
+				return fmt.Errorf("stripe:login needs an interactive terminal")
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			site, _ := config.FindSiteByPath(cwd)
+			if !cmd.Flags().Changed("project-name") {
+				projectName = stripeLoginProject(site)
+			}
+			if projectName == "" {
+				return fmt.Errorf("--project-name must not be empty")
+			}
+			if err := config.ValidateStripeProjectName(projectName); err != nil {
+				return err
+			}
+			dir := filepath.Dir(config.StripeCLIConfigPath())
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return err
+			}
+			c := podman.Cmd(podman.StripeLoginArgs(dir, projectName)...)
+			c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+			if err := c.Run(); err != nil {
+				return fmt.Errorf("stripe login: %w", err)
+			}
+			if site == nil {
+				feedback.Note("use it for a site: lerd stripe:config --project-name " + projectName)
+				return nil
+			}
+			if err := SetStripeProjectName(site.Path, projectName); err != nil {
+				return err
+			}
+			feedback.Note(site.Name + " now signs in with " + projectName)
+			RestartStripeIfActive(site)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&projectName, "project-name", "", "Name to save the login under (defaults to the site's project, else its name, else \"default\")")
+	return cmd
+}
+
+// SetStripeProjectName saves the Stripe CLI project a site signs in with to
+// its .lerd.local.yaml, excluding that file from git first.
+func SetStripeProjectName(sitePath, name string) error {
+	if err := gitpkg.ExcludeLocalOverride(sitePath); err != nil {
+		return fmt.Errorf("excluding %s from git: %w", config.LocalOverrideFile, err)
+	}
+	return config.SetProjectStripeProjectName(sitePath, name)
+}
+
+// stripeLoginProject names a login run without --project-name: the site's
+// saved project, else the site's name, else Stripe's own "default".
+func stripeLoginProject(site *config.Site) string {
+	if site == nil {
+		return "default"
+	}
+	if name := config.StripeProjectName(site.Path); name != "" {
+		return name
+	}
+	return site.Name
 }
 
 func newStripeConfigCmd() *cobra.Command {
 	var webhookPath string
 	var secretEnvKey string
+	var projectName string
 
 	cmd := &cobra.Command{
 		Use:   "stripe:config",
-		Short: "Show or set the Stripe webhook path and secret env key for the current site (without starting the listener)",
+		Short: "Show or set the Stripe webhook path, secret env key and CLI project for the current site (without starting the listener)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cwd, err := os.Getwd()
@@ -39,7 +115,7 @@ func newStripeConfigCmd() *cobra.Command {
 			}
 
 			// No flags: report the current config instead of writing anything.
-			if !cmd.Flags().Changed("path") && !cmd.Flags().Changed("secret-env-key") {
+			if !cmd.Flags().Changed("path") && !cmd.Flags().Changed("secret-env-key") && !cmd.Flags().Changed("project-name") {
 				key, _ := config.ResolveStripeSecret(cwd)
 				if key == "" {
 					key = "(none found; looked for " + strings.Join(config.StripeSecretEnvCandidates, ", ") + ")"
@@ -47,7 +123,15 @@ func newStripeConfigCmd() *cobra.Command {
 				fmt.Printf("Stripe config for %s\n", site.Name)
 				fmt.Printf("  Webhook path:   %s\n", config.StripeWebhookPath(cwd))
 				fmt.Printf("  Secret env key: %s\n", key)
+				if name := config.StripeProjectName(cwd); name != "" {
+					fmt.Printf("  CLI project:    %s (used instead of the .env key)\n", name)
+				}
 				return nil
+			}
+			if cmd.Flags().Changed("project-name") {
+				if err := SetStripeProjectName(cwd, projectName); err != nil {
+					return err
+				}
 			}
 
 			// Only persist the path when --path was actually passed; its default
@@ -68,6 +152,7 @@ func newStripeConfigCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&webhookPath, "path", config.DefaultStripeWebhookPath, "Webhook route path on your app")
 	cmd.Flags().StringVar(&secretEnvKey, "secret-env-key", "", "Which .env key holds the Stripe secret")
+	cmd.Flags().StringVar(&projectName, "project-name", "", "Sign in with this Stripe CLI login (stripe login --project-name) instead of the .env key (\"\" clears it)")
 	return cmd
 }
 
@@ -75,6 +160,7 @@ func newStripeListenCmd() *cobra.Command {
 	var apiKey string
 	var webhookPath string
 	var secretEnvKey string
+	var projectName string
 
 	cmd := &cobra.Command{
 		Use:   "stripe:listen",
@@ -101,15 +187,22 @@ func newStripeListenCmd() *cobra.Command {
 				}
 			}
 
-			if apiKey == "" {
+			if cmd.Flags().Changed("project-name") {
+				if err := SetStripeProjectName(cwd, projectName); err != nil {
+					return err
+				}
+			}
+
+			// An explicit key wins, then a pinned CLI project, then the shell's
+			// STRIPE_SECRET, then the .env secret.
+			if apiKey == "" && config.StripeProjectName(cwd) == "" {
 				apiKey = os.Getenv("STRIPE_SECRET")
 			}
+			auth := config.StripeAuth{APIKey: apiKey}
 			if apiKey == "" {
-				_, apiKey = config.ResolveStripeSecret(cwd)
-			}
-			if apiKey == "" {
-				return fmt.Errorf("Stripe API key required: pass --api-key or set one of %s in .env",
-					strings.Join(config.StripeSecretEnvCandidates, ", "))
+				if auth, err = config.ResolveStripeAuth(cwd); err != nil {
+					return fmt.Errorf("%w: pass --api-key or --project-name", err)
+				}
 			}
 
 			base := siteURL(cwd)
@@ -128,7 +221,7 @@ func newStripeListenCmd() *cobra.Command {
 				return err
 			}
 
-			if err := stripeStartExplicit(siteName, apiKey, base+config.StripeWebhookPath(cwd)); err != nil {
+			if err := stripeStartExplicit(siteName, auth, base+config.StripeWebhookPath(cwd)); err != nil {
 				return err
 			}
 			if site, err := config.FindSite(siteName); err == nil && !site.Paused {
@@ -140,6 +233,7 @@ func newStripeListenCmd() *cobra.Command {
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "Stripe API key (defaults to the secret in .env)")
 	cmd.Flags().StringVar(&webhookPath, "path", config.DefaultStripeWebhookPath, "Webhook route path on your app (persisted to .lerd.yaml)")
 	cmd.Flags().StringVar(&secretEnvKey, "secret-env-key", "", "Which .env key holds the Stripe secret (persisted to .lerd.yaml)")
+	cmd.Flags().StringVar(&projectName, "project-name", "", "Sign in with this Stripe CLI login (stripe login --project-name) instead of the .env key (persisted to .lerd.yaml)")
 	// stop hangs off the starter rather than sitting beside it at the root:
 	// two root commands whose Use began with stripe:listen made cobra resolve
 	// the documented `lerd stripe:listen` to an arbitrary one of the two.
@@ -175,8 +269,8 @@ func newStripeListenStopCmd() *cobra.Command {
 // writeStripeUnit writes (and enables on first write) the lerd-stripe-<site>
 // service unit without starting it. Shared by the CLI path (starts right
 // after) and the install restore path (defers start to the worker phase).
-func writeStripeUnit(siteName, apiKey, forwardTo string) error {
-	changed, err := writeStripeUnitFile(siteName, apiKey, forwardTo)
+func writeStripeUnit(siteName string, auth config.StripeAuth, forwardTo string) error {
+	changed, err := writeStripeUnitFile(siteName, auth, forwardTo)
 	if err != nil || !changed {
 		return err
 	}
@@ -191,9 +285,9 @@ func writeStripeUnit(siteName, apiKey, forwardTo string) error {
 
 // writeStripeUnitFile writes the listener unit without reloading systemd, for
 // a caller that reloads once for a batch. Reports whether the file changed.
-func writeStripeUnitFile(siteName, apiKey, forwardTo string) (bool, error) {
+func writeStripeUnitFile(siteName string, auth config.StripeAuth, forwardTo string) (bool, error) {
 	unitName := "lerd-stripe-" + siteName
-	unit := podman.StripeListenUnit(siteName, apiKey, forwardTo)
+	unit := podman.StripeListenUnit(siteName, auth, forwardTo)
 
 	changed, err := services.Mgr.WriteServiceUnitIfChanged(unitName, unit)
 	if err != nil {
@@ -202,8 +296,8 @@ func writeStripeUnitFile(siteName, apiKey, forwardTo string) (bool, error) {
 	return changed, nil
 }
 
-func stripeStartExplicit(siteName, apiKey, forwardTo string) error {
-	if err := writeStripeUnit(siteName, apiKey, forwardTo); err != nil {
+func stripeStartExplicit(siteName string, auth config.StripeAuth, forwardTo string) error {
+	if err := writeStripeUnit(siteName, auth, forwardTo); err != nil {
 		return err
 	}
 	return launchStripeUnit(siteName, forwardTo)
@@ -224,18 +318,8 @@ func launchStripeUnit(siteName, forwardTo string) error {
 	return nil
 }
 
-// stripeKeyForSite resolves a site's Stripe secret under its configured or any
-// recognised .env key, returning a descriptive error when none is set.
-func stripeKeyForSite(sitePath string) (string, error) {
-	if _, apiKey := config.ResolveStripeSecret(sitePath); apiKey != "" {
-		return apiKey, nil
-	}
-	return "", fmt.Errorf("no Stripe secret found in %s/.env (looked for %s)",
-		sitePath, strings.Join(config.StripeSecretEnvCandidates, ", "))
-}
-
 // StripeStartForSite starts a Stripe listener for the given site, reading the
-// key and webhook path from the project's .env and .lerd.yaml.
+// sign-in and webhook path from the project's .env and .lerd.yaml.
 func StripeStartForSite(siteName, sitePath, siteBaseURL string) error {
 	changed, start, err := prepareStripeStart(siteName, sitePath, siteBaseURL)
 	if err != nil {
@@ -253,12 +337,12 @@ func StripeStartForSite(siteName, sitePath, siteBaseURL string) error {
 // so a batch of workers can share one reload. Reports whether the unit
 // changed and returns the start to run once the reload is done.
 func prepareStripeStart(siteName, sitePath, siteBaseURL string) (bool, func() error, error) {
-	apiKey, err := stripeKeyForSite(sitePath)
+	auth, err := config.ResolveStripeAuth(sitePath)
 	if err != nil {
 		return false, nil, err
 	}
 	forwardTo := siteBaseURL + config.StripeWebhookPath(sitePath)
-	changed, err := writeStripeUnitFile(siteName, apiKey, forwardTo)
+	changed, err := writeStripeUnitFile(siteName, auth, forwardTo)
 	if err != nil {
 		return false, nil, err
 	}
@@ -282,11 +366,11 @@ func prepareStripeStart(siteName, sitePath, siteBaseURL string) (bool, func() er
 // Used by install's restore path so workers launch in phase order — FPM and
 // nginx come up first, then `startRestoredServices` starts every worker.
 func StripeRestoreUnit(siteName, sitePath, siteBaseURL string) error {
-	apiKey, err := stripeKeyForSite(sitePath)
+	auth, err := config.ResolveStripeAuth(sitePath)
 	if err != nil {
 		return err
 	}
-	return writeStripeUnit(siteName, apiKey, siteBaseURL+config.StripeWebhookPath(sitePath))
+	return writeStripeUnit(siteName, auth, siteBaseURL+config.StripeWebhookPath(sitePath))
 }
 
 // restoreStripeWorker rewrites the listener unit even when it is already
@@ -303,8 +387,8 @@ func StripeStopForSite(siteName string) error {
 	return stopWorkerUnit("lerd-stripe-"+siteName, "stripe listener", "")
 }
 
-// StripeSecretSet returns true if a Stripe secret is present in the site's .env
-// under its configured or any recognised env key.
-func StripeSecretSet(sitePath string) bool {
-	return config.StripeSecretSet(sitePath)
+// StripeConfigured reports whether the site's listener can sign in, through a
+// .env secret or a saved Stripe CLI project.
+func StripeConfigured(sitePath string) bool {
+	return config.StripeConfigured(sitePath)
 }

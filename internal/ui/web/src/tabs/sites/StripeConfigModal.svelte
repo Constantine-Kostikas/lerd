@@ -3,19 +3,25 @@
   import Modal from '$components/Modal.svelte';
   import { m } from '../../paraglide/messages.js';
 
-  // Edits the per-project Stripe webhook route and secret env key (persisted to
-  // .lerd.yaml), prefilled with the current values each time it opens.
+  // Edits the per-project Stripe webhook route, secret env key and CLI project
+  // (persisted to .lerd.yaml), prefilled with the current values each time it opens.
   interface Props {
     open: boolean;
     path: string;
     secretEnvKey: string;
+    projectName: string;
     onclose: () => void;
-    onsave: (path: string, secretEnvKey: string) => Promise<{ ok: boolean; error?: string }>;
+    onsave: (
+      path: string,
+      secretEnvKey: string,
+      projectName: string
+    ) => Promise<{ ok: boolean; error?: string }>;
   }
-  let { open, path, secretEnvKey, onclose, onsave }: Props = $props();
+  let { open, path, secretEnvKey, projectName, onclose, onsave }: Props = $props();
 
   let value = $state('');
   let keyValue = $state('');
+  let projectValue = $state('');
   let error = $state('');
   // Bumped on every open, so a save answered after a close and reopen is ignored.
   let opening = 0;
@@ -28,13 +34,18 @@
     error = '';
     value = untrack(() => path) || '/stripe/webhook';
     keyValue = untrack(() => secretEnvKey) || 'STRIPE_SECRET';
+    projectValue = untrack(() => projectName) || '';
   });
 
   async function save() {
     const trimmed = value.trim();
     if (!trimmed) return onclose();
     const started = opening;
-    const r = await onsave(trimmed.startsWith('/') ? trimmed : '/' + trimmed, keyValue.trim());
+    const r = await onsave(
+      trimmed.startsWith('/') ? trimmed : '/' + trimmed,
+      keyValue.trim(),
+      projectValue.trim()
+    );
     if (started !== opening || !open) return;
     if (!r.ok) {
       error = r.error || m.common_requestFailed();
@@ -75,6 +86,21 @@
     />
     <p class="text-[11px] text-gray-500 dark:text-gray-400">
       {m.sites_controls_stripeSecretKeyHint()}
+    </p>
+    <label class="block text-sm text-gray-600 dark:text-gray-400" for="stripe-project">
+      {m.sites_controls_stripeProjectLabel()}
+    </label>
+    <input
+      id="stripe-project"
+      type="text"
+      bind:value={projectValue}
+      spellcheck="false"
+      autocomplete="off"
+      onkeydown={(e) => e.key === 'Enter' && save()}
+      class="w-full text-sm font-mono px-2.5 py-1.5 rounded-sm border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-lerd-red"
+    />
+    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+      {m.sites_controls_stripeProjectHint()}
     </p>
     {#if error}
       <pre class="text-[11px] text-red-600 dark:text-red-400 whitespace-pre-wrap break-words bg-red-50 dark:bg-red-900/15 rounded-sm px-2 py-1.5 max-h-32 overflow-y-auto">{error}</pre>

@@ -34,6 +34,40 @@ func setLocalOverride(dir, key string, val *yaml.Node) error {
 	return os.WriteFile(LocalOverridePath(dir), data, 0o644)
 }
 
+// setLocalOverrideField sets one field of the section key in dir's local
+// override file, leaving the section's other fields alone. An empty value
+// removes the field, and the section with it once nothing is left.
+func setLocalOverrideField(dir, key, field, value string) error {
+	root, err := loadMapping(LocalOverridePath(dir))
+	if err != nil {
+		return err
+	}
+	if root == nil {
+		if value == "" {
+			return nil
+		}
+		root = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	}
+	section := mappingValue(root, key)
+	if section == nil || section.Kind != yaml.MappingNode {
+		section = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		setMappingValue(root, key, section)
+	}
+	if value == "" {
+		deleteMappingKey(section, field)
+	} else {
+		setMappingValue(section, field, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
+	}
+	if len(section.Content) == 0 {
+		deleteMappingKey(root, key)
+	}
+	data, err := yaml.Marshal(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}})
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(LocalOverridePath(dir), data, 0o644)
+}
+
 // LocalOverridePath returns the path of dir's local override file, whether or
 // not it exists.
 func LocalOverridePath(dir string) string {
@@ -140,6 +174,17 @@ func restoreLocalOverrides(dir string, out *yaml.Node) error {
 	for i := 0; i+1 < len(local.Content); i += 2 {
 		key := local.Content[i].Value
 		saved := mappingValue(out, key)
+		// A section merges field by field on load, so only the fields the
+		// local file sets are its own; the rest still belong in .lerd.yaml.
+		if saved != nil && saved.Kind == yaml.MappingNode && local.Content[i+1].Kind == yaml.MappingNode {
+			for _, f := range restoreLocalFields(saved, mappingValue(base, key), local.Content[i+1]) {
+				overridden = append(overridden, key+"."+f)
+			}
+			if len(saved.Content) == 0 {
+				deleteMappingKey(out, key)
+			}
+			continue
+		}
 		if saved != nil && !sameNode(saved, local.Content[i+1]) {
 			overridden = append(overridden, key)
 		}
@@ -154,6 +199,25 @@ func restoreLocalOverrides(dir string, out *yaml.Node) error {
 		warnLocalOverride(overridden)
 	}
 	return nil
+}
+
+// restoreLocalFields puts each field the local section sets back to its
+// committed value in saved (or drops it), returning the fields whose saved
+// value the local file would have swallowed.
+func restoreLocalFields(saved, base, local *yaml.Node) []string {
+	var overridden []string
+	for i := 0; i+1 < len(local.Content); i += 2 {
+		field := local.Content[i].Value
+		if v := mappingValue(saved, field); v != nil && !sameNode(v, local.Content[i+1]) {
+			overridden = append(overridden, field)
+		}
+		if kept := mappingValue(base, field); kept != nil {
+			setMappingValue(saved, field, kept)
+		} else {
+			deleteMappingKey(saved, field)
+		}
+	}
+	return overridden
 }
 
 // sameNode compares two YAML values structurally, which is enough to tell an
