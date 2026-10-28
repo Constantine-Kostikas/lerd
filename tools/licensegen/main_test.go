@@ -112,6 +112,11 @@ func TestNpmPackages(t *testing.T) {
 	if got["bare"].License != "Unknown" {
 		t.Errorf("bare = %+v, want Unknown", got["bare"])
 	}
+	// npm installs a libc-pinned build or not depending on the machine, so
+	// listing it would make the file differ between a laptop and CI.
+	if _, ok := got["plain-linux-x64-musl"]; ok {
+		t.Error("a libc-pinned build was listed")
+	}
 }
 
 func TestNpmPackagesFailsLoudlyWithoutNodeModules(t *testing.T) {

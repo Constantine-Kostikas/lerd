@@ -134,6 +134,7 @@ type npmPackage struct {
 	Name    string          `json:"name"`
 	Version string          `json:"version"`
 	License json.RawMessage `json:"license"`
+	Libc    []string        `json:"libc"`
 }
 
 // npmPackages collects every installed npm package. The web UI build pulls
@@ -158,6 +159,12 @@ func npmPackages(nodeModules string) ([]pkg, error) {
 		}
 		var p npmPackage
 		if json.Unmarshal(raw, &p) != nil || p.Name == "" || p.Version == "" {
+			return nil
+		}
+		// A glibc or musl build is installed or skipped by npm per machine, so
+		// listing it makes the file differ between hosts; its parent package
+		// carries the same license and stays listed.
+		if len(p.Libc) > 0 {
 			return nil
 		}
 		key := p.Name + "@" + p.Version
