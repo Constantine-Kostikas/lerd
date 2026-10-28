@@ -658,6 +658,8 @@
   "services_dash_installed": "Installiert",
   "services_dash_noInstalled": "Noch keine Dienste installiert. Füge unten einen hinzu, um zu beginnen.",
   "services_dash_sitesServed": "{count} Sites bedient",
+  "services_cat_all": "Alle",
+  "services_dash_addService": "Dienst hinzufügen",
   "services_dashboard": "Dashboard",
   "services_delete_body": "Stoppt die Unit, entfernt den Container und löscht die Dienstkonfiguration. Standarddienste können später aus der Preset-Liste neu installiert werden.",
   "services_delete_breakWarn": "Wenn du ihn entfernst, funktionieren diese Sites nicht mehr, bis du ihn neu installierst.",

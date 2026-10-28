@@ -658,6 +658,8 @@
   "services_dash_installed": "Instalados",
   "services_dash_noInstalled": "Aún no hay servicios instalados. Añade uno abajo para empezar.",
   "services_dash_sitesServed": "{count} sitios servidos",
+  "services_cat_all": "Todos",
+  "services_dash_addService": "Añadir un servicio",
   "services_dashboard": "Panel",
   "services_delete_body": "Detiene la unidad, elimina el contenedor y borra la configuración del servicio. Los servicios predeterminados pueden reinstalarse después desde la lista de presets.",
   "services_delete_breakWarn": "Eliminarlo romperá esos sitios hasta que reinstales.",

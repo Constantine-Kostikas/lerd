@@ -658,6 +658,8 @@
   "services_dash_installed": "Instalados",
   "services_dash_noInstalled": "Ainda não há serviços instalados. Adicione um abaixo para começar.",
   "services_dash_sitesServed": "{count} sites servidos",
+  "services_cat_all": "Todos",
+  "services_dash_addService": "Adicionar um serviço",
   "services_dashboard": "Painel",
   "services_delete_body": "Para a unidade, remove o contêiner e exclui a configuração do serviço. Serviços padrão podem ser reinstalados depois pela lista de presets.",
   "services_delete_breakWarn": "Removê-lo quebrará esses sites até você reinstalar.",

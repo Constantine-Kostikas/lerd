@@ -658,6 +658,8 @@
   "services_dash_installed": "Yüklü",
   "services_dash_noInstalled": "Henüz yüklü hizmet yok. Başlamak için aşağıdan bir tane ekleyin.",
   "services_dash_sitesServed": "{count} site sunuluyor",
+  "services_cat_all": "Tümü",
+  "services_dash_addService": "Servis ekle",
   "services_dashboard": "Pano",
   "services_delete_body": "Birimi durdurur, konteyneri kaldırır ve servis yapılandırmasını siler. Varsayılan servisler daha sonra ön ayar listesinden yeniden kurulabilir.",
   "services_delete_breakWarn": "Kaldırmak yeniden kurana kadar o siteleri bozar.",

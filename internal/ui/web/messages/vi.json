@@ -658,6 +658,8 @@
   "services_dash_installed": "Đã cài đặt",
   "services_dash_noInstalled": "Chưa cài đặt dịch vụ nào. Thêm một cái bên dưới để bắt đầu.",
   "services_dash_sitesServed": "{count} sites được phục vụ",
+  "services_cat_all": "Tất cả",
+  "services_dash_addService": "Thêm dịch vụ",
   "services_dashboard": "Bảng điều khiển",
   "services_delete_body": "Dừng unit, gỡ container và xóa cấu hình dịch vụ. Các dịch vụ mặc định có thể được cài lại sau từ danh sách preset.",
   "services_delete_breakWarn": "Gỡ nó sẽ làm hỏng các site đó cho đến khi bạn cài lại.",

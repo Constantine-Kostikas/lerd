@@ -658,6 +658,8 @@
   "services_dash_installed": "已安装",
   "services_dash_noInstalled": "尚未安装任何服务。在下方添加一个以开始。",
   "services_dash_sitesServed": "已服务 {count} 个站点",
+  "services_cat_all": "全部",
+  "services_dash_addService": "添加服务",
   "services_dashboard": "仪表盘",
   "services_delete_body": "停止单元、移除容器并删除服务配置。默认服务之后可从预设列表重新安装。",
   "services_delete_breakWarn": "移除它会使这些站点失效，直到你重新安装。",

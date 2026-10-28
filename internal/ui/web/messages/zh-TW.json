@@ -658,6 +658,8 @@
   "services_dash_installed": "已安裝",
   "services_dash_noInstalled": "尚未安裝任何服務。在下方新增一個以開始。",
   "services_dash_sitesServed": "為 {count} 個網站提供服務",
+  "services_cat_all": "全部",
+  "services_dash_addService": "新增服務",
   "services_dashboard": "儀表板",
   "services_delete_body": "停止單元、移除容器並刪除服務設定。預設服務之後可從預設集清單重新安裝。",
   "services_delete_breakWarn": "移除它會使這些網站失效，直到你重新安裝。",

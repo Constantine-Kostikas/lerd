@@ -658,6 +658,8 @@
   "services_dash_installed": "Instalat",
   "services_dash_noInstalled": "Niciun serviciu instalat încă. Adaugă unul mai jos pentru a începe.",
   "services_dash_sitesServed": "{count} site-uri servite",
+  "services_cat_all": "Toate",
+  "services_dash_addService": "Adaugă un serviciu",
   "services_dashboard": "Tablou de bord",
   "services_delete_body": "Oprește unitatea, elimină containerul și șterge configurația serviciului. Serviciile implicite pot fi reinstalate ulterior din lista de presetări.",
   "services_delete_breakWarn": "Eliminarea sa va strica acele site-uri până când reinstalezi.",

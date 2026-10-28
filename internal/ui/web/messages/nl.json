@@ -658,6 +658,8 @@
   "services_dash_installed": "Geïnstalleerd",
   "services_dash_noInstalled": "Nog geen diensten geïnstalleerd. Voeg er hieronder een toe om te beginnen.",
   "services_dash_sitesServed": "{count} sites bediend",
+  "services_cat_all": "Alle",
+  "services_dash_addService": "Service toevoegen",
   "services_dashboard": "Dashboard",
   "services_delete_body": "Stopt de unit, verwijdert de container en wist de serviceconfiguratie. Standaardservices kunnen later opnieuw worden geïnstalleerd vanuit de presetlijst.",
   "services_delete_breakWarn": "Het verwijderen breekt die sites totdat je opnieuw installeert.",

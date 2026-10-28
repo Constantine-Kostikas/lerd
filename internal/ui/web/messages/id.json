@@ -658,6 +658,8 @@
   "services_dash_installed": "Terpasang",
   "services_dash_noInstalled": "Belum ada layanan terpasang. Tambahkan satu di bawah untuk memulai.",
   "services_dash_sitesServed": "{count} situs dilayani",
+  "services_cat_all": "Semua",
+  "services_dash_addService": "Tambah layanan",
   "services_dashboard": "Dasbor",
   "services_delete_body": "Menghentikan unit, menghapus kontainer, dan menghapus konfigurasi layanan. Layanan bawaan dapat dipasang ulang nanti dari daftar preset.",
   "services_delete_breakWarn": "Menghapusnya akan merusak situs-situs itu sampai Anda memasang ulang.",

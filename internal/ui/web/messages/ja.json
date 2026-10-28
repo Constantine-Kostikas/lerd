@@ -658,6 +658,8 @@
   "services_dash_installed": "インストール済み",
   "services_dash_noInstalled": "まだサービスがインストールされていません。下から追加して始めましょう。",
   "services_dash_sitesServed": "{count} サイトを配信中",
+  "services_cat_all": "すべて",
+  "services_dash_addService": "サービスを追加",
   "services_dashboard": "ダッシュボード",
   "services_delete_body": "ユニットを停止し、コンテナを削除し、サービス設定を削除します。デフォルトサービスは後でプリセット一覧から再インストールできます。",
   "services_delete_breakWarn": "削除すると、再インストールするまでそれらのサイトは動作しなくなります。",

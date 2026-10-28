@@ -1,13 +1,49 @@
-import { render } from '@testing-library/svelte';
-import { describe, it, expect } from 'vitest';
+import { render, fireEvent, within } from '@testing-library/svelte';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import PresetCard from './PresetCard.svelte';
 import type { Preset } from '$stores/presets';
+
+const install = vi.fn();
+vi.mock('$stores/presets', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$stores/presets')>();
+  return { ...actual, installPresetAndOpen: (...args: unknown[]) => install(...args) };
+});
 
 function preset(over: Partial<Preset> = {}): Preset {
   return { name: 'postgres', ...over } as Preset;
 }
 
 describe('PresetCard', () => {
+  beforeEach(() => install.mockReset());
+
+  it('installs a preset without versions straight from its add button', async () => {
+    const { getByRole, queryByRole } = render(PresetCard, { props: { preset: preset({ name: 'valkey' }) } });
+    await fireEvent.click(getByRole('button'));
+    expect(queryByRole('dialog')).toBeNull();
+    expect(install).toHaveBeenCalledWith(expect.objectContaining({ name: 'valkey' }));
+  });
+
+  // A preset with versions asks which one first, offering only those not
+  // installed yet, and installs the one picked.
+  it('asks for the version of a multi-version preset before installing it', async () => {
+    const p = preset({
+      name: 'mysql',
+      installed_tags: ['8.4'],
+      versions: [{ tag: '8.4' }, { tag: '8.0' }, { tag: '5.7', label: '5.7 (legacy)' }],
+      selected_version: '8.0'
+    });
+    const { getByRole, getByText, queryByRole } = render(PresetCard, { props: { preset: p } });
+    expect(getByText('8.4 installed')).toBeTruthy();
+    await fireEvent.click(getByRole('button'));
+    const dialog = within(getByRole('dialog'));
+    expect(install).not.toHaveBeenCalled();
+    await fireEvent.click(dialog.getByRole('button', { name: /8\.0/ }));
+    expect(queryByRole('option', { name: '8.4' })).toBeNull();
+    await fireEvent.click(getByRole('option', { name: '5.7 (legacy)' }));
+    await fireEvent.click(dialog.getByRole('button', { name: 'Add' }));
+    expect(install).toHaveBeenCalledWith(expect.objectContaining({ name: 'mysql', selected_version: '5.7' }));
+  });
+
   it('renders the human label and the description blurb', () => {
     const { getByText } = render(PresetCard, {
       props: { preset: preset({ description: 'Relational database with extensions' }) }

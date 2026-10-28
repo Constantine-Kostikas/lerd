@@ -658,6 +658,8 @@
   "services_dash_installed": "Installed",
   "services_dash_noInstalled": "No services installed yet. Add one below to get started.",
   "services_dash_sitesServed": "{count} sites served",
+  "services_cat_all": "All",
+  "services_dash_addService": "Add a service",
   "services_dashboard": "Dashboard",
   "services_delete_body": "Stops the unit, removes the container, and deletes the service config. Default services can be reinstalled later from the preset list.",
   "services_delete_breakWarn": "Removing it will break those sites until you reinstall.",

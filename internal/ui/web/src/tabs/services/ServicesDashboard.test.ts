@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import ServicesDashboard from './ServicesDashboard.svelte';
 import { services, type Service } from '$stores/services';
 import { accessMode } from '$stores/accessMode';
+import { presets, presetsLoaded } from '$stores/presets';
+import { routeRest } from '$stores/route';
 
 const updateServices = vi.fn();
 vi.mock('$stores/services', async (importOriginal) => {
@@ -21,7 +23,14 @@ function svc(over: Partial<Service> & { name: string }): Service {
 describe('ServicesDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    routeRest.set('');
     accessMode.set({ localControl: true } as never);
+    presetsLoaded.set(true);
+    presets.set([
+      { name: 'valkey', description: 'Redis-compatible store', category: 'cache' },
+      { name: 'mongo', description: 'Document database', category: 'databases' },
+      { name: 'kafka', description: 'Event streaming broker', category: 'messaging' }
+    ] as never);
     services.set([
       svc({ name: 'mysql', version: 'v8.4' }),
       svc({ name: 'mailpit', version: 'v1.27', update_available: true, latest_version: 'v1.28' }),
@@ -49,12 +58,60 @@ describe('ServicesDashboard', () => {
     expect(queryByText('Update all')).toBeNull();
   });
 
-  // Services waiting on an update lead the grid so they are not lost among
-  // the up-to-date ones.
-  it('lists services with an update first', () => {
+  // Installed services sit under their type like the rail does, and within a
+  // type the ones waiting on an update lead so they are not lost.
+  it('groups installed services by type with updates leading each group', () => {
+    services.set([
+      svc({ name: 'mysql', category: 'databases' }),
+      svc({ name: 'postgres', category: 'databases', update_available: true }),
+      svc({ name: 'redis', category: 'cache' })
+    ]);
     const { container } = render(ServicesDashboard);
-    const names = [...container.querySelectorAll('.grid .font-semibold')].map((n) => n.textContent);
-    expect(names.slice(0, 3)).toEqual(['Mailpit', 'Redis', 'RustFS']);
+    const sections = [...container.querySelectorAll('section section')].map((sec) => ({
+      label: sec.querySelector('h3')?.textContent,
+      names: [...sec.querySelectorAll('.grid .font-semibold')].map((n) => n.textContent)
+    }));
+    expect(sections.slice(0, 2)).toEqual([
+      { label: 'Databases', names: ['PostgreSQL', 'MySQL'] },
+      { label: 'Cache', names: ['Redis'] }
+    ]);
+  });
+
+  // The two halves are separate views, so the long preset list no longer
+  // pushes the installed services up the page.
+  it('shows installed services only until Discover is opened', async () => {
+    const { getByText, queryByText, getByRole } = render(ServicesDashboard);
+    expect(getByText('MySQL')).toBeTruthy();
+    expect(queryByText('Valkey')).toBeNull();
+    await fireEvent.click(getByRole('button', { name: 'Add a service' }));
+    expect(location.hash).toBe('#services/discover');
+  });
+
+  // A preset already run stays on offer while it has versions left to add.
+  it('offers the other versions of an installed preset in Discover', () => {
+    presets.update((list) => [
+      ...list,
+      { name: 'mysql', category: 'databases', installed: true, installed_tags: ['8.4'], versions: [{ tag: '8.4' }, { tag: '8.0' }] },
+      { name: 'redis', category: 'cache', installed: true }
+    ] as never);
+    routeRest.set('discover');
+    const { getByText, queryByText } = render(ServicesDashboard);
+    expect(getByText('MySQL')).toBeTruthy();
+    expect(queryByText('Redis')).toBeNull();
+  });
+
+  it('finds a preset in Discover by search or by type', async () => {
+    routeRest.set('discover');
+    const { getByText, queryByText, getByLabelText, getByRole } = render(ServicesDashboard);
+    expect(queryByText('MySQL')).toBeNull();
+    expect(getByText('Valkey')).toBeTruthy();
+    await fireEvent.input(getByLabelText('Search presets…'), { target: { value: 'stream' } });
+    expect(getByText('Kafka')).toBeTruthy();
+    expect(queryByText('Valkey')).toBeNull();
+    await fireEvent.input(getByLabelText('Search presets…'), { target: { value: '' } });
+    await fireEvent.click(getByRole('button', { name: 'Databases' }));
+    expect(getByText('MongoDB')).toBeTruthy();
+    expect(queryByText('Kafka')).toBeNull();
   });
 
   it('confirms the batch, updates only the outdated services and reports each failure', async () => {

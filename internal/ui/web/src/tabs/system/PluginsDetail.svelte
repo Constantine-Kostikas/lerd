@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import DetailButton from '$components/DetailButton.svelte';
   import DetailHeader from '$components/DetailHeader.svelte';
-  import IconButton from '$components/IconButton.svelte';
+  import ViewSwitch from '$components/ViewSwitch.svelte';
   import Icon from '$components/Icon.svelte';
   import Modal from '$components/Modal.svelte';
   import ConfirmModal from '$components/ConfirmModal.svelte';
@@ -114,14 +114,12 @@
 </script>
 
 {#snippet views()}
-  <div class="flex items-center gap-1">
-    <IconButton size="sm" placement="bottom" title={m.system_plugins_tabInstalled()} active={!browsing} onclick={() => goToTab('plugins')}>
-      <Icon name="grid" class="w-4 h-4" />
-    </IconButton>
-    <IconButton size="sm" placement="bottom" title={m.system_plugins_tabBrowse()} active={browsing} onclick={() => goToTab('plugins', 'browse')}>
-      <Icon name="download" class="w-4 h-4" />
-    </IconButton>
-  </div>
+  <ViewSwitch
+    views={[
+      { title: m.system_plugins_tabInstalled(), icon: 'grid', active: !browsing, onclick: () => goToTab('plugins') },
+      { title: m.system_plugins_tabBrowse(), icon: 'download', active: browsing, onclick: () => goToTab('plugins', 'browse') }
+    ]}
+  />
 {/snippet}
 
 <div class="flex-1 flex flex-col min-h-0">
