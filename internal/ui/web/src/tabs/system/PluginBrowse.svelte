@@ -3,9 +3,11 @@
   import Dropdown from '$components/Dropdown.svelte';
   import DetailButton from '$components/DetailButton.svelte';
   import ConfirmModal from '$components/ConfirmModal.svelte';
+  import Modal from '$components/Modal.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Pager from '$components/Pager.svelte';
   import CatalogCard from './CatalogCard.svelte';
+  import BuildPluginCard from './BuildPluginCard.svelte';
   import CatalogEmpty from './CatalogEmpty.svelte';
   import PluginDetailModal from './PluginDetailModal.svelte';
   import { loadCatalog, installListedPlugin, type CatalogEntry } from '$stores/plugins';
@@ -29,6 +31,7 @@
   let sort = $state('updated');
   let category = $state('');
   let page = $state(0);
+  let showMore = $state(false);
   let open = $state<CatalogEntry | null>(null);
   let confirm = $state<CatalogEntry | null>(null);
   let installing = $state('');
@@ -152,12 +155,13 @@
       {#each paged as e (e.name)}
         <CatalogCard entry={e} focused={e.name === focus} onopen={() => (open = e)} />
       {/each}
+      <BuildPluginCard onopen={() => (showMore = true)} />
     </div>
     <Pager page={current} total={shown.length} size={PAGE_SIZE} onchange={(p) => (page = p)} />
   {/if}
-  {#if loaded && !loadError && entries.length > 0}
-    <div class="mt-6 border-t border-gray-100 dark:border-lerd-border pt-2"><CatalogEmpty more /></div>
-  {/if}
+  <Modal open={showMore} title={m.system_plugins_buildTitle()} size="xl" onclose={() => (showMore = false)}>
+    <div class="px-5"><CatalogEmpty more /></div>
+  </Modal>
 </div>
 
 {#if open}

@@ -147,14 +147,20 @@ it('says why when the catalog cannot be reached', async () => {
   await findByText(/no route/);
 });
 
-// Once plugins are listed the build steps are gone, so the catalog keeps
-// asking for more under its cards.
-it('invites building and submitting a plugin under a listed catalog', async () => {
-  const { findByText, getByText, getByRole } = render(PluginBrowse);
+// Once plugins are listed the catalog stays clear: one more card ends the grid
+// and opens the build and submit steps on demand.
+it('invites building and submitting a plugin from a card after the listed ones', async () => {
+  const { findByText, getByRole, queryByText } = render(PluginBrowse);
   await findByText('fresh');
-  expect(getByText('Build the next one')).toBeTruthy();
-  expect(getByText('lerd plugin new my-plugin')).toBeTruthy();
-  expect(getByRole('link', { name: /submission guide/i }).getAttribute('href')).toContain('lerd-env/plugins/blob/main/SUBMITTING.md');
+  expect(queryByText('Build the next one')).toBeNull();
+  const card = getByRole('button', { name: /^Build your own/ });
+  expect(within(card).getByText(/Start from a working plugin/)).toBeTruthy();
+  expect(card.querySelector('svg')).toBeTruthy();
+  await fireEvent.click(card);
+  const dialog = within(getByRole('dialog'));
+  expect(dialog.getByText('Build the next one')).toBeTruthy();
+  expect(dialog.getByText('lerd plugin new my-plugin')).toBeTruthy();
+  expect(dialog.getByRole('link', { name: /submission guide/i }).getAttribute('href')).toContain('lerd-env/plugins/blob/main/SUBMITTING.md');
 });
 
 // The approved commit's version, on its card and in its detail.

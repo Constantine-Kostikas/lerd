@@ -46,6 +46,21 @@ describe('marquee action', () => {
     expect(text.classList.contains('lerd-marquee')).toBe(false);
   });
 
+  // A card's description sits a few spans deep, but the whole card is what gets hovered.
+  it('takes the nearest ancestor matching a selector as the trigger', () => {
+    const card = document.createElement('button');
+    const row = document.createElement('span');
+    const text = document.createElement('span');
+    row.appendChild(text);
+    card.appendChild(row);
+    document.body.appendChild(card);
+    Object.defineProperty(text, 'scrollWidth', { value: 300 });
+    Object.defineProperty(text, 'clientWidth', { value: 180 });
+    marquee(text, 'button');
+    card.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(text.classList.contains('lerd-marquee')).toBe(true);
+  });
+
   it('stops listening once destroyed', () => {
     const { host, text, handle } = mount(300, 180);
     handle.destroy();

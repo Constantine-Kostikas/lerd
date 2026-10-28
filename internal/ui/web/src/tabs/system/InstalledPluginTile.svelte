@@ -2,6 +2,7 @@
   import ServiceCardShell from '$components/ServiceCardShell.svelte';
   import PluginIcon from '$components/PluginIcon.svelte';
   import StatusDot from '$components/StatusDot.svelte';
+  import { marquee } from '$lib/marquee';
   import type { ManagedPlugin } from '$stores/plugins';
   import { m } from '../../paraglide/messages.js';
 
@@ -29,7 +30,7 @@
       </span>
       <span class="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
         <StatusDot color={dot} />
-        <span class="truncate {p.error ? 'text-red-600 dark:text-red-400' : ''}">{p.error ? m.system_plugins_broken() : p.description}</span>
+        <span class="truncate {p.error ? 'text-red-600 dark:text-red-400' : ''}" use:marquee={'button'}><span>{p.error ? m.system_plugins_broken() : p.description}</span></span>
       </span>
     </span>
   </button>
