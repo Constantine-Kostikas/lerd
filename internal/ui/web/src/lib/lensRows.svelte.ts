@@ -1,4 +1,4 @@
-import { fetchEvent, type LensGroup } from '$lib/lens';
+import { fetchEvent, type Lens, type LensGroup } from '$lib/lens';
 import type { DumpEvent } from '$lib/dumpEvent';
 import { tick } from 'svelte';
 
@@ -33,6 +33,28 @@ export class LensRows {
       delete this.expanded[id];
     }
   }
+}
+
+// revealOrLoad opens the row a timeline sent the user to, or reads more of the
+// lens when its page does not hold it yet: the rest of a cut group first, then
+// the next page. 'missing' means there is nothing left to read.
+export function revealOrLoad(
+  rows: LensRows,
+  lens: Pick<Lens, 'loadRows' | 'loadMore'>,
+  groups: LensGroup[],
+  more: boolean,
+  id: string
+): 'shown' | 'loading' | 'missing' {
+  if (rows.reveal(groups, id)) return 'shown';
+  if (groups.length === 0) return 'loading';
+  const partial = groups.find((g) => g.rows.length < g.count);
+  if (partial) {
+    void lens.loadRows(partial.key);
+    return 'loading';
+  }
+  if (!more) return 'missing';
+  void lens.loadMore();
+  return 'loading';
 }
 
 // scrollToEvent brings a lens row into view once the DOM has drawn it.

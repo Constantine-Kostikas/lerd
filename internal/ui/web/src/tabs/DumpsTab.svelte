@@ -49,13 +49,18 @@
     lens.set({ kind: 'dump', site, ctx: effectiveCtx, rid: $scope.rid, route: $scope.route, q: effectiveText, tests: $showTests });
   });
   const lensGroups = lens.groups;
-  // A dump has nothing to open, so a timeline row sent here is scrolled to.
+  // A dump has nothing to open, so a timeline row sent here is scrolled to,
+  // reading the rest of its group first when the page cut it.
   $effect(() => {
     const id = $revealEvent;
-    if (id && $lensGroups.some((g) => g.rows.some((r) => r.event.id === id))) {
+    if (!id) return;
+    if ($lensGroups.some((g) => g.rows.some((r) => r.event.id === id))) {
       scrollToEvent(id);
       revealEvent.set('');
+      return;
     }
+    const partial = $lensGroups.find((g) => g.rows.length < g.count);
+    if (partial) void lens.loadRows(partial.key);
   });
   // A dump that arrives while the tab is open flashes; the first page does not.
   let newestId: string | null = null;

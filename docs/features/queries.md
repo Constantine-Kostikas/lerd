@@ -75,7 +75,7 @@ Beyond queries, the same adapter feeds additional Debug sub-tabs:
 - **Mail**: outgoing messages captured before send, with subject, recipients, and a sandboxed HTML preview.
 - **Cache** *(Laravel)*: hit / miss / write / forget events with the key and store. Framework-internal keys (the queue restart/pause signals, scheduler overlap mutexes, and reverb/horizon/pulse/telescope pub-sub) are filtered out so the tab shows the application's own cache use rather than background machinery, this matters most with worker capture on, where those keys are polled constantly.
 - **Events** *(Laravel)*: application and package events dispatched (framework-internal `Illuminate\*` events are filtered out).
-- **HTTP**: every outgoing request, whichever client made it, with its method, URL and status, and its duration on the request [timeline](request-timing.md). Opening a row shows the request and the response, each with its headers and body. See the HTTP seam below.
+- **HTTP**: every outgoing request, whichever client made it, with its method, URL and status. A curl call also carries its duration, shown on the request [timeline](request-timing.md); a `file_get_contents` or `fopen` call has none. Opening a row shows the request and the response, each with its headers and body. See the HTTP seam below.
 
 Each lens groups per request/job, shows the originating app frame with the stack trace and editor links, and is filterable by site and worker command. All of them render the newest 100 rows and load the next 100 as you reach the end, so a worker that has been running all afternoon doesn't put thousands of rows on screen at once.
 

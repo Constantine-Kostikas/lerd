@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LensRows, localTime } from '$lib/lensRows.svelte';
+  import { LensRows, localTime, revealOrLoad } from '$lib/lensRows.svelte';
   import LensSearch from '$components/LensSearch.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { get } from 'svelte/store';
@@ -125,8 +125,12 @@
   const rows = new LensRows();
   const toggleRow = (id: string) => rows.toggle(id);
   $effect(() => rows.keepOnly($lensGroups));
+  const lensLoading = lens.loading;
+  const lensMore = lens.hasMore;
   $effect(() => {
-    if ($revealEvent && rows.reveal($lensGroups, $revealEvent)) revealEvent.set('');
+    const id = $revealEvent;
+    if (!id || $lensLoading) return;
+    if (revealOrLoad(rows, lens, $lensGroups, $lensMore, id) !== 'loading') revealEvent.set('');
   });
 </script>
 
