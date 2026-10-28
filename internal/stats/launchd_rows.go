@@ -7,9 +7,8 @@ import (
 
 // launchdRows turns `launchctl list` and `ps -axo pid=,ppid=,rss=,%cpu=` output
 // into one row per running lerd launchd job, each charged with its whole process
-// tree so an FPM master carries its pool. Names in skip are already reported as
-// containers; their launchd job only wraps podman and would double count.
-func launchdRows(launchctlOut, psOut string, totalRAM int64, skip map[string]bool) []ContainerStat {
+// tree so an FPM master carries its pool.
+func launchdRows(launchctlOut, psOut string, totalRAM int64) []ContainerStat {
 	type proc struct {
 		rss int64
 		cpu float64
@@ -39,7 +38,7 @@ func launchdRows(launchctlOut, psOut string, totalRAM int64, skip map[string]boo
 			continue
 		}
 		name, ok := lerdJobName(f[2])
-		if !ok || skip[name] {
+		if !ok {
 			continue
 		}
 		pid, err := strconv.Atoi(f[0])
@@ -69,4 +68,19 @@ func launchdRows(launchctlOut, psOut string, totalRAM int64, skip map[string]boo
 func lerdJobName(label string) (string, bool) {
 	name := strings.TrimPrefix(label, "com.lerd.")
 	return name, strings.HasPrefix(name, "lerd-")
+}
+
+// mergeJobs appends the launchd jobs to the container rows, dropping a job named
+// like a container: its launchd job only wraps podman and would double count.
+func mergeJobs(containers, jobs []ContainerStat) []ContainerStat {
+	seen := map[string]bool{}
+	for _, c := range containers {
+		seen[c.Name] = true
+	}
+	for _, j := range jobs {
+		if !seen[j.Name] {
+			containers = append(containers, j)
+		}
+	}
+	return containers
 }

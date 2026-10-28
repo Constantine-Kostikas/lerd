@@ -23,13 +23,13 @@ const psFixture = `    1     0  1000  0.0
 `
 
 func TestLaunchdRows(t *testing.T) {
-	rows := launchdRows(launchctlFixture, psFixture, gb(16), map[string]bool{"lerd-redis": true})
+	rows := mergeJobs([]ContainerStat{{Name: "lerd-redis", MemBytes: 1}}, launchdRows(launchctlFixture, psFixture, gb(16)))
 	got := map[string]ContainerStat{}
 	for _, r := range rows {
 		got[r.Name] = r
 	}
-	if len(got) != 3 {
-		t.Fatalf("rows = %+v, want php84, tray and ui only", rows)
+	if len(rows) != 4 || got["lerd-redis"].MemBytes != 1 {
+		t.Fatalf("rows = %+v, want the redis container plus php84, tray and ui jobs", rows)
 	}
 
 	php := got["lerd-native-php84"]
@@ -48,7 +48,7 @@ func TestLaunchdRows(t *testing.T) {
 }
 
 func TestLaunchdRowsSkipsUnknownPID(t *testing.T) {
-	rows := launchdRows("123\t0\tcom.lerd.lerd-ui\n", "1 0 10 0.0\n", gb(1), nil)
+	rows := launchdRows("123\t0\tcom.lerd.lerd-ui\n", "1 0 10 0.0\n", gb(1))
 	if len(rows) != 0 {
 		t.Fatalf("rows = %+v, want none for a pid ps does not list", rows)
 	}

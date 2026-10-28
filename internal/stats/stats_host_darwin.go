@@ -9,25 +9,24 @@ import (
 	"strings"
 )
 
-// readHostProcesses reports the containers via podman plus lerd's launchd jobs:
-// its daemons, native PHP-FPM masters and host-side workers. launchd keeps no
-// per-job accounting, so each job is measured from `ps` over its process tree.
-// CPU is ps's decaying average rather than a delta, which is close enough here.
+// readHostProcesses reports lerd's launchd jobs, measured from `ps` since launchd
+// keeps no per-job accounting, plus the containers. With no jobs it returns
+// nothing so Read's own podman fallback is the only podman read.
 func readHostProcesses() ([]ContainerStat, error) {
-	rows, _ := readerFn()
-	skip := map[string]bool{}
-	for _, r := range rows {
-		skip[r.Name] = true
-	}
-	jobs, err := hostOutput("launchctl", "list")
+	list, err := hostOutput("launchctl", "list")
 	if err != nil {
-		return rows, nil
+		return nil, nil
 	}
 	procs, err := hostOutput("ps", "-axo", "pid=,ppid=,rss=,%cpu=")
 	if err != nil {
-		return rows, nil
+		return nil, nil
 	}
-	return append(rows, launchdRows(jobs, procs, hostTotalRAM(), skip)...), nil
+	jobs := launchdRows(list, procs, hostTotalRAM())
+	if len(jobs) == 0 {
+		return nil, nil
+	}
+	containers, _ := readerFn()
+	return mergeJobs(containers, jobs), nil
 }
 
 func hostOutput(name string, args ...string) (string, error) {

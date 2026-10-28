@@ -69,11 +69,9 @@ func Read() Snapshot {
 		UpdatedAt:  time.Now(),
 	}
 
-	// Every lerd container runs as a quadlet unit, so one pass over the units'
-	// cgroups measures the containers and lerd's own daemons the same way, in a
-	// handful of file reads. Streaming `podman stats` per refresh cost more CPU
-	// than everything it was measuring, so it is only the fallback here; macOS's
-	// host reader still calls it for the containers, alongside its launchd jobs.
+	// The host reader measures containers and lerd's own processes in one cheap
+	// pass. Streaming `podman stats` per refresh cost more CPU than it measured,
+	// so it is only the fallback, and on macOS the source for container rows.
 	rows, _ := hostReaderFn()
 	if len(rows) == 0 {
 		rows, _ = readerFn()
