@@ -1192,11 +1192,10 @@ static zend_bool lerd_http_wanted(void)
 	return LERD_G(active) && (!lerd_is_worker || LERD_G(capture_workers));
 }
 
-/* lerd_curl_exec_end reports one finished curl_exec. The collector reads the
- * method, url, status and timing off the handle. */
-static void lerd_curl_exec_end(zend_execute_data *execute_data, zval *retval)
+/* lerd_curl_handle_call hands a curl handle seam its first argument, plus the
+ * second or the return value where the collector needs one. */
+static void lerd_curl_handle_call(zend_execute_data *execute_data, const char *fn, size_t fn_len, zval *extra)
 {
-	(void)retval;
 	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 1) {
 		return;
 	}
@@ -1204,9 +1203,114 @@ static void lerd_curl_exec_end(zend_execute_data *execute_data, zval *retval)
 	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
 		return;
 	}
+	zval args[2];
+	ZVAL_COPY(&args[0], ch);
+	if (extra) {
+		ZVAL_COPY(&args[1], extra);
+	}
+	lerd_call_collector(fn, fn_len, args, extra ? 2 : 1);
+}
+
+#define LERD_CURL_CALL(fn, extra) \
+	lerd_curl_handle_call(execute_data, (fn), sizeof(fn) - 1, (extra))
+
+/* The libcurl option numbers the collector reads, fixed by curl's ABI. Every
+ * other curl_setopt call is skipped here so a request's dozen options do not
+ * each cost a PHP call. */
+static zend_bool lerd_curl_opt_wanted(zend_long opt)
+{
+	switch (opt) {
+	case 10015: /* CURLOPT_POSTFIELDS */
+	case 20011: /* CURLOPT_WRITEFUNCTION */
+	case 20079: /* CURLOPT_HEADERFUNCTION */
+	case 19913: /* CURLOPT_RETURNTRANSFER, PHP's own */
+	case 10001: /* CURLOPT_FILE */
+	case 10029: /* CURLOPT_WRITEHEADER */
+		return 1;
+	}
+	return 0;
+}
+
+static void lerd_curl_setopt_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 3) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 1);
+	zval *opt = ZEND_CALL_ARG(execute_data, 2);
+	zval *value = ZEND_CALL_ARG(execute_data, 3);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT || !opt || Z_TYPE_P(opt) != IS_LONG || !lerd_curl_opt_wanted(Z_LVAL_P(opt))) {
+		return;
+	}
+	zval args[3];
+	ZVAL_COPY(&args[0], ch);
+	ZVAL_COPY(&args[1], opt);
+	ZVAL_COPY(&args[2], value);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl_opt", args, 3);
+}
+
+static void lerd_curl_setopt_array_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	LERD_CURL_CALL("Lerd\\Collector\\curl_opts", ZEND_CALL_NUM_ARGS(execute_data) >= 2 ? ZEND_CALL_ARG(execute_data, 2) : NULL);
+}
+
+static void lerd_curl_reset_end(zend_execute_data *execute_data, zval *retval)
+{
+	(void)retval;
+	LERD_CURL_CALL("Lerd\\Collector\\curl_forget", NULL);
+}
+
+static void lerd_curl_copy_end(zend_execute_data *execute_data, zval *retval)
+{
+	if (retval && Z_TYPE_P(retval) == IS_OBJECT) {
+		LERD_CURL_CALL("Lerd\\Collector\\curl_copied", retval);
+	}
+}
+
+static void lerd_curl_exec_begin(zend_execute_data *execute_data)
+{
+	LERD_CURL_CALL("Lerd\\Collector\\curl_begin", NULL);
+}
+
+/* lerd_curl_multi_add_begin readies a handle the way curl_exec's begin does;
+ * the handle is curl_multi_add_handle's second argument. */
+static void lerd_curl_multi_add_begin(zend_execute_data *execute_data)
+{
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 2) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 2);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
+		return;
+	}
 	zval args[1];
 	ZVAL_COPY(&args[0], ch);
-	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl", args, 1);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl_begin", args, 1);
+}
+
+/* lerd_curl_exec_end reports one finished curl_exec. The collector reads the
+ * method, url, status and timing off the handle, and the body off the return
+ * value when the client asked curl to return it. */
+static void lerd_curl_exec_end(zend_execute_data *execute_data, zval *retval)
+{
+	if (!lerd_http_wanted() || ZEND_CALL_NUM_ARGS(execute_data) < 1) {
+		return;
+	}
+	zval *ch = ZEND_CALL_ARG(execute_data, 1);
+	if (!ch || Z_TYPE_P(ch) != IS_OBJECT) {
+		return;
+	}
+	zval args[3];
+	ZVAL_COPY(&args[0], ch);
+	ZVAL_NULL(&args[1]);
+	if (retval) {
+		ZVAL_COPY(&args[2], retval);
+	} else {
+		ZVAL_NULL(&args[2]);
+	}
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\curl", args, 3);
 }
 
 /* lerd_curl_multi_end reports the transfer a curl_multi_info_read returned.
@@ -1265,7 +1369,18 @@ static zend_observer_fcall_handlers lerd_observer_init(zend_execute_data *execut
 	if (!fn->common.scope && fn->type == ZEND_INTERNAL_FUNCTION) {
 		zend_string *name = fn->common.function_name;
 		if (zend_string_equals_literal_ci(name, "curl_exec")) {
+			h.begin = lerd_curl_exec_begin;
 			h.end = lerd_curl_exec_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_multi_add_handle")) {
+			h.begin = lerd_curl_multi_add_begin;
+		} else if (zend_string_equals_literal_ci(name, "curl_setopt")) {
+			h.end = lerd_curl_setopt_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_setopt_array")) {
+			h.end = lerd_curl_setopt_array_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_reset")) {
+			h.end = lerd_curl_reset_end;
+		} else if (zend_string_equals_literal_ci(name, "curl_copy_handle")) {
+			h.end = lerd_curl_copy_end;
 		} else if (zend_string_equals_literal_ci(name, "curl_multi_info_read")) {
 			h.end = lerd_curl_multi_end;
 		} else if (zend_string_equals_literal_ci(name, "file_get_contents") ||

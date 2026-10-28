@@ -20,6 +20,7 @@
   import LensToggle from '$components/LensToggle.svelte';
   import TestEventsToggle from '$components/TestEventsToggle.svelte';
   import TraceBlock from '$components/TraceBlock.svelte';
+  import HttpDetail from '$components/HttpDetail.svelte';
   import SourcePath from '$components/SourcePath.svelte';
   import LensList from '$components/LensList.svelte';
   import LensGroupLabel from '$components/LensGroupLabel.svelte';
@@ -362,6 +363,10 @@
                       <div class="text-gray-400 break-all">{m.debug_mail_renderedFrom()} {d.views.join(', ')}</div>
                     {/if}
                     {#if full.html}<iframe sandbox="" class="w-full h-64 bg-white rounded-sm border border-gray-200 dark:border-lerd-border" srcdoc={full.html} title={d.subject ?? 'mail'}></iframe>{/if}
+                  {/if}
+                  {#if wireKind === 'http'}
+                    <HttpDetail label={m.http_request()} detail={full.request} />
+                    <HttpDetail label={m.http_response()} detail={full.response} />
                   {/if}
                   {#if wireKind !== 'view'}<TraceBlock src={ev.src} trace={full.trace} />{/if}
                 </div>

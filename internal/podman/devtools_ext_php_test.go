@@ -2,6 +2,7 @@ package podman
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -175,7 +176,11 @@ echo 'ok';
 // multi handles (Guzzle, Stripe, Symfony's CurlHttpClient) and the http stream
 // wrapper (file_get_contents, fopen, Symfony's NativeHttpClient).
 func TestDevtoolsExt_CapturesEveryHTTPClient(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("X-Path", r.URL.Path)
+		w.Write([]byte("hi " + r.URL.Path + " " + string(body)))
+	}))
 	defer srv.Close()
 	php, args, dir, sink := devtoolsExtSetup(t, strings.ReplaceAll(`<?php
 echo defined('LERD_DEVTOOLS_HTTP') && LERD_DEVTOOLS_HTTP ? 'HTTP=1' : 'HTTP=0';
@@ -183,7 +188,16 @@ if (PHP_VERSION_ID < 80200) { echo ' SKIP'; exit; }
 echo function_exists('http_get_last_response_headers') ? ' HEADERS=1' : '';
 $ch = curl_init(SRV.'/easy');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+if (curl_exec($ch) !== 'hi /easy ') { echo ' CLIENT-LOST-BODY'; }
+
+// Reused through curl_reset the way Guzzle does, with its own write callback.
+$got = '';
+$ch = curl_init();
+curl_setopt_array($ch, [CURLOPT_URL => SRV.'/write', CURLOPT_POSTFIELDS => 'token=t1&a=1', CURLOPT_WRITEFUNCTION => function ($h, $d) use (&$got) { $got .= $d; return strlen($d); }]);
 curl_exec($ch);
+curl_reset($ch);
+curl_setopt_array($ch, [CURLOPT_URL => SRV.'/reset', CURLOPT_RETURNTRANSFER => true]);
+if (curl_exec($ch) !== 'hi /reset ' || $got !== 'hi /write token=t1&a=1') { echo ' CLIENT-LOST-BODY'; }
 
 $mh = curl_multi_init();
 $ch = curl_init(SRV.'/multi');
@@ -213,6 +227,9 @@ file_get_contents(__FILE__);
 		}
 		t.Skip("observers only see built-in functions from PHP 8.2")
 	}
+	if strings.Contains(string(out), "CLIENT-LOST-BODY") {
+		t.Errorf("a client stopped receiving its own response body: %s", out)
+	}
 	if !strings.Contains(string(out), "HTTP=1") {
 		t.Errorf("LERD_DEVTOOLS_HTTP not set, so the Laravel adapter would report Http client calls twice: %s", out)
 	}
@@ -223,8 +240,13 @@ file_get_contents(__FILE__);
 		var e struct {
 			Kind string
 			Data struct {
-				URL    string
-				Status int
+				URL      string
+				Status   int
+				Request  struct{ Body string }
+				Response struct {
+					Headers []string
+					Body    string
+				}
 			}
 		}
 		if err := json.Unmarshal([]byte(l), &e); err != nil {
@@ -237,9 +259,25 @@ file_get_contents(__FILE__);
 		if e.Data.Status != 200 && !(strings.HasSuffix(e.Data.URL, "/get") && !strings.Contains(string(out), "HEADERS=1")) {
 			t.Errorf("%s status = %d, want 200", e.Data.URL, e.Data.Status)
 		}
-		paths = append(paths, strings.TrimPrefix(e.Data.URL, srv.URL))
+		path := strings.TrimPrefix(e.Data.URL, srv.URL)
+		paths = append(paths, path)
+		if path == "/open" {
+			continue // fopen hands back a stream, not a body
+		}
+		if want := "hi " + path + " " + map[string]string{"/write": "token=t1&a=1"}[path]; e.Data.Response.Body != want {
+			t.Errorf("%s response body = %q, want %q", path, e.Data.Response.Body, want)
+		}
+		if path == "/write" && e.Data.Request.Body != "token=••••&a=1" {
+			t.Errorf("/write request body = %q, want the token masked", e.Data.Request.Body)
+		}
+		if path == "/reset" && e.Data.Request.Body != "" {
+			t.Errorf("/reset request body = %q, want nothing carried over from before curl_reset", e.Data.Request.Body)
+		}
+		if !slices.Contains(e.Data.Response.Headers, "X-Path: "+path) && path != "/get" {
+			t.Errorf("%s response headers = %v, want X-Path", path, e.Data.Response.Headers)
+		}
 	}
-	if want := []string{"/easy", "/multi", "/get", "/open"}; !slices.Equal(paths, want) {
+	if want := []string{"/easy", "/write", "/reset", "/multi", "/get", "/open"}; !slices.Equal(paths, want) {
 		t.Errorf("http events = %v, want %v once each", paths, want)
 	}
 }

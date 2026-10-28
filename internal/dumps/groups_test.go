@@ -283,3 +283,16 @@ func TestRing_GroupRowsPageFromTheLastRowNotAnOffset(t *testing.T) {
 		t.Errorf("next rows = %v, want e3 e2 whatever arrived since", groupIDs(Group{Rows: more}))
 	}
 }
+
+// An http row lists without its request and response, which can run to 32 KB.
+func TestRing_HTTPRowsLeaveOutRequestAndResponse(t *testing.T) {
+	r := NewRing(50)
+	e := queryEvent("a", "r1", "", 1)
+	e.Kind = KindHTTP
+	e.Data = []byte(`{"method":"GET","url":"https://api.test/x","status":200,"request":{"headers":["Accept: */*"]},"response":{"body":"{}"}}`)
+	r.Append(e)
+	row := r.Groups(GroupOpts{FilterOpts: FilterOpts{Kind: KindHTTP}, Limit: 10, Rows: 10}).Groups[0].Rows[0]
+	if strings.Contains(string(row.Event), `"request":{"headers"`) || strings.Contains(string(row.Event), `"response"`) || !strings.Contains(string(row.Event), "api.test") {
+		t.Errorf("listed row = %s, want the url without request and response", row.Event)
+	}
+}

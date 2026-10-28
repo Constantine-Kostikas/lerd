@@ -134,9 +134,10 @@ func withPayload(data, payload json.RawMessage) json.RawMessage {
 	return out
 }
 
-// detailFields are what only an expanded row shows: a call stack and a mail's
-// rendered HTML. A lens lists rows without them and reads the event to open one.
-var detailFields = []string{"trace", "html"}
+// detailFields are what only an expanded row shows: a call stack, a mail's
+// rendered HTML and an http call's request and response. A lens lists rows
+// without them and reads the event to open one.
+var detailFields = []string{"trace", "html", "request", "response"}
 
 // brief is the event as a lens lists it, data being the whole event encoded.
 func brief(e Event, data []byte) []byte {

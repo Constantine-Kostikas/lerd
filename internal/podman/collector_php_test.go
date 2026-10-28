@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1312,5 +1313,153 @@ $fp = fopen(OK_URL, 'r', false, $ctx);
 	}
 	if got[3].Data.Method != "PUT" {
 		t.Errorf("stream method = %q, want PUT from the context", got[3].Data.Method)
+	}
+}
+
+// httpDetail is the request or response half of an http event.
+type httpDetail struct {
+	Headers   []string `json:"headers"`
+	Body      string   `json:"body"`
+	Truncated bool     `json:"truncated"`
+}
+
+// httpDetailEvents runs body against a server answering with a JSON body and a
+// header, and returns the http events with their request and response halves.
+func httpDetailEvents(t *testing.T, body string) ([]struct {
+	URL      string     `json:"url"`
+	Request  httpDetail `json:"request"`
+	Response httpDetail `json:"response"`
+}, string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Trace", "abc")
+		w.Header().Set("Set-Cookie", "session=s3cr3t")
+		if r.URL.Path == "/big" {
+			w.Write([]byte(strings.Repeat("x", 20000)))
+			return
+		}
+		w.Write([]byte(`{"error":"No such customer"}`))
+	}))
+	t.Cleanup(srv.Close)
+	lines := runCollectorPHP(t, strings.ReplaceAll(body, "SRV", phpQuote(srv.URL)))
+	var out []struct {
+		URL      string     `json:"url"`
+		Request  httpDetail `json:"request"`
+		Response httpDetail `json:"response"`
+	}
+	for _, l := range lines {
+		var e struct {
+			Kind string          `json:"kind"`
+			Data json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatalf("bad JSON line %q: %v", l, err)
+		}
+		if e.Kind != "http" {
+			continue
+		}
+		var d struct {
+			URL      string     `json:"url"`
+			Request  httpDetail `json:"request"`
+			Response httpDetail `json:"response"`
+		}
+		if err := json.Unmarshal(e.Data, &d); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, d)
+	}
+	return out, srv.URL
+}
+
+// collectorCurlHooks stands in for the extension: it calls the collector at
+// the points the observers do, around the real curl functions.
+const collectorCurlHooks = `
+require COLLECTOR;
+function hooked_setopt_array($ch, array $o) { curl_setopt_array($ch, $o); \Lerd\Collector\curl_opts($ch, $o); }
+function hooked_exec($ch) { \Lerd\Collector\curl_begin($ch); $r = curl_exec($ch); \Lerd\Collector\curl($ch, null, $r); return $r; }
+`
+
+func hasHeader(hs []string, want string) bool {
+	return slices.ContainsFunc(hs, func(h string) bool { return strings.EqualFold(h, want) })
+}
+
+// A client that has curl return the body (Stripe's) keeps getting it, and the
+// lens gets both halves with the secrets masked.
+func TestCollectorPHP_HTTPDetailsReturnTransfer(t *testing.T) {
+	evs, _ := httpDetailEvents(t, `<?php`+collectorCurlHooks+`
+$ch = curl_init(SRV.'/v1/customers');
+hooked_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POSTFIELDS => 'amount=5&password=hunter2',
+    CURLOPT_HTTPHEADER => ['Authorization: Bearer sk_test_abc', 'X-Plain: yes'],
+]);
+$got = hooked_exec($ch);
+if ($got !== '{"error":"No such customer"}') { fwrite(STDERR, 'client lost its body: '.var_export($got, true)); exit(1); }
+`)
+	if len(evs) != 1 {
+		t.Fatalf("http events = %d, want 1", len(evs))
+	}
+	req, resp := evs[0].Request, evs[0].Response
+	if !hasHeader(req.Headers, "Authorization: Bearer ••••") || !hasHeader(req.Headers, "X-Plain: yes") {
+		t.Errorf("request headers = %v, want the bearer token masked and the rest kept", req.Headers)
+	}
+	if req.Body != "amount=5&password=••••" {
+		t.Errorf("request body = %q, want the password masked", req.Body)
+	}
+	if !hasHeader(resp.Headers, "X-Trace: abc") || !hasHeader(resp.Headers, "Set-Cookie: ••••") {
+		t.Errorf("response headers = %v, want X-Trace kept and the cookie masked", resp.Headers)
+	}
+	if resp.Body != `{"error":"No such customer"}` {
+		t.Errorf("response body = %q", resp.Body)
+	}
+}
+
+// A client with its own write and header callbacks (Guzzle's) still receives
+// every byte and header, and a body over the cap is cut and flagged.
+func TestCollectorPHP_HTTPDetailsClientCallbacks(t *testing.T) {
+	evs, _ := httpDetailEvents(t, `<?php`+collectorCurlHooks+`
+$body = ''; $heads = 0;
+$ch = curl_init(SRV.'/big');
+hooked_setopt_array($ch, [
+    CURLOPT_WRITEFUNCTION => function ($h, $d) use (&$body) { $body .= $d; return strlen($d); },
+    CURLOPT_HEADERFUNCTION => function ($h, $d) use (&$heads) { $heads++; return strlen($d); },
+    CURLOPT_POSTFIELDS => json_encode(['client_secret' => 'cs_1', 'name' => 'Ana']),
+]);
+hooked_exec($ch);
+if (strlen($body) !== 20000 || $heads < 3) { fwrite(STDERR, "client callbacks starved: body ".strlen($body)." headers $heads"); exit(1); }
+`)
+	if len(evs) != 1 {
+		t.Fatalf("http events = %d, want 1", len(evs))
+	}
+	req, resp := evs[0].Request, evs[0].Response
+	if req.Body != `{"client_secret":"••••","name":"Ana"}` {
+		t.Errorf("request body = %q, want client_secret masked", req.Body)
+	}
+	if !hasHeader(resp.Headers, "X-Trace: abc") {
+		t.Errorf("response headers = %v, want X-Trace", resp.Headers)
+	}
+	if len(resp.Body) != 16*1024 || !resp.Truncated {
+		t.Errorf("response body = %d bytes truncated=%v, want 16384 and flagged", len(resp.Body), resp.Truncated)
+	}
+}
+
+// file_get_contents carries its request in the stream context and returns the
+// response body.
+func TestCollectorPHP_HTTPDetailsStream(t *testing.T) {
+	evs, _ := httpDetailEvents(t, `<?php
+require COLLECTOR;
+$ctx = stream_context_create(['http' => ['method' => 'POST', 'header' => "X-Api-Key: k_1\r\nAccept: application/json", 'content' => 'q=1']]);
+$r = file_get_contents(SRV.'/search', false, $ctx);
+\Lerd\Collector\stream(SRV.'/search', $ctx, $r);
+`)
+	if len(evs) != 1 {
+		t.Fatalf("http events = %d, want 1", len(evs))
+	}
+	req, resp := evs[0].Request, evs[0].Response
+	if !hasHeader(req.Headers, "X-Api-Key: ••••") || !hasHeader(req.Headers, "Accept: application/json") || req.Body != "q=1" {
+		t.Errorf("request = %+v, want the api key masked, Accept kept and body q=1", req)
+	}
+	if resp.Body != `{"error":"No such customer"}` {
+		t.Errorf("response body = %q", resp.Body)
 	}
 }
