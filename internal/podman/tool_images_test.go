@@ -57,7 +57,7 @@ func TestStripeListenUnit_RemovesItsContainerOnStop(t *testing.T) {
 func TestStripeListenExecStart_SignsInWithASavedProject(t *testing.T) {
 	auth := config.StripeAuth{ProjectName: "acme", ConfigDir: "/home/dev/.config/stripe"}
 	got := StripeListenExecStart("lerd-stripe-shop", auth, "https://shop.test/stripe/webhook")
-	want := PodmanBin() + " run --rm --replace --name lerd-stripe-shop --network host " +
+	want := PodmanBin() + " run --rm --replace --name lerd-stripe-shop --network host " + UnitRunLogArgs() +
 		strings.Join(HostMountRunArgs(), " ") +
 		" -v /home/dev/.config/stripe:/root/.config/stripe " +
 		StripeCLIImage + " listen --project-name acme" +

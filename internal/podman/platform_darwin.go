@@ -55,3 +55,10 @@ func PlatformPullArgs(image string) []string {
 	}
 	return nil
 }
+
+// UnitRunLogArgs adds nothing on macOS: there is no journal to write twice,
+// and lerd reads these containers' output back with `podman logs`, which the
+// default driver serves.
+func UnitRunLogArgs() string {
+	return ""
+}

@@ -20,3 +20,10 @@ func PlatformPullArgs(_ string) []string {
 func PlatformImage(image string) string {
 	return image
 }
+
+// UnitRunLogArgs is the log flag for a `podman run` a systemd unit attaches to:
+// the unit already logs its output, so journald would log each line twice, and
+// passthrough's lines land outside the unit where `journalctl -u` misses them.
+func UnitRunLogArgs() string {
+	return "--log-driver none "
+}

@@ -34,8 +34,8 @@ func StripeListenExecStart(containerName string, auth config.StripeAuth, forward
 		mount = strings.Join(HostMountRunArgs(), " ") + " -v " + auth.ConfigDir + ":/root/.config/stripe "
 		signIn = "--project-name " + auth.ProjectName
 	}
-	return fmt.Sprintf("%s run --rm --replace --name %s --network host %s%s listen %s --forward-to %s --skip-verify --all-snapshot",
-		PodmanBin(), containerName, mount, StripeCLIImage, signIn, forwardTo)
+	return fmt.Sprintf("%s run --rm --replace --name %s --network host %s%s%s listen %s --forward-to %s --skip-verify --all-snapshot",
+		PodmanBin(), containerName, UnitRunLogArgs(), mount, StripeCLIImage, signIn, forwardTo)
 }
 
 // ToolImages lists every image lerd runs as a throw-away container.
