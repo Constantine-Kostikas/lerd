@@ -722,12 +722,16 @@ func renderContainerVhost(site config.Site, container string, port int, backendS
 		return nil, err
 	}
 
+	devBase, devPort := detectSiteDevServer(site)
 	data := VhostData{
 		Domain:          site.PrimaryDomain(),
 		ServerNames:     serverNamesWithWildcards(site.Domains),
 		CustomContainer: container,
 		CustomPort:      port,
 		BackendSSL:      backendSSL,
+		UpstreamHost:    hostProxyUpstream(),
+		DevServerBase:   devBase,
+		DevServerPort:   devPort,
 		RequestTimeout:  resolveRequestTimeout(site.Path, site.PHPVersion),
 	}
 	data.PageInjectConf = pageInjectConf(site.Name, "")
