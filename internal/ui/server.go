@@ -4471,6 +4471,10 @@ func handleSiteAction(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Query().Get("path")
 		secretEnvKey := r.URL.Query().Get("secret_env_key")
 		projectName := r.URL.Query().Get("project_name")
+		if err := config.ValidateStripeSettings(path, projectName); err != nil {
+			writeJSON(w, SiteActionResponse{Error: err.Error()})
+			return
+		}
 		if err := config.RequireStripeSecretInEnv(site.Path, secretEnvKey); err != nil {
 			if projectName == "" {
 				writeJSON(w, SiteActionResponse{Error: err.Error()})

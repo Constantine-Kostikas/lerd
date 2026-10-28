@@ -2,6 +2,7 @@ package git
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -146,5 +147,36 @@ func TestExcludeLocalOverride_OnlyTouchesAGitCheckout(t *testing.T) {
 	got, _ := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude"))
 	if strings.Count(string(got), "/.lerd.local.yaml\n") != 1 {
 		t.Errorf("exclude file = %q, want /.lerd.local.yaml once", got)
+	}
+}
+
+func TestExcludeLocalOverride_ReachesAWorktreesSharedExclude(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "shop")
+	wt := filepath.Join(filepath.Dir(repo), "shop-feature")
+	run := func(dir string, args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run(repo, "init", "-q")
+	run(repo, "commit", "-q", "--allow-empty", "-m", "init")
+	run(repo, "worktree", "add", "-q", "-b", "feature", wt)
+
+	if err := ExcludeLocalOverride(wt); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, ".lerd.local.yaml"), []byte("x: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("git", "-C", wt, "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), ".lerd.local.yaml") {
+		t.Errorf("git status in the worktree still lists the local file:\n%s", out)
 	}
 }

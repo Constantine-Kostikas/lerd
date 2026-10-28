@@ -874,6 +874,9 @@ func execStripeConfig(args map[string]any) (any, *rpcError) {
 			siteName, config.StripeWebhookPath(site.Path), key, project)), nil
 	}
 
+	if err := config.ValidateStripeSettings(webhookPath, strArg(args, "project_name")); err != nil {
+		return toolErr(err.Error()), nil
+	}
 	if hasProject {
 		if err := gitpkg.ExcludeLocalOverride(site.Path); err != nil {
 			return toolErr("excluding " + config.LocalOverrideFile + " from git: " + err.Error()), nil

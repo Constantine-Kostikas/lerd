@@ -57,6 +57,15 @@ func ValidateStripeProjectName(name string) error {
 	return fmt.Errorf("invalid Stripe project name %q: use letters, digits, '.', '-' or '_'", name)
 }
 
+// ValidateStripeSettings checks a webhook path and project name together, so a
+// save can refuse a bad one before writing the other.
+func ValidateStripeSettings(path, projectName string) error {
+	if _, err := ValidateStripeWebhookPath(path); err != nil {
+		return err
+	}
+	return ValidateStripeProjectName(projectName)
+}
+
 // StripeProjectName returns the project's saved Stripe CLI project, or "" when
 // none is set or the stored value is unsafe.
 func StripeProjectName(sitePath string) string {
@@ -82,9 +91,10 @@ func ResolveStripeAuth(sitePath string) (StripeAuth, error) {
 		if _, err := os.Stat(cfg); err != nil {
 			return StripeAuth{}, fmt.Errorf("no Stripe CLI config at %s: run `stripe login --project-name %s` first", cfg, name)
 		}
-		// The path lands unquoted in the listener unit's ExecStart.
-		if strings.ContainsAny(cfg, " \t\r\n") {
-			return StripeAuth{}, fmt.Errorf("Stripe CLI config path %q contains whitespace", cfg)
+		// The path lands unquoted in the listener unit's ExecStart, where
+		// systemd splits on whitespace and expands % and $.
+		if strings.ContainsAny(cfg, " \t\r\n%$") {
+			return StripeAuth{}, fmt.Errorf("Stripe CLI config path %q contains whitespace, %% or $, which the listener unit cannot carry", cfg)
 		}
 		return StripeAuth{ProjectName: name, ConfigDir: filepath.Dir(cfg)}, nil
 	}

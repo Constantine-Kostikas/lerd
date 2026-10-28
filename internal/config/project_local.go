@@ -35,15 +35,15 @@ func setLocalOverride(dir, key string, val *yaml.Node) error {
 }
 
 // setLocalOverrideField sets one field of the section key in dir's local
-// override file, leaving the section's other fields alone. An empty value
-// removes the field, and the section with it once nothing is left.
-func setLocalOverrideField(dir, key, field, value string) error {
+// override file, leaving the section's other fields alone. A nil value removes
+// the field, and the section with it once nothing is left.
+func setLocalOverrideField(dir, key, field string, value *string) error {
 	root, err := loadMapping(LocalOverridePath(dir))
 	if err != nil {
 		return err
 	}
 	if root == nil {
-		if value == "" {
+		if value == nil {
 			return nil
 		}
 		root = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
@@ -53,10 +53,10 @@ func setLocalOverrideField(dir, key, field, value string) error {
 		section = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 		setMappingValue(root, key, section)
 	}
-	if value == "" {
+	if value == nil {
 		deleteMappingKey(section, field)
 	} else {
-		setMappingValue(section, field, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
+		setMappingValue(section, field, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: *value})
 	}
 	if len(section.Content) == 0 {
 		deleteMappingKey(root, key)

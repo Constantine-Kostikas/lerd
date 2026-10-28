@@ -39,7 +39,7 @@ func newStripeLoginCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			site, _ := config.FindSiteByPath(cwd)
+			site := stripeLoginSite(cwd)
 			if !cmd.Flags().Changed("project-name") {
 				projectName = stripeLoginProject(site)
 			}
@@ -81,6 +81,18 @@ func SetStripeProjectName(sitePath, name string) error {
 		return fmt.Errorf("excluding %s from git: %w", config.LocalOverrideFile, err)
 	}
 	return config.SetProjectStripeProjectName(sitePath, name)
+}
+
+// stripeLoginSite is the site a login in dir belongs to: the linked site
+// there, or the parent of a git worktree, whose listener the site runs.
+func stripeLoginSite(dir string) *config.Site {
+	if site, err := config.FindSiteByPath(dir); err == nil {
+		return site
+	}
+	if parent, ok := config.ParentSiteForWorktreeDir(dir); ok {
+		return parent
+	}
+	return nil
 }
 
 // stripeLoginProject names a login run without --project-name: the site's
@@ -128,6 +140,9 @@ func newStripeConfigCmd() *cobra.Command {
 				}
 				return nil
 			}
+			if err := config.ValidateStripeSettings(webhookPath, projectName); err != nil {
+				return err
+			}
 			if cmd.Flags().Changed("project-name") {
 				if err := SetStripeProjectName(cwd, projectName); err != nil {
 					return err
@@ -169,6 +184,9 @@ func newStripeListenCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
+				return err
+			}
+			if err := config.ValidateStripeSettings(webhookPath, projectName); err != nil {
 				return err
 			}
 

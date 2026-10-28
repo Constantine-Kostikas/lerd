@@ -83,7 +83,16 @@ func SetProjectStripeProjectName(dir, name string) error {
 	if err := ValidateStripeProjectName(name); err != nil {
 		return err
 	}
-	err := setLocalOverrideField(dir, "stripe", "project_name", name)
+	value := &name
+	if name == "" {
+		value = nil
+		// A committed name would show through a removed field, so blank it.
+		if committed, err := loadMapping(filepath.Join(dir, ".lerd.yaml")); err == nil &&
+			mappingValue(mappingValue(committed, "stripe"), "project_name") != nil {
+			value = &name
+		}
+	}
+	err := setLocalOverrideField(dir, "stripe", "project_name", value)
 	invalidateProjectConfigCache(dir)
 	return err
 }

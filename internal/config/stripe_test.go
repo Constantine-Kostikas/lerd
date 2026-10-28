@@ -303,3 +303,32 @@ func TestStripeSection_MergesFieldByFieldWithTheLocalFile(t *testing.T) {
 		t.Errorf("secret_env_key = %q, want the committed MY_STRIPE", cfg.Stripe.SecretEnvKey)
 	}
 }
+
+func TestSetProjectStripeProjectName_ClearingHidesACommittedName(t *testing.T) {
+	dir := t.TempDir()
+	committed := "stripe:\n  project_name: team\n"
+	writeFile(t, filepath.Join(dir, ".lerd.yaml"), committed)
+	if err := SetProjectStripeProjectName(dir, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := StripeProjectName(dir); got != "" {
+		t.Errorf("StripeProjectName after clear = %q, want empty", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, ".lerd.yaml")); string(b) != committed {
+		t.Errorf(".lerd.yaml changed:\n%s", b)
+	}
+}
+
+func TestResolveStripeAuth_RefusesASystemdSpecifierInTheConfigPath(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "conf%h")
+	t.Setenv("XDG_CONFIG_HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, "stripe"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, StripeCLIConfigPath(), "[acme]\n")
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".lerd.local.yaml"), "stripe:\n  project_name: acme\n")
+	if _, err := ResolveStripeAuth(dir); err == nil {
+		t.Error("ResolveStripeAuth accepted a config path with %")
+	}
+}

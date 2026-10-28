@@ -66,3 +66,20 @@ func TestExecStripeConfig_setsAndClearsProjectName(t *testing.T) {
 		t.Errorf("expected an error for a project name with a space, got: %s", mcpText(t, res))
 	}
 }
+
+// A bad field refuses the whole save, so the project can't change on its own.
+func TestExecStripeConfig_badPathLeavesProjectAlone(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	if err := config.AddSite(config.Site{Name: "acme", Path: dir, Domains: []string{"acme.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	res, _ := execStripeConfig(map[string]any{"site": "acme", "project_name": "acme", "webhook_path": "/bad path"})
+	if !mcpIsError(res) {
+		t.Fatalf("expected an error for a webhook_path with a space, got: %s", mcpText(t, res))
+	}
+	if got := config.StripeProjectName(dir); got != "" {
+		t.Errorf("StripeProjectName = %q after a refused save, want empty", got)
+	}
+}
