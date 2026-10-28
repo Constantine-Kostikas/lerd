@@ -76,6 +76,27 @@ func SetProjectStripe(dir, path, secretEnvKey string) error {
 	return SaveProjectConfig(dir, cfg)
 }
 
+// SetProjectStripeProjectName pins the Stripe CLI project a listener signs in
+// with, in .lerd.local.yaml since the login is this developer's, not the
+// team's. An empty name clears it, switching back to the .env secret.
+func SetProjectStripeProjectName(dir, name string) error {
+	if err := ValidateStripeProjectName(name); err != nil {
+		return err
+	}
+	value := &name
+	if name == "" {
+		value = nil
+		// A committed name would show through a removed field, so blank it.
+		if committed, err := loadMapping(filepath.Join(dir, ".lerd.yaml")); err == nil &&
+			mappingValue(mappingValue(committed, "stripe"), "project_name") != nil {
+			value = &name
+		}
+	}
+	err := setLocalOverrideField(dir, "stripe", "project_name", value)
+	invalidateProjectConfigCache(dir)
+	return err
+}
+
 // SetProjectWorkers replaces the workers list. No-op if .lerd.yaml does not exist.
 func SetProjectWorkers(dir string, workers []string) error {
 	return updateProjectConfig(dir, func(cfg *ProjectConfig) {

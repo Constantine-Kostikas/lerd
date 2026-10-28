@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Stripe webhook",
   "sites_controls_stripePathHint": "Stripe イベントがアプリに転送されるルートです。例: Laravel なら /stripe/webhook、他のフレームワークなら任意のルート。",
   "sites_controls_stripePathLabel": "Webhook パス",
+  "sites_controls_stripeProjectHint": "任意。.env のキーではなく、stripe login --project-name で保存したログインでサインインします。空のままにすると .env のキーを使います。",
+  "sites_controls_stripeProjectLabel": "Stripe CLI プロジェクト",
   "sites_controls_stripeSecretKeyHint": "Stripe シークレットを保持する .env キー。例: Laravel は STRIPE_SECRET、Node は STRIPE_SECRET_KEY。",
   "sites_controls_stripeSecretKeyLabel": "シークレットの env キー",
   "sites_controls_stripeToggle_off": "Stripe リスナーを開始",

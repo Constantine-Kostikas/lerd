@@ -31,7 +31,7 @@ describe('StripeControl', () => {
     const input = screen.getByLabelText('Webhook path') as HTMLInputElement;
     await fireEvent.input(input, { target: { value: 'nest/stripe' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onSaveConfig).toHaveBeenCalledWith('/nest/stripe', 'STRIPE_SECRET');
+    expect(onSaveConfig).toHaveBeenCalledWith('/nest/stripe', 'STRIPE_SECRET', '');
   });
 
   it('prefills the secret env key with the detected one and forwards edits', async () => {
@@ -42,7 +42,18 @@ describe('StripeControl', () => {
     expect(input.value).toBe('STRIPE_SECRET_KEY');
     await fireEvent.input(input, { target: { value: ' STRIPE_API_KEY ' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onSaveConfig).toHaveBeenCalledWith('/stripe/webhook', 'STRIPE_API_KEY');
+    expect(onSaveConfig).toHaveBeenCalledWith('/stripe/webhook', 'STRIPE_API_KEY', '');
+  });
+
+  it('prefills the CLI project and forwards a cleared one as empty', async () => {
+    const onSaveConfig = vi.fn().mockResolvedValue({ ok: true });
+    render(Harness, { props: { projectName: 'acme', onSaveConfig } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Configure Stripe listener' }));
+    const input = screen.getByLabelText('Stripe CLI project') as HTMLInputElement;
+    expect(input.value).toBe('acme');
+    await fireEvent.input(input, { target: { value: '  ' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSaveConfig).toHaveBeenCalledWith('/stripe/webhook', 'STRIPE_SECRET', '');
   });
 
   it('keeps the modal open and shows the error when the save is refused', async () => {

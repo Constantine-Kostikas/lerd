@@ -476,7 +476,7 @@ func runtimeTool() mcpTool {
 func workerTool() mcpTool {
 	return mcpTool{
 		Name:        "worker",
-		Description: "Manage workers. action: list (CALL FIRST), start, stop, add, remove, health, heal, mode_get, mode_set. Framework workers: queue_*, horizon_*, reverb_*, schedule_*, stripe_* (start/stop, plus stripe_config). Use horizon_* instead of queue_* when laravel/horizon is installed. list reports each worker's tunable options; start takes them back.",
+		Description: "Manage workers. action: list (CALL FIRST), start, stop, add, remove, health, heal, mode_get, mode_set. Framework workers: queue_*, horizon_*, reverb_*, schedule_*, stripe_* (start/stop/config). Use horizon_* instead of queue_* when laravel/horizon is installed. list reports each worker's tunable options; start takes them back.",
 		InputSchema: mcpSchema{
 			Type: "object",
 			Properties: map[string]mcpProp{
@@ -498,9 +498,10 @@ func workerTool() mcpTool {
 				"unit":               {Type: "string", Description: "heal: full unit name. Omit to heal all."},
 				"mode":               {Type: "string", Enum: []string{"exec", "container"}, Description: "mode_set: macOS worker runtime."},
 				"options":            {Type: "array", Items: stringItems, Description: `start/queue_start: tuning as ["name=value", ...], names from list (e.g. ["queue=emails"]). Saved to .lerd.yaml; omit to keep.`},
-				"api_key":            {Type: "string", Description: "stripe_start: defaults to the .env secret."},
-				"webhook_path":       {Type: "string", Description: "stripe_start/stripe_config: forward path (default /stripe/webhook)."},
-				"secret_env_key":     {Type: "string", Description: "stripe_config: which .env key holds the secret."},
+				"api_key":            {Type: "string", Description: "stripe_start: default .env secret."},
+				"webhook_path":       {Type: "string", Description: "stripe_*: forward path, default /stripe/webhook."},
+				"secret_env_key":     {Type: "string", Description: "stripe_config: .env key of the secret."},
+				"project_name":       {Type: "string", Description: "stripe_config: CLI login."},
 			},
 			Required: []string{"action"},
 		},

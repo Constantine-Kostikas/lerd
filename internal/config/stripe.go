@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/geodro/lerd/internal/envfile"
@@ -28,6 +30,84 @@ type StripeConfig struct {
 	// SecretEnvKey pins which .env key holds the Stripe secret. Empty probes
 	// StripeSecretEnvCandidates in order.
 	SecretEnvKey string `yaml:"secret_env_key,omitempty"`
+	// ProjectName signs the listener in with a login the host's Stripe CLI
+	// saved via `stripe login --project-name`, instead of a key from .env.
+	// Lerd writes it to .lerd.local.yaml, since the login is one developer's.
+	ProjectName string `yaml:"project_name,omitempty"`
+}
+
+// StripeAuth is how a listener signs in: an API key, or a project from the
+// host's Stripe CLI config folder at ConfigDir.
+type StripeAuth struct {
+	APIKey      string
+	ProjectName string
+	ConfigDir   string
+}
+
+// stripeProjectNameRe keeps a project name safe to interpolate into the
+// listener unit's ExecStart line.
+var stripeProjectNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+// ValidateStripeProjectName rejects anything but letters, digits, dot, dash and
+// underscore. An empty name is valid and means "use the .env key".
+func ValidateStripeProjectName(name string) error {
+	if name == "" || stripeProjectNameRe.MatchString(name) {
+		return nil
+	}
+	return fmt.Errorf("invalid Stripe project name %q: use letters, digits, '.', '-' or '_'", name)
+}
+
+// ValidateStripeSettings checks a webhook path and project name together, so a
+// save can refuse a bad one before writing the other.
+func ValidateStripeSettings(path, projectName string) error {
+	if _, err := ValidateStripeWebhookPath(path); err != nil {
+		return err
+	}
+	return ValidateStripeProjectName(projectName)
+}
+
+// StripeProjectName returns the project's saved Stripe CLI project, or "" when
+// none is set or the stored value is unsafe.
+func StripeProjectName(sitePath string) string {
+	proj, err := LoadProjectConfig(sitePath)
+	if err != nil || proj.Stripe == nil || ValidateStripeProjectName(proj.Stripe.ProjectName) != nil {
+		return ""
+	}
+	return proj.Stripe.ProjectName
+}
+
+// StripeCLIConfigPath is where the host's Stripe CLI keeps its logins, the
+// same lookup the CLI itself does.
+func StripeCLIConfigPath() string {
+	return filepath.Join(xdgConfigHome(), "stripe", "config.toml")
+}
+
+// ResolveStripeAuth picks how a site's listener signs in. A pinned
+// project_name wins over the .env secret, since choosing one is how a project
+// says it keeps no key in .env.
+func ResolveStripeAuth(sitePath string) (StripeAuth, error) {
+	if name := StripeProjectName(sitePath); name != "" {
+		cfg := StripeCLIConfigPath()
+		if _, err := os.Stat(cfg); err != nil {
+			return StripeAuth{}, fmt.Errorf("no Stripe CLI config at %s: run `stripe login --project-name %s` first", cfg, name)
+		}
+		// The path lands unquoted in the listener unit's ExecStart, where
+		// systemd splits on whitespace and expands % and $.
+		if strings.ContainsAny(cfg, " \t\r\n%$") {
+			return StripeAuth{}, fmt.Errorf("Stripe CLI config path %q contains whitespace, %% or $, which the listener unit cannot carry", cfg)
+		}
+		return StripeAuth{ProjectName: name, ConfigDir: filepath.Dir(cfg)}, nil
+	}
+	if _, secret := ResolveStripeSecret(sitePath); secret != "" {
+		return StripeAuth{APIKey: secret}, nil
+	}
+	return StripeAuth{}, fmt.Errorf("no Stripe secret found in %s/.env (looked for %s) and no Stripe CLI project set",
+		sitePath, strings.Join(StripeSecretEnvCandidates, ", "))
+}
+
+// StripeConfigured reports whether a site's listener has a way to sign in.
+func StripeConfigured(sitePath string) bool {
+	return StripeProjectName(sitePath) != "" || StripeSecretSet(sitePath)
 }
 
 // ResolveStripeSecret returns the env key name and value of a project's Stripe

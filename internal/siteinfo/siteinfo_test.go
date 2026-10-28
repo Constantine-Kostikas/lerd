@@ -957,6 +957,19 @@ func TestEnrichStripe(t *testing.T) {
 			t.Errorf("StripeSecretEnvKey = %q, want STRIPE_SECRET_KEY", e.StripeSecretEnvKey)
 		}
 	})
+
+	t.Run("a saved CLI project with no .env key sets flag", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, ".lerd.local.yaml"), []byte("stripe:\n  project_name: acme\n"), 0644)
+		e := &EnrichedSite{Path: dir, Name: "shop"}
+		e.enrichStripe()
+		if !e.StripeSecretSet {
+			t.Error("expected StripeSecretSet = true for a saved CLI project")
+		}
+		if e.StripeProjectName != "acme" {
+			t.Errorf("StripeProjectName = %q, want acme", e.StripeProjectName)
+		}
+	})
 }
 
 // ── Worker enrichment ───────────────────────────────────────────────────────

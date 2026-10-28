@@ -1,6 +1,11 @@
 package podman
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/geodro/lerd/internal/config"
+)
 
 // lerd runs a few public images as throw-away containers rather than as
 // services: no quadlet names them and no container outlives the command, so
@@ -21,9 +26,16 @@ const StripeCLIImage = "docker.io/stripe/stripe-cli:v1.53.1"
 // StripeListenExecStart is the ExecStart of a site's stripe listener unit.
 // --all-snapshot forwards every classic webhook event, which is what listen
 // did before stripe-cli made choosing the events mandatory.
-func StripeListenExecStart(containerName, apiKey, forwardTo string) string {
-	return fmt.Sprintf("%s run --rm --replace --name %s --network host %s listen --api-key %s --forward-to %s --skip-verify --all-snapshot",
-		PodmanBin(), containerName, StripeCLIImage, apiKey, forwardTo)
+func StripeListenExecStart(containerName string, auth config.StripeAuth, forwardTo string) string {
+	mount, signIn := "", "--api-key "+auth.APIKey
+	if auth.ProjectName != "" {
+		// Read-write and the whole folder: a login keeps its OAuth token in
+		// credentials.json beside config.toml and refreshes it there.
+		mount = strings.Join(HostMountRunArgs(), " ") + " -v " + auth.ConfigDir + ":/root/.config/stripe "
+		signIn = "--project-name " + auth.ProjectName
+	}
+	return fmt.Sprintf("%s run --rm --replace --name %s --network host %s%s%s listen %s --forward-to %s --skip-verify --all-snapshot",
+		PodmanBin(), containerName, UnitRunLogArgs(), mount, StripeCLIImage, signIn, forwardTo)
 }
 
 // ToolImages lists every image lerd runs as a throw-away container.
@@ -31,10 +43,17 @@ func ToolImages() []string {
 	return []string{ProbeImage}
 }
 
+// StripeLoginArgs are the podman run args for `stripe login`, saving the
+// login into the host's Stripe CLI config folder at configDir.
+func StripeLoginArgs(configDir, projectName string) []string {
+	args := append([]string{"run", "--rm", "-it"}, HostMountRunArgs()...)
+	return append(args, "-v", configDir+":/root/.config/stripe", StripeCLIImage, "login", "--project-name", projectName)
+}
+
 // StripeListenUnit is a site's stripe listener service unit. ExecStopPost
 // removes the container, because a stop that lands before it starts leaves it
 // in Created, where --rm never fires.
-func StripeListenUnit(siteName, apiKey, forwardTo string) string {
+func StripeListenUnit(siteName string, auth config.StripeAuth, forwardTo string) string {
 	containerName := "lerd-stripe-" + siteName
 	return fmt.Sprintf(`[Unit]
 Description=Lerd Stripe Listener (%s)
@@ -49,5 +68,5 @@ ExecStopPost=-%s rm -f --ignore %s
 
 [Install]
 WantedBy=default.target
-`, siteName, StripeListenExecStart(containerName, apiKey, forwardTo), PodmanBin(), containerName)
+`, siteName, StripeListenExecStart(containerName, auth, forwardTo), PodmanBin(), containerName)
 }

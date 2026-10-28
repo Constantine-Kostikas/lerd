@@ -5314,8 +5314,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 | @jridgewell/trace-mapping | 0.3.31 | MIT |
 | @lix-js/sdk | 0.4.10 | Apache-2.0 |
 | @lix-js/server-protocol-schema | 0.1.1 | Apache-2.0 |
-| @rollup/rollup-linux-x64-gnu | 4.60.2 | MIT |
-| @rollup/rollup-linux-x64-musl | 4.60.2 | MIT |
 | @sinclair/typebox | 0.31.28 | MIT |
 | @sqlite.org/sqlite-wasm | 3.48.0-build4 | Apache-2.0 |
 | @standard-schema/spec | 1.1.0 | MIT |
@@ -5324,8 +5322,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 | @sveltejs/vite-plugin-svelte-inspector | 5.0.2 | MIT |
 | @tailwindcss/node | 4.3.0 | MIT |
 | @tailwindcss/oxide | 4.3.0 | MIT |
-| @tailwindcss/oxide-linux-x64-gnu | 4.3.0 | MIT |
-| @tailwindcss/oxide-linux-x64-musl | 4.3.0 | MIT |
 | @tailwindcss/postcss | 4.3.0 | MIT |
 | @testing-library/dom | 10.4.1 | MIT |
 | @testing-library/jest-dom | 6.9.1 | MIT |
@@ -5417,8 +5413,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 | json5 | 2.2.3 | MIT |
 | kysely | 0.28.17 | MIT |
 | lightningcss | 1.32.0 | MPL-2.0 |
-| lightningcss-linux-x64-gnu | 1.32.0 | MPL-2.0 |
-| lightningcss-linux-x64-musl | 1.32.0 | MPL-2.0 |
 | locate-character | 3.0.0 | MIT |
 | lru-cache | 10.4.3 | ISC |
 | lz-string | 1.5.0 | MIT |
@@ -5632,7 +5626,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### @esbuild/linux-x64 0.28.1, @rollup/rollup-linux-x64-gnu 4.60.2, @rollup/rollup-linux-x64-musl 4.60.2, is-reference 3.0.3, locate-character 3.0.0, stackback 0.0.2
+### @esbuild/linux-x64 0.28.1, is-reference 3.0.3, locate-character 3.0.0, stackback 0.0.2
 
 MIT
 
@@ -5895,7 +5889,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### @tailwindcss/node 4.3.0, @tailwindcss/oxide 4.3.0, @tailwindcss/oxide-linux-x64-gnu 4.3.0, @tailwindcss/oxide-linux-x64-musl 4.3.0, @tailwindcss/postcss 4.3.0, tailwindcss 4.3.0
+### @tailwindcss/node 4.3.0, @tailwindcss/oxide 4.3.0, @tailwindcss/postcss 4.3.0, tailwindcss 4.3.0
 
 MIT
 
@@ -8614,7 +8608,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### lightningcss 1.32.0, lightningcss-linux-x64-gnu 1.32.0, lightningcss-linux-x64-musl 1.32.0
+### lightningcss 1.32.0
 
 MPL-2.0
 

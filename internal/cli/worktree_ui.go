@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -81,10 +80,7 @@ func buildWorktreeAddGitArgs(req WorktreeAddRequest, checkoutPath string) ([]str
 // ensureLocalOverrideExcluded keeps the worktree override file lerd writes out of
 // git status. The site's exclude file is shared by all its worktrees.
 func ensureLocalOverrideExcluded(sitePath string) error {
-	if info, err := os.Stat(filepath.Join(sitePath, ".git")); err != nil || !info.IsDir() {
-		return nil
-	}
-	return gitpkg.AppendExclude(sitePath, "/"+config.LocalOverrideFile)
+	return gitpkg.ExcludeLocalOverride(sitePath)
 }
 
 // resolveBuildChoice maps a UI build request ("auto"|"skip"|"worker:<n>"|

@@ -197,7 +197,7 @@ A portable, self-contained description of a project's local environment. Created
 | `container` | Custom container config for non-PHP sites. When present, lerd builds a dedicated container from the project's Containerfile and nginx reverse-proxies to it. See below and [Custom Containers](./usage/custom-containers.md) |
 | `custom_workers` | Custom worker definitions (name to config map). Works for both PHP and custom container sites. See below |
 | `db` | Database targeting for non-PHP projects: `service` (e.g. `mysql`, `postgres`) and `database` name |
-| `stripe` | Optional Stripe webhook listener config: `path` (forward route, defaults to `/stripe/webhook`) and `secret_env_key` (which `.env` key holds the secret, defaults to auto-detection). See [Stripe](./usage/stripe.md) |
+| `stripe` | Optional Stripe webhook listener config: `path` (forward route, defaults to `/stripe/webhook`), `secret_env_key` (which `.env` key holds the secret, defaults to auto-detection) and `project_name` (a `stripe login --project-name` login used instead of the `.env` secret, written to `.lerd.local.yaml`). See [Stripe](./usage/stripe.md) |
 | `mcp_inject` | Set `false` to opt the project out of automatic AI/MCP config refresh. `lerd update`/`install` then never rewrites this project's committed MCP config or skill files. An explicit `lerd mcp:inject` still writes. See [MCP](./features/mcp.md#project-scoped-registration) |
 
 ### Basic example
@@ -398,7 +398,7 @@ domains:
 db_isolated: true
 ```
 
-The file takes the same fields as `.lerd.yaml`, in the same shapes. Merging is per top-level key: a list replaces the committed list entirely, a map (`env_overrides`, `worker_options`) merges key by key, and everything the local file does not mention keeps the committed value. The file is optional and may exist on its own, without a `.lerd.yaml` next to it.
+The file takes the same fields as `.lerd.yaml`, in the same shapes. Merging is per top-level key: a list replaces the committed list entirely, a map or section (`env_overrides`, `worker_options`, `stripe`) merges key by key, and everything the local file does not mention keeps the committed value. When lerd saves `.lerd.yaml`, a section the local file only partly sets still gets its other keys written. The file is optional and may exist on its own, without a `.lerd.yaml` next to it.
 
 You do not have to gitignore it: whenever the file exists, `lerd link` adds it to the repository's `.git/info/exclude`, so it never shows up in `git status`. Lerd writes it in one case only: isolating or sharing a worktree's database records `db_isolated` in that worktree's `.lerd.local.yaml`, keeping every other key in the file as it was, and excludes it the same way. Lerd never removes it.
 

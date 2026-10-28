@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/geodro/lerd/internal/config"
 )
 
 // DeriveWorktreeAddArgs supplies the checkout path `git worktree add` requires
@@ -112,6 +114,24 @@ func EnsureNestedWorktreeExclude(sitePath string) error {
 		return nil
 	}
 	return AppendExclude(sitePath, "/"+base+"-*/")
+}
+
+// ExcludeLocalOverride keeps .lerd.local.yaml, which lerd writes, out of git
+// status. A project that isn't a git checkout is left alone.
+func ExcludeLocalOverride(sitePath string) error {
+	info, err := os.Stat(filepath.Join(sitePath, ".git"))
+	if err != nil {
+		return nil
+	}
+	if info.IsDir() {
+		return AppendExclude(sitePath, "/"+config.LocalOverrideFile)
+	}
+	// A worktree's .git is a file; its excludes live in the shared git dir.
+	common, err := Output(sitePath, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return err
+	}
+	return AppendExclude(filepath.Dir(strings.TrimSpace(common)), "/"+config.LocalOverrideFile)
 }
 
 // AppendExclude adds pattern to the site's .git/info/exclude once.

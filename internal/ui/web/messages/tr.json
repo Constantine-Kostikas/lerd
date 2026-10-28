@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Stripe webhook",
   "sites_controls_stripePathHint": "Stripe olaylarının uygulamanızda yönlendirildiği yol; örn. Laravel için /stripe/webhook veya başka bir framework için kendi rotanız.",
   "sites_controls_stripePathLabel": "Webhook yolu",
+  "sites_controls_stripeProjectHint": "İsteğe bağlı. .env anahtarı yerine stripe login --project-name ile kaydedilen oturumla giriş yapar. .env anahtarını kullanmak için boş bırakın.",
+  "sites_controls_stripeProjectLabel": "Stripe CLI projesi",
   "sites_controls_stripeSecretKeyHint": "Stripe gizli anahtarını tutan .env anahtarı, ör. Laravel için STRIPE_SECRET, Node için STRIPE_SECRET_KEY.",
   "sites_controls_stripeSecretKeyLabel": "Gizli anahtar env adı",
   "sites_controls_stripeToggle_off": "Stripe dinleyicisini başlat",

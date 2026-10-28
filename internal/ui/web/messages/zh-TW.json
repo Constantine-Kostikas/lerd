@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Stripe webhook",
   "sites_controls_stripePathHint": "Stripe 事件轉發到你應用程式上的路由，例如 Laravel 用 /stripe/webhook，其他框架則用你自己的路由。",
   "sites_controls_stripePathLabel": "Webhook 路徑",
+  "sites_controls_stripeProjectHint": "選填。使用 stripe login --project-name 儲存的登入資訊，而非 .env 中的金鑰。留空則使用 .env 中的金鑰。",
+  "sites_controls_stripeProjectLabel": "Stripe CLI 專案",
   "sites_controls_stripeSecretKeyHint": "存放 Stripe 金鑰的 .env 鍵，例如 Laravel 用 STRIPE_SECRET，Node 用 STRIPE_SECRET_KEY。",
   "sites_controls_stripeSecretKeyLabel": "金鑰的 env 鍵",
   "sites_controls_stripeToggle_off": "啟動 Stripe 監聽器",

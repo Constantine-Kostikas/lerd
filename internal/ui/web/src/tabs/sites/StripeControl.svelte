@@ -5,18 +5,22 @@
   import StripeConfigModal from './StripeConfigModal.svelte';
   import { m } from '../../paraglide/messages.js';
 
-  // Stripe listener on/off plus a gear that edits the webhook path and secret key,
-  // rendered as one segmented control mirroring HorizonControl. The gear is
-  // always available (even while stopped) so the route can be set before the
-  // listener is first enabled, which is what non-Laravel projects need.
+  // Stripe listener toggle plus a gear for the webhook path, secret key and CLI
+  // project, mirroring HorizonControl. The gear works while stopped so the
+  // route can be set before the first start, which non-Laravel projects need.
   interface Props {
     running: boolean;
     asleep?: boolean;
     loading?: boolean;
     webhookPath?: string;
     secretEnvKey?: string;
+    projectName?: string;
     onToggle: () => void;
-    onSaveConfig: (path: string, secretEnvKey: string) => Promise<{ ok: boolean; error?: string }>;
+    onSaveConfig: (
+      path: string,
+      secretEnvKey: string,
+      projectName: string
+    ) => Promise<{ ok: boolean; error?: string }>;
     onLogs?: () => void;
   }
   let {
@@ -25,6 +29,7 @@
     loading = false,
     webhookPath = '',
     secretEnvKey = '',
+    projectName = '',
     onToggle,
     onSaveConfig,
     onLogs
@@ -58,6 +63,7 @@
   open={modalOpen}
   path={webhookPath}
   {secretEnvKey}
+  {projectName}
   onclose={() => (modalOpen = false)}
   onsave={onSaveConfig}
 />

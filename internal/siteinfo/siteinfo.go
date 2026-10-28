@@ -139,11 +139,15 @@ type EnrichedSite struct {
 	HasHorizon        bool
 	HorizonRunning    bool
 	HorizonFailing    bool
+	// StripeSecretSet is true when the listener can sign in, through a .env
+	// secret or a saved Stripe CLI project.
 	StripeSecretSet   bool
 	StripeRunning     bool
 	StripeWebhookPath string
 	// StripeSecretEnvKey is the .env key the Stripe secret was resolved from.
 	StripeSecretEnvKey string
+	// StripeProjectName is the Stripe CLI login the listener signs in with.
+	StripeProjectName string
 
 	// Custom framework workers
 	FrameworkWorkers []WorkerInfo
@@ -537,13 +541,18 @@ func (e *EnrichedSite) enrichFPM() {
 }
 
 func (e *EnrichedSite) enrichStripe() {
-	if key, val := config.ResolveStripeSecret(e.Path); val != "" {
-		e.StripeSecretSet = true
+	key, val := config.ResolveStripeSecret(e.Path)
+	if val != "" {
 		e.StripeSecretEnvKey = key
-		e.StripeWebhookPath = config.StripeWebhookPath(e.Path)
-		status, _ := unitStatusFn("lerd-stripe-" + e.Name)
-		e.StripeRunning = status == "active"
 	}
+	e.StripeProjectName = config.StripeProjectName(e.Path)
+	if val == "" && e.StripeProjectName == "" {
+		return
+	}
+	e.StripeSecretSet = true
+	e.StripeWebhookPath = config.StripeWebhookPath(e.Path)
+	status, _ := unitStatusFn("lerd-stripe-" + e.Name)
+	e.StripeRunning = status == "active"
 }
 
 func (e *EnrichedSite) enrichWorkers(fw *config.Framework, hasFw bool) {

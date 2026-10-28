@@ -1003,6 +1003,7 @@ type SiteResponse struct {
 	StripeSecretSet    bool           `json:"stripe_secret_set"`
 	StripeWebhookPath  string         `json:"stripe_webhook_path,omitempty"`
 	StripeSecretEnvKey string         `json:"stripe_secret_env_key,omitempty"`
+	StripeProjectName  string         `json:"stripe_project_name,omitempty"`
 	ScheduleRunning    bool           `json:"schedule_running"`
 	ScheduleFailing    bool           `json:"schedule_failing,omitempty"`
 	ReverbRunning      bool           `json:"reverb_running"`
@@ -1310,6 +1311,7 @@ func buildSites() ([]SiteResponse, error) {
 			StripeSecretSet:      e.StripeSecretSet,
 			StripeWebhookPath:    e.StripeWebhookPath,
 			StripeSecretEnvKey:   e.StripeSecretEnvKey,
+			StripeProjectName:    e.StripeProjectName,
 			ScheduleRunning:      e.ScheduleRunning,
 			ScheduleFailing:      e.ScheduleFailing,
 			ReverbRunning:        e.ReverbRunning,
@@ -4468,9 +4470,24 @@ func handleSiteAction(w http.ResponseWriter, r *http.Request) {
 	case "stripe:config":
 		path := r.URL.Query().Get("path")
 		secretEnvKey := r.URL.Query().Get("secret_env_key")
-		if err := config.RequireStripeSecretInEnv(site.Path, secretEnvKey); err != nil {
+		projectName := r.URL.Query().Get("project_name")
+		if err := config.ValidateStripeSettings(path, projectName); err != nil {
 			writeJSON(w, SiteActionResponse{Error: err.Error()})
 			return
+		}
+		if err := config.RequireStripeSecretInEnv(site.Path, secretEnvKey); err != nil {
+			if projectName == "" {
+				writeJSON(w, SiteActionResponse{Error: err.Error()})
+				return
+			}
+			// A CLI project signs in without it; don't pin a key .env lacks.
+			secretEnvKey = ""
+		}
+		if r.URL.Query().Has("project_name") {
+			if err := cli.SetStripeProjectName(site.Path, projectName); err != nil {
+				writeJSON(w, SiteActionResponse{Error: err.Error()})
+				return
+			}
 		}
 		if err := config.SetProjectStripe(site.Path, path, secretEnvKey); err != nil {
 			writeJSON(w, SiteActionResponse{Error: err.Error()})

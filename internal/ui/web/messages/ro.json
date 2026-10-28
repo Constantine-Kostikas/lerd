@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Webhook Stripe",
   "sites_controls_stripePathHint": "Ruta către care Stripe redirecționează evenimentele în aplicația ta, de ex. /stripe/webhook pentru Laravel sau ruta proprie pentru orice alt framework.",
   "sites_controls_stripePathLabel": "Calea webhook-ului",
+  "sites_controls_stripeProjectHint": "Opțional. Se autentifică cu un login salvat de stripe login --project-name în locul cheii din .env. Lasă gol ca să folosească cheia din .env.",
+  "sites_controls_stripeProjectLabel": "Proiect Stripe CLI",
   "sites_controls_stripeSecretKeyHint": "Cheia din .env care conține secretul Stripe, de ex. STRIPE_SECRET pentru Laravel sau STRIPE_SECRET_KEY pentru Node.",
   "sites_controls_stripeSecretKeyLabel": "Cheia env a secretului",
   "sites_controls_stripeToggle_off": "Pornește ascultătorul Stripe",

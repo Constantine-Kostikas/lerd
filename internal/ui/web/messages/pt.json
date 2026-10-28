@@ -961,6 +961,8 @@
   "sites_controls_stripeConfigTitle": "Webhook do Stripe",
   "sites_controls_stripePathHint": "A rota para onde o Stripe encaminha os eventos no seu app, ex.: /stripe/webhook para Laravel ou a sua própria rota para qualquer outro framework.",
   "sites_controls_stripePathLabel": "Caminho do webhook",
+  "sites_controls_stripeProjectHint": "Opcional. Entra com um login guardado por stripe login --project-name em vez da chave do .env. Deixe vazio para usar a chave do .env.",
+  "sites_controls_stripeProjectLabel": "Projeto do Stripe CLI",
   "sites_controls_stripeSecretKeyHint": "A chave do .env que guarda seu segredo do Stripe, ex. STRIPE_SECRET no Laravel ou STRIPE_SECRET_KEY no Node.",
   "sites_controls_stripeSecretKeyLabel": "Chave env do segredo",
   "sites_controls_stripeToggle_off": "Iniciar listener do Stripe",
