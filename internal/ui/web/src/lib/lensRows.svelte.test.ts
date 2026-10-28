@@ -10,6 +10,15 @@ const group = (...ids: string[]) => ({ rows: ids.map((id) => ({ event: { id } })
 describe('LensRows', () => {
   beforeEach(() => fetchEvent.mockReset().mockResolvedValue({ id: 'a', data: { trace: [] } }));
 
+  it('reveals a row the page holds by opening it, and leaves one it does not', async () => {
+    const rows = new LensRows();
+    expect(rows.reveal([group('a')], 'b')).toBe(false);
+    expect(rows.reveal([group('a')], 'a')).toBe(true);
+    expect(rows.expanded.a).toBe(true);
+    expect(rows.reveal([group('a')], 'a')).toBe(true);
+    expect(rows.expanded.a).toBe(true);
+  });
+
   it('reads the whole event when a row opens and forgets it when it closes', async () => {
     const rows = new LensRows();
     rows.toggle('a');

@@ -3,7 +3,7 @@
   import LensSearch from '$components/LensSearch.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { get } from 'svelte/store';
-  import { debugSearch, showTests } from '$stores/debugLens';
+  import { debugSearch, showTests, revealEvent } from '$stores/debugLens';
   import { clearDumps } from '$stores/dumps';
   import {
     SLOW_MS,
@@ -125,6 +125,9 @@
   const rows = new LensRows();
   const toggleRow = (id: string) => rows.toggle(id);
   $effect(() => rows.keepOnly($lensGroups));
+  $effect(() => {
+    if ($revealEvent && rows.reveal($lensGroups, $revealEvent)) revealEvent.set('');
+  });
 </script>
 
 <div class="flex flex-col h-full overflow-hidden">
@@ -213,6 +216,7 @@
             {@const duplicate = row.dup >= 2}
             {@const slow = data.time_ms >= SLOW_MS}
             <div
+              data-event-id={row.event.id}
               class="rounded-sm border mb-1.5 overflow-hidden {duplicate
                 ? 'border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/10'
                 : 'border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card'}"

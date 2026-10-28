@@ -1,5 +1,6 @@
 import type { DumpEvent } from './dumpEvent';
 import { inlineBindings } from './sqlInline';
+import type { DebugLens } from '$stores/debugLens';
 
 // One row of a request's timeline: a span (end > start) or a moment (end ===
 // start), in milliseconds from the first row.
@@ -15,6 +16,9 @@ export interface WaterfallRow {
   // code is the row's full text where it is code: a query with its bindings.
   code?: string;
   source?: { file: string; line?: number };
+  // id and lens name the captured event and the lens that lists it.
+  id?: string;
+  lens?: DebugLens;
 }
 export interface Waterfall {
   total: number;
@@ -29,6 +33,21 @@ export interface ServedRequest {
 }
 
 type Data = Record<string, unknown> & { time_ms?: number };
+
+// lensOf is the lens that lists an event kind. It goes by kind rather than by
+// layer, since a failed HTTP call or job sits on the error layer.
+const LENS_OF: Record<string, DebugLens> = {
+  query: 'queries',
+  view: 'views',
+  cache: 'cache',
+  http: 'http',
+  job: 'jobs',
+  mail: 'mail',
+  message: 'messages',
+  event: 'events',
+  log: 'logs',
+  exception: 'exceptions'
+};
 const ms = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)} ms`;
 
 // row places one captured event: a timed one as a span ending when it was
@@ -79,7 +98,7 @@ export function buildWaterfall(events: DumpEvent[], served?: ServedRequest): Wat
     if (ev.kind === 'browser' || ev.kind === 'request') continue;
     const { took, ...r } = row(ev);
     const end = Date.parse(ev.ts) - t0;
-    rows.push({ ...r, start: end - took, end });
+    rows.push({ ...r, start: end - took, end, id: ev.id, lens: LENS_OF[ev.kind] ?? 'dumps' });
   }
   // A span that starts with another one encloses it, so the longer goes first.
   rows.sort((a, b) => a.start - b.start || b.end - a.end);

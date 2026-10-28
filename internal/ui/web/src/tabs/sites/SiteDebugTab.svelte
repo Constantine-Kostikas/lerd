@@ -16,7 +16,7 @@
   import type { DumpEvent } from '$lib/dumpEvent';
   import { buildWaterfall, type ServedRequest } from '$lib/requestWaterfall';
   import { routeQuery } from '$lib/route';
-  import { debugLens, debugLensTabs, debugSearch, showTests, type DebugLens } from '$stores/debugLens';
+  import { debugLens, debugLensTabs, debugSearch, showTests, revealEvent, type DebugLens } from '$stores/debugLens';
   import { refreshStatus } from '$stores/dumps';
   import { refreshDevtoolsStatus, debugCaptureEnabled } from '$stores/queries';
   import { provideLensCounts, provideLensScope, providePickRequest } from '$stores/debugEvents';
@@ -177,7 +177,7 @@
       {#if waterfall}
         <div class="h-full flex flex-col">
           <div class="px-3 pt-3"><ProfilePrompt {origin} request={requestLine} {profileKey} {onleave} /></div>
-          <div class="flex-1 min-h-0"><RequestTimeline {waterfall} /></div>
+          <div class="flex-1 min-h-0"><RequestTimeline {waterfall} onopen={(lens, id) => { revealEvent.set(id); pick(lens); }} /></div>
         </div>
       {:else if $debugLens === 'browser'}
         <BrowserLens siteScope={siteName} pinned={Boolean(rid)} />

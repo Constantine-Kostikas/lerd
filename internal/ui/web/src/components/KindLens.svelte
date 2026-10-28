@@ -3,7 +3,7 @@
   import LensSearch from '$components/LensSearch.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { get } from 'svelte/store';
-  import { debugSearch, showTests } from '$stores/debugLens';
+  import { debugSearch, showTests, revealEvent } from '$stores/debugLens';
   import { clearDumps } from '$stores/dumps';
   import {
     queryFilterSite,
@@ -150,6 +150,9 @@
   const rows = new LensRows();
   const toggleRow = (id: string) => rows.toggle(id);
   $effect(() => rows.keepOnly($lensGroups));
+  $effect(() => {
+    if ($revealEvent && rows.reveal($lensGroups, $revealEvent)) revealEvent.set('');
+  });
 
   const fmtMs = (n: number) => (n < 10 ? n.toFixed(2) : n.toFixed(1));
 
@@ -267,7 +270,7 @@
           {#each g.rows as row (row.event.id)}
             {@const ev = row.event}
             {@const d = (ev.data ?? {}) as Record<string, any>}
-            <div class="rounded-sm border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card mb-1.5 overflow-hidden">
+            <div data-event-id={ev.id} class="rounded-sm border border-gray-200 dark:border-lerd-border bg-white dark:bg-lerd-card mb-1.5 overflow-hidden">
               <button type="button" class="w-full text-left px-2.5 py-1.5 flex items-start gap-2 hover:bg-gray-50 dark:hover:bg-white/5" onclick={() => toggleRow(ev.id)}>
                 <span class="flex-1 break-all text-xs text-gray-800 dark:text-gray-200">
                   {#if wireKind === 'job'}{d.class}

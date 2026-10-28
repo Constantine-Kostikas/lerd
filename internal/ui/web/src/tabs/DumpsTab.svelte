@@ -2,10 +2,11 @@
   import LensSearch from '$components/LensSearch.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { get } from 'svelte/store';
-  import { debugSearch, showTests } from '$stores/debugLens';
+  import { debugSearch, showTests, revealEvent } from '$stores/debugLens';
   import { status, filterSite, filterCtx, filterText, refreshStatus, clearDumps, toggleDumps, flashDump } from '$stores/dumps';
   import { lensScope, providePickRequest } from '$stores/debugEvents';
   import DumpEntry from '$components/DumpEntry.svelte';
+  import { scrollToEvent } from '$lib/lensRows.svelte';
   import TestEventsToggle from '$components/TestEventsToggle.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Dropdown from '$components/Dropdown.svelte';
@@ -48,6 +49,14 @@
     lens.set({ kind: 'dump', site, ctx: effectiveCtx, rid: $scope.rid, route: $scope.route, q: effectiveText, tests: $showTests });
   });
   const lensGroups = lens.groups;
+  // A dump has nothing to open, so a timeline row sent here is scrolled to.
+  $effect(() => {
+    const id = $revealEvent;
+    if (id && $lensGroups.some((g) => g.rows.some((r) => r.event.id === id))) {
+      scrollToEvent(id);
+      revealEvent.set('');
+    }
+  });
   // A dump that arrives while the tab is open flashes; the first page does not.
   let newestId: string | null = null;
   $effect(() => {
@@ -180,7 +189,7 @@
           <span class="text-xs text-gray-400 ml-auto">{m.dumps_groupCount({ count: g.count })}</span>
         </header>
         {#each g.rows as row (row.event.id)}
-          <DumpEntry event={row.event} />
+          <div data-event-id={row.event.id}><DumpEntry event={row.event} /></div>
         {/each}
       </section>
     {/snippet}
