@@ -1,7 +1,7 @@
 import { render, fireEvent, within } from '@testing-library/svelte';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import ServicesDashboard from './ServicesDashboard.svelte';
-import { services, type Service } from '$stores/services';
+import { services, servicesLoaded, type Service } from '$stores/services';
 import { accessMode } from '$stores/accessMode';
 import { presets, presetsLoaded } from '$stores/presets';
 import { routeRest } from '$stores/route';
@@ -24,6 +24,7 @@ describe('ServicesDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routeRest.set('');
+    servicesLoaded.set(true);
     accessMode.set({ localControl: true } as never);
     presetsLoaded.set(true);
     presets.set([
@@ -44,6 +45,18 @@ describe('ServicesDashboard', () => {
     const header = container.querySelector('.page-header')!;
     expect(header.closest('.overflow-y-auto')).toBeNull();
     expect(container.querySelector('.overflow-y-auto')).not.toBeNull();
+  });
+
+  it('opens the update dialog from the update count in the header', async () => {
+    const { getByRole } = render(ServicesDashboard);
+    await fireEvent.click(getByRole('button', { name: '3 updates' }));
+    expect(within(getByRole('dialog')).getByText('v1.27 → v1.28')).toBeTruthy();
+  });
+
+  it('says one update in the singular', () => {
+    services.set([svc({ name: 'mysql', update_available: true })]);
+    const { getByRole } = render(ServicesDashboard);
+    expect(getByRole('button', { name: '1 update' })).toBeTruthy();
   });
 
   it('offers no update all when nothing has an update', () => {

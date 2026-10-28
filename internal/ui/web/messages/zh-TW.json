@@ -153,6 +153,7 @@
   "dashboard_services_summary": "{running}/{total} 運作中",
   "dashboard_services_asleep": "{count}/{total} 已休眠",
   "dashboard_services_title": "服務",
+  "dashboard_services_update": "{count} 個更新",
   "dashboard_services_updates": "{count} 個更新",
   "dashboard_sites_failing": "失敗",
   "dashboard_sites_frameworks": "框架",

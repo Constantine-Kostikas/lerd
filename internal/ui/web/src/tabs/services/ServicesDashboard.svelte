@@ -14,6 +14,7 @@
     coreServices,
     servicesLoaded,
     serviceLabel,
+    updatesLabel,
     type Service,
     type ServiceUpdateResult
   } from '$stores/services';
@@ -168,10 +169,15 @@
     <StatusDot color={running > 0 ? 'green' : 'gray'} />
     {m.dashboard_services_summary({ running, total })}
   </span>
-  {#if updates > 0}
+  {#if updates > 0 && $accessMode.localControl}
+    <button type="button" onclick={openUpdateAll} disabled={updateBatch !== null} class="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 hover:underline disabled:opacity-50">
+      <span aria-hidden="true">↑</span>
+      {updatesLabel(updates)}
+    </button>
+  {:else if updates > 0}
     <span class="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-      <span>↑</span>
-      {m.dashboard_services_updates({ count: updates })}
+      <span aria-hidden="true">↑</span>
+      {updatesLabel(updates)}
     </span>
   {/if}
   {#if sitesServed > 0}

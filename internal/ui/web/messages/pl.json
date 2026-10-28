@@ -153,6 +153,7 @@
   "dashboard_services_summary": "{running}/{total} aktywnych",
   "dashboard_services_asleep": "{count}/{total} wstrzymane",
   "dashboard_services_title": "Usługi",
+  "dashboard_services_update": "Aktualizacje: {count}",
   "dashboard_services_updates": "Aktualizacje: {count}",
   "dashboard_sites_failing": "Niesprawne",
   "dashboard_sites_frameworks": "Frameworki",
