@@ -1356,6 +1356,30 @@ static void lerd_stream_end(zend_execute_data *execute_data, zval *retval)
 	LERD_CALL_COLLECTOR("Lerd\\Collector\\stream", args, 3);
 }
 
+#if PHP_VERSION_ID < 80200
+/* lerd_http_begin captures one outgoing Symfony HttpClient request. We hook the
+ * begin (not the end) because request() rewrites its own $url argument via
+ * prepareRequest(); at begin the original method and url are still intact. */
+static void lerd_http_begin(zend_execute_data *execute_data)
+{
+	if (!LERD_G(active) || lerd_laravel || (lerd_is_worker && !LERD_G(capture_workers))) {
+		return;
+	}
+	if (ZEND_CALL_NUM_ARGS(execute_data) < 2) {
+		return;
+	}
+	zval *method = ZEND_CALL_ARG(execute_data, 1);
+	zval *url = ZEND_CALL_ARG(execute_data, 2);
+	if (!url || Z_TYPE_P(url) != IS_STRING) {
+		return;
+	}
+	zval args[2];
+	ZVAL_COPY(&args[0], method);
+	ZVAL_COPY(&args[1], url);
+	LERD_CALL_COLLECTOR("Lerd\\Collector\\http", args, 2);
+}
+#endif
+
 static zend_observer_fcall_handlers lerd_observer_init(zend_execute_data *execute_data)
 {
 	zend_observer_fcall_handlers h = {NULL, NULL};
@@ -1435,6 +1459,16 @@ static zend_observer_fcall_handlers lerd_observer_init(zend_execute_data *execut
 		h.end = lerd_job_end;
 		return h;
 	}
+#if PHP_VERSION_ID < 80200
+	/* Below 8.2 observers miss the curl seam, so Symfony HttpClient keeps its
+	 * own: the default factory yields one of these two concrete clients. */
+	if ((strcasecmp(ZSTR_VAL(scope->name), "Symfony\\Component\\HttpClient\\CurlHttpClient") == 0 ||
+		 strcasecmp(ZSTR_VAL(scope->name), "Symfony\\Component\\HttpClient\\NativeHttpClient") == 0) &&
+		strcasecmp(fname, "request") == 0) {
+		h.begin = lerd_http_begin;
+		return h;
+	}
+#endif
 	zend_bool match =
 		(zend_string_equals_literal_ci(scope->name, "PDOStatement") && strcasecmp(fname, "execute") == 0) ||
 		(zend_string_equals_literal_ci(scope->name, "PDO") &&

@@ -1384,8 +1384,8 @@ function sentry_exception_bag($event): array
     return [];
 }
 
-// http reports a request by method and url alone. An extension built before
-// the curl and stream seams calls it from Symfony HttpClient's request().
+// http reports a request by method and url alone. Below PHP 8.2, where the
+// curl seam cannot fire, the extension calls it from Symfony HttpClient.
 function http($method, $url): void
 {
     $u = is_string($url) ? $url : '';
@@ -1476,11 +1476,9 @@ function curl_copied($from, $to): void
     }
 }
 
-// curl_begin runs as a transfer starts. It asks curl to keep the request
-// headers and slips a recorder in front of the client's header and body
-// callbacks, which still get every byte. A body callback is only wrapped when
-// the client set one: installing it otherwise would take the body away from
-// RETURNTRANSFER.
+// curl_begin keeps the request headers and puts a recorder in front of the
+// client's callbacks, which still get every byte. Only a body callback the
+// client set is wrapped, since installing one would break RETURNTRANSFER.
 function curl_begin($ch): void
 {
     if (!is_object($ch)) {
@@ -1548,7 +1546,8 @@ function curl($ch, ?int $errno = null, $result = null): void
 {
     try {
         $info = curl_getinfo($ch);
-        if (!is_array($info) || empty($info['url'])) {
+        // curl also reads files and ftp; only http(s) is an outgoing request.
+        if (!is_array($info) || !preg_match('#^https?://#i', (string) ($info['url'] ?? ''))) {
             return;
         }
         $st = curl_state()[$ch] ?? [];
@@ -1597,6 +1596,10 @@ function stream($url, $context, $result): void
     $method = 'GET';
     $sent = [];
     $content = null;
+    // PHP falls back to the default context when the caller passes none.
+    if (!is_resource($context)) {
+        $context = stream_context_get_default();
+    }
     if (is_resource($context)) {
         $opts = stream_context_get_options($context);
         $http = $opts['http'] ?? $opts['https'] ?? [];
@@ -1658,7 +1661,11 @@ function http_detail(array $headers, string $body): array
     if ($body === '') {
         return $d;
     }
-    if (strlen($body) > HTTP_BODY_CAP) {
+    // Masked before the cut, so a secret the cap splits is hidden whole, and
+    // the cut is judged first, since masking can shorten a body past the cap.
+    $cut = strlen($body) > HTTP_BODY_CAP;
+    $body = mask_body($body);
+    if ($cut) {
         $body = substr($body, 0, HTTP_BODY_CAP);
         $d['truncated'] = true;
     }
@@ -1666,7 +1673,7 @@ function http_detail(array $headers, string $body): array
     for ($i = 0; $i < 3 && !preg_match('//u', $body); $i++) {
         $body = substr($body, 0, -1);
     }
-    $d['body'] = preg_match('//u', $body) ? mask_body($body) : sprintf('(binary, %d bytes)', strlen($body));
+    $d['body'] = preg_match('//u', $body) ? $body : sprintf('(binary, %d bytes)', strlen($body));
     return $d;
 }
 
@@ -1688,10 +1695,11 @@ function mask_header(string $line): string
 }
 
 // mask_body masks credential values in a JSON or form body. It works on text
-// rather than a parse, so a body the cap cut short is still masked.
+// rather than a parse, so a body recorded short, its last string unclosed, is
+// still masked.
 function mask_body(string $body): string
 {
-    $key = '[\\w.\\[\\]-]*(?:pass|secret|token|api_?key)[\\w.\\[\\]-]*';
-    $body = preg_replace('/("' . $key . '"\s*:\s*)"(?:[^"\\\\]|\\\\.)*"/i', '$1"••••"', $body) ?? $body;
+    $key = '[\\w.\\[\\]-]*(?:pass|secret|token|api[-_]?key)[\\w.\\[\\]-]*';
+    $body = preg_replace('/("' . $key . '"\s*:\s*)"(?:[^"\\\\]|\\\\.)*(?:"|$)/i', '$1"••••"', $body) ?? $body;
     return preg_replace('/(^|&)(' . $key . ')=[^&]*/i', '$1$2=••••', $body) ?? $body;
 }

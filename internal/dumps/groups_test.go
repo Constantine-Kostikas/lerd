@@ -296,3 +296,17 @@ func TestRing_HTTPRowsLeaveOutRequestAndResponse(t *testing.T) {
 		t.Errorf("listed row = %s, want the url without request and response", row.Event)
 	}
 }
+
+// A browser event's request is the url it fetched, which its row shows, so only
+// an http event loses its request and response from the list.
+func TestRing_BrowserRowsKeepTheirRequest(t *testing.T) {
+	r := NewRing(50)
+	e := queryEvent("a", "r1", "", 1)
+	e.Kind = "browser"
+	e.Data = []byte(`{"type":"network","request":"https://cdn.test/app.js","status":404}`)
+	r.Append(e)
+	row := r.Groups(GroupOpts{FilterOpts: FilterOpts{Kind: "browser"}, Limit: 10, Rows: 10}).Groups[0].Rows[0]
+	if !strings.Contains(string(row.Event), "cdn.test/app.js") {
+		t.Errorf("listed row = %s, want the browser request kept", row.Event)
+	}
+}

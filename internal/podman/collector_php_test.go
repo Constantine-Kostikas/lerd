@@ -1227,6 +1227,7 @@ for ($i = 0; $i < 3; $i++) {
 // the collector reads method, url, status and timing off it, so an SDK with
 // its own client shows up the same as a framework's.
 func TestCollectorPHP_ReportsEveryHTTPClient(t *testing.T) {
+	skipWithoutCurl(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
@@ -1386,6 +1387,7 @@ func hasHeader(hs []string, want string) bool {
 // A client that has curl return the body (Stripe's) keeps getting it, and the
 // lens gets both halves with the secrets masked.
 func TestCollectorPHP_HTTPDetailsReturnTransfer(t *testing.T) {
+	skipWithoutCurl(t)
 	evs, _ := httpDetailEvents(t, `<?php`+collectorCurlHooks+`
 $ch = curl_init(SRV.'/v1/customers');
 hooked_setopt_array($ch, [
@@ -1417,6 +1419,7 @@ if ($got !== '{"error":"No such customer"}') { fwrite(STDERR, 'client lost its b
 // A client with its own write and header callbacks (Guzzle's) still receives
 // every byte and header, and a body over the cap is cut and flagged.
 func TestCollectorPHP_HTTPDetailsClientCallbacks(t *testing.T) {
+	skipWithoutCurl(t)
 	evs, _ := httpDetailEvents(t, `<?php`+collectorCurlHooks+`
 $body = ''; $heads = 0;
 $ch = curl_init(SRV.'/big');
@@ -1461,5 +1464,83 @@ $r = file_get_contents(SRV.'/search', false, $ctx);
 	}
 	if resp.Body != `{"error":"No such customer"}` {
 		t.Errorf("response body = %q", resp.Body)
+	}
+}
+
+// skipWithoutCurl skips a test that drives curl where php -n has no curl,
+// which happens when the build loads it as a shared extension.
+func skipWithoutCurl(t *testing.T) {
+	t.Helper()
+	php, err := exec.LookPath("php")
+	if err != nil {
+		t.Skip("php not installed")
+	}
+	if out, _ := exec.Command(php, "-n", "-r", "echo function_exists('curl_init') ? 'Y' : 'N';").Output(); !strings.Contains(string(out), "Y") {
+		t.Skip("php -n has no curl")
+	}
+}
+
+// Masking runs before the cap cuts a body, so a secret the cut splits is still
+// hidden, and api-key spelt with a dash is masked like api_key.
+func TestCollectorPHP_HTTPDetailsMaskAcrossTheCut(t *testing.T) {
+	lines := runCollectorPHP(t, `<?php
+require COLLECTOR;
+$cut = '{"pad":"' . str_repeat('x', 16350) . '","token":"SECRETSECRETSECRETSECRETSECRET"}';
+// What the body recorder keeps: one byte past the cap, the secret split.
+$cut = substr($cut, 0, 16385);
+\Lerd\Collector\emit('probe', ['cut' => \Lerd\Collector\http_detail([], $cut), 'json' => \Lerd\Collector\http_detail([], '{"api-key":"k1","a":1}'), 'form' => \Lerd\Collector\http_detail([], 'api-key=k2&a=1')]);
+`)
+	if len(lines) != 1 {
+		t.Fatalf("lines = %d, want 1", len(lines))
+	}
+	if strings.Contains(lines[0], "SECRET") || strings.Contains(lines[0], "k1") || strings.Contains(lines[0], "k2") {
+		t.Errorf("a credential survived masking: %.300s", lines[0][len(lines[0])-300:])
+	}
+	if !strings.Contains(lines[0], `"truncated":true`) {
+		t.Errorf("the long body was not flagged as cut")
+	}
+}
+
+// Only http(s) is HTTP: curl also reads files and ftp, and the stream seam
+// follows the default context when the caller passes none.
+func TestCollectorPHP_HTTPOnlyAndDefaultContext(t *testing.T) {
+	skipWithoutCurl(t)
+	dir := t.TempDir()
+	lines := runCollectorPHPIn(t, dir, strings.ReplaceAll(`<?php
+require COLLECTOR;
+$ch = curl_init('file://' . FILE);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_exec($ch);
+\Lerd\Collector\curl($ch);
+stream_context_set_default(['http' => ['method' => 'POST', 'content' => 'q=1']]);
+\Lerd\Collector\stream('https://api.test/search', null, 'ok');
+`, "FILE", phpQuote(filepath.Join(dir, "probe.php"))))
+	var got []struct {
+		Kind string `json:"kind"`
+		Data struct {
+			Method  string     `json:"method"`
+			URL     string     `json:"url"`
+			Request httpDetail `json:"request"`
+		} `json:"data"`
+	}
+	for _, l := range lines {
+		var e struct {
+			Kind string `json:"kind"`
+			Data struct {
+				Method  string     `json:"method"`
+				URL     string     `json:"url"`
+				Request httpDetail `json:"request"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, e)
+	}
+	if len(got) != 1 || got[0].Data.URL != "https://api.test/search" {
+		t.Fatalf("events = %+v, want only the https stream call", got)
+	}
+	if got[0].Data.Method != "POST" || got[0].Data.Request.Body != "q=1" {
+		t.Errorf("stream = %+v, want POST with body q=1 from the default context", got[0].Data)
 	}
 }

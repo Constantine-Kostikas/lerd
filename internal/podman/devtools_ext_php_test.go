@@ -183,6 +183,7 @@ func TestDevtoolsExt_CapturesEveryHTTPClient(t *testing.T) {
 	}))
 	defer srv.Close()
 	php, args, dir, sink := devtoolsExtSetup(t, strings.ReplaceAll(`<?php
+if (!function_exists('curl_init')) { echo 'NOCURL'; exit; }
 echo defined('LERD_DEVTOOLS_HTTP') && LERD_DEVTOOLS_HTTP ? 'HTTP=1' : 'HTTP=0';
 if (PHP_VERSION_ID < 80200) { echo ' SKIP'; exit; }
 echo function_exists('http_get_last_response_headers') ? ' HEADERS=1' : '';
@@ -220,6 +221,9 @@ file_get_contents(__FILE__);
 	out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput()
 	if err != nil {
 		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	if strings.Contains(string(out), "NOCURL") {
+		t.Skip("php -n has no curl")
 	}
 	if strings.Contains(string(out), "SKIP") {
 		if !strings.Contains(string(out), "HTTP=0") {
@@ -279,5 +283,39 @@ file_get_contents(__FILE__);
 	}
 	if want := []string{"/easy", "/write", "/reset", "/multi", "/get", "/open"}; !slices.Equal(paths, want) {
 		t.Errorf("http events = %v, want %v once each", paths, want)
+	}
+}
+
+// Symfony HttpClient keeps its own hook below PHP 8.2, where the curl seam
+// cannot fire, and drops it from 8.2, where the seam reports the request.
+func TestDevtoolsExt_SymfonyHookOnlyBelowPHP82(t *testing.T) {
+	php, args, dir, sink := devtoolsExtSetup(t, `<?php
+namespace Symfony\Component\HttpClient { class CurlHttpClient { function request($m, $u, $o = []) {} } }
+namespace { echo PHP_VERSION_ID; (new Symfony\Component\HttpClient\CurlHttpClient())->request('GET', 'https://api.test/x'); }
+`, false)
+	collector, err := DevtoolsCollectorPHP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "devtools-collector.php"), []byte(collector), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(php, append(args, filepath.Join(dir, "probe.php"))...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("php run failed: %v\n%s", err, out)
+	}
+	lines, _ := sink.result()
+	n := 0
+	for _, l := range lines {
+		if strings.Contains(l, `"kind":"http"`) {
+			n++
+		}
+	}
+	want := 0
+	if v := strings.TrimSpace(string(out)); v < "80200" {
+		want = 1
+	}
+	if n != want {
+		t.Errorf("PHP %s: http events = %d, want %d", out, n, want)
 	}
 }
