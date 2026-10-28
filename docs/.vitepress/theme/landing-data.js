@@ -238,6 +238,6 @@ export const FAQ = [
   { q: 'Does it work on Windows?', a: 'Yes, inside WSL2. The Windows installer sets up WSL2, an Ubuntu distro with your Linux user, Lerd and the Lerd desktop app.', href: '/getting-started/wsl2', link: 'Windows (WSL2) guide' },
   { q: 'Do I have to change my project?', a: 'No. Lerd detects the framework from the repository and serves it as it is. An optional .lerd.yaml pins PHP and Node versions, services and workers.' },
   { q: 'Can it run next to a MySQL or PostgreSQL I already have?', a: 'Yes. When a database installed on the host already holds the default port, Lerd publishes its container on the next free port and writes that into the site .env.' },
-  { q: 'Can I extend it?', a: 'Yes, with plugins that add commands, dashboard pages, AI tools and services. Each one is reviewed at the exact commit Lerd installs.', href: 'https://plugins.lerd.sh/', link: 'Browse plugins' },
+  { q: 'Can I extend it?', a: 'Yes, with community plugins that add commands, dashboard pages, AI tools and services. Each one is reviewed at the exact commit Lerd installs.', href: 'https://plugins.lerd.sh/', link: 'Browse community plugins' },
   { q: 'How do I remove it?', a: 'Run lerd uninstall. It stops the containers and removes the units, the binary and the network, then asks whether to remove your data and the trusted certificate as well.', href: '/getting-started/installation#uninstall', link: 'What uninstall removes' },
 ]

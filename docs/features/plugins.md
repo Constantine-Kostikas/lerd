@@ -1,4 +1,4 @@
-# Plugins
+# Community plugins
 
 A plugin adds behaviour to lerd without touching lerd itself: CLI commands, tools and a skill for AI assistants, a page on the dashboard's rail, a tab on every site, commands in a site's Commands menu, API endpoints, and hooks that run when something happens. A plugin is a folder holding a `plugin.yaml` and the files it names, and every one of those surfaces is served by running one of its executables, so a plugin can be written in anything that runs on the machine: a shell script, Python, Node, a compiled binary. PHP is the one exception, since lerd runs it in containers.
 

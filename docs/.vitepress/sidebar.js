@@ -115,7 +115,7 @@ const DOCS = [
       { text: 'Omarchy Bar Widget', link: '/features/omarchy-glance' },
       { text: 'PhpStorm Plugin', link: '/features/phpstorm-plugin' },
       { text: 'AI Integration (MCP)', link: '/features/mcp' },
-      { text: 'Plugins', link: '/features/plugins' },
+      { text: 'Community Plugins', link: '/features/plugins' },
     ],
   },
   {

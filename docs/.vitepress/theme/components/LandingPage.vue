@@ -135,7 +135,7 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
         <a href="#lineup">Features</a>
         <a href="#frameworks">Frameworks</a>
         <a href="#services">Services</a>
-        <a href="#plugins">Plugins</a>
+        <a href="#plugins">Community plugins</a>
         <a href="#principles">Why Lerd</a>
         <a href="#compare">Compare</a>
         <a href="#faq">FAQ</a>
@@ -168,7 +168,7 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
           <div><strong>7.4 – 8.6</strong>PHP versions, 8.6 in preview</div>
           <div v-if="counts.services"><strong>{{ counts.services }}</strong>service presets</div>
           <div v-if="counts.frameworks"><strong>{{ counts.frameworks }}</strong>framework definitions</div>
-          <a v-if="counts.plugins" href="#plugins"><strong>{{ counts.plugins }}</strong>plugins</a>
+          <a v-if="counts.plugins" href="#plugins"><strong>{{ counts.plugins }}</strong>community plugins</a>
         </div>
         <a class="sponsor" href="https://www.jetbrains.com/phpstorm/" target="_blank" rel="noopener">
           <span class="label">Sponsored by</span>
@@ -265,12 +265,12 @@ onBeforeUnmount(() => { demoOpen.value = false; document.documentElement.style.o
 
       <section class="sec" id="plugins"><div class="wrap">
         <div class="sec-head">
-          <div class="label"><b>{{ pad(D.LINEUP.length + 4) }}</b> / Plugins</div>
+          <div class="label"><b>{{ pad(D.LINEUP.length + 4) }}</b> / Community plugins</div>
           <div>
-            <h2>Plugins for <span>everything else.</span></h2>
+            <h2>Community plugins for <span>everything else.</span></h2>
             <p class="sec-lead">A plugin adds what Lerd doesn't do yet: CLI commands, dashboard pages, site tabs, tools for AI assistants and hooks that run when something happens. Write one in any language that runs on your machine. Every plugin in the catalog is reviewed at the exact commit Lerd installs.</p>
             <div class="plug-links">
-              <a class="btn primary" :href="PLUGINS" target="_blank" rel="noopener">Browse plugins<span v-if="counts.plugins" class="stars">{{ counts.plugins }}</span></a>
+              <a class="btn primary" :href="PLUGINS" target="_blank" rel="noopener">Browse community plugins<span v-if="counts.plugins" class="stars">{{ counts.plugins }}</span></a>
               <a class="btn" :href="withBase('/features/plugins')">Create a plugin →</a>
             </div>
           </div>
