@@ -2,13 +2,14 @@
   import PluginArt from './PluginArt.svelte';
   import PluginGlyph, { type GlyphName } from './PluginGlyph.svelte';
   import PluginNewCommand from './PluginNewCommand.svelte';
+  import Icon from '$components/Icon.svelte';
   import { goToTab } from '$stores/route';
   import { m } from '../../paraglide/messages.js';
 
   // What plugins add and the two ways to get one, the catalog or a plugin of
   // your own: the whole Installed view before any plugin is, and its foot, with
-  // more set, once some are.
-  let { more = false }: { more?: boolean } = $props();
+  // more set, once some are. A folder or git URL is the third way, kept small.
+  let { more = false, oninstall }: { more?: boolean; oninstall: () => void } = $props();
   const surfaces: [GlyphName, () => string][] = [
     ['terminal', m.system_plugins_chipCommands],
     ['page', m.system_plugins_chipPages],
@@ -62,4 +63,7 @@
       </p>
     </section>
   </div>
+  <button type="button" onclick={oninstall} class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-lerd-red hover:text-lerd-redhov">
+    <Icon name="plus" class="w-3.5 h-3.5" />{m.system_plugins_installFrom()}
+  </button>
 </div>

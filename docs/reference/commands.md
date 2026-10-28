@@ -376,7 +376,7 @@ Activity-driven worker suspension: lerd gracefully stops each site's suspendable
 
 ## Plugins
 
-See [Plugins](../features/plugins.md).
+See [Community plugins](../features/plugins.md).
 
 | Command | Description |
 |---|---|

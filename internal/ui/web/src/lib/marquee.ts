@@ -1,8 +1,8 @@
-// Scrolls a truncated text to its end and back while its parent is hovered or
-// focused, so a long name in a narrow tab can be read without widening the tab.
-// The parent is the trigger because the text itself is often only part of the button.
-export function marquee(node: HTMLElement) {
-  const host = node.parentElement ?? node;
+// Scrolls a truncated text to its end and back while it is hovered or focused, so a
+// long name in a narrow tab reads without widening it. The parent triggers it, since
+// the text is often only part of the button, or a further ancestor named by selector.
+export function marquee(node: HTMLElement, trigger?: string) {
+  const host = (trigger ? node.closest<HTMLElement>(trigger) : node.parentElement) ?? node;
   const start = () => {
     const overflow = node.scrollWidth - node.clientWidth;
     if (overflow <= 0) return;
